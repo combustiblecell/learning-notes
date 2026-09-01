@@ -17,5 +17,9 @@
 在书籍目录运行：
 
 ```powershell
-latexmk -xelatex -interaction=nonstopmode -halt-on-error main.tex
+& "D:/Miniconda/envs/latex/python.exe" `
+  "C:/Users/Lenovo/.cursor/skills/learning-notes/compile-book.py" `
+  "main.tex"
 ```
+
+与 `/english-learning` 相同：只编辑 `.tex`，由 XeLaTeX 编译并覆盖固定 PDF；若 PDF 正被占用，则保留 `*-build.pdf`。
