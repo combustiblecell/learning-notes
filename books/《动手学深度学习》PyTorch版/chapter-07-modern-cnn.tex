@@ -1,0 +1,420 @@
+\chapter{现代卷积神经网络}
+
+LeNet 之后，更深的卷积网依靠更多数据与 GPU 才超过手工特征。
+AlexNet 证明学习特征可行；VGG 用重复块，NiN 用 $1\times 1$ 卷积，
+GoogLeNet 用并行 Inception，BatchNorm 稳定深层分布，ResNet 用 $\bm{x}+F(\bm{x})$，DenseNet 用通道连结。
+
+\section{深度卷积神经网络（AlexNet）}
+
+小数据上卷积早已有效，但在更大真实图像上，神经网络曾长期不敌支持向量机等。
+传统视觉流水线用手工特征再接线性分类器；卷积则直接从像素学习 $f$。
+
+\subsection{学习表征}
+
+2012 年前主导的是 SIFT、SURF、HOG 与词袋等固定特征。
+另一路线主张特征本身由数据学习，并把若干层叠成深度 $f_L\circ\cdots\circ f_1$。
+
+\subsubsection{缺少的成分：数据}
+
+深度模型参数多，需要大量有标签样本才优于凸方法。
+早期公开数据往往只有数百至数千张低分辨率图。
+ImageNet 提供约 $10^{6}$ 张图、 $10^{3}$ 类，使过参数化卷积网的经验风险可被数据约束。
+
+\subsubsection{缺少的成分：硬件}
+
+每轮训练要多次穿过线性代数层。GPU 原本优化 $4\times 4$ 矩阵--向量积，与卷积中的局部乘加同类。
+相对 CPU，GPU 以高吞吐并行乘加降低 $T_{\mathrm{device}}$，使更深 $f$ 可训练。
+
+\subsection{AlexNet}
+
+AlexNet 为八层：五层卷积、两层全连接隐层、一层全连接输出，并在 ImageNet 上显著超过手工特征。
+与 LeNet 同构但更深更宽，且用 $\operatorname{ReLU}$ 替代 sigmoid。
+
+\subsubsection{模型设计}
+
+输入按 $224\times 224$ 计。第一层核 $11\times 11$（匹配更大目标），随后 $5\times 5$ 与 $3\times 3$。
+在第一、第二、第五卷积后接 $3\times 3$、步幅 $2$ 的最大汇聚。
+通道数约为 LeNet 的十倍。末两层全连接各 $4096$ 维，参数量很大。
+原实现曾把 $\bm{\theta}$ 拆到两块 GPU；显存充足时可放在单设备上。
+
+\subsubsection{激活函数}
+
+$\operatorname{ReLU}(u)=\max(0,u)$ 无需指数。
+sigmoid 在饱和区 $\sigma'(u)\approx 0$，反向传播无法更新对应参数；
+$\operatorname{ReLU}$ 在正半轴导数恒为 $1$，对初始化更不敏感。
+
+\subsubsection{容量控制和预处理}
+
+全连接层用暂退法约束复杂度；训练输入经翻转、裁切、变色等变换 $T$，
+即在增广分布上最小化
+\[
+\mathbb{E}_{T}\bigl[\ell(f_{\bm{\theta}}(T(\bm{X})),y)\bigr].
+\]
+用 $224\times 224$ 单通道张量穿过各层，可核验与架构表一致的 $\operatorname{shape}$。
+
+\subsection{读取数据集}
+
+原论文在 ImageNet 上训练。为缩短演示，把 Fashion-MNIST 的 $28\times 28$ 升到 $224\times 224$，
+以便套用同一套核与步幅，尽管这并非该数据上的最优预处理。
+
+\subsection{训练AlexNet}
+
+与 LeNet 相比，深度、宽度与分辨率都更大，故采用更小学习率 $\eta$，
+否则 $\bm{\theta}-\eta\nabla L$ 容易跨过合适区域。
+
+\subsection{小结}
+
+AlexNet 把 LeNet 式的 $\operatorname{Conv}\circ\operatorname{ReLU}\circ\operatorname{Pool}$ 加深加密，
+并用暂退与增广控制 $\mathcal{F}$ 的有效容量。
+
+\subsection{练习}
+
+比较增加轮数后与 LeNet 的 $L$ 下降；核验主要显存占用是否在 $4096$ 维全连接的 $\bm{W}$，
+主要乘加是否在前几层大分辨率卷积。
+
+\section{使用块的网络（VGG）}
+
+AlexNet 证明深度有效，但未给出可复用的设计单元。
+VGG 把“卷积--激活--汇聚”抽象成块，用重复块堆出不同深度。
+
+\subsection{VGG块}
+
+经典序列是：填充以保持分辨率的卷积、非线性、汇聚。
+VGG 块由若干 $3\times 3$、填充 $1$ 的卷积（各接 $\operatorname{ReLU}$）再接 $2\times 2$、步幅 $2$ 的最大汇聚组成。
+填充 $1$ 时
+\[
+n-3+2\cdot 1+1=n,
+\]
+故块内空间尺寸不变，块末汇聚使高宽减半。
+记卷积层数为 $n$、输出通道为 $c$，则一块是映射
+\[
+\mathrm{VGG\text{-}block}(\mathsf{X};n,c)
+=
+\operatorname{MaxPool}_{2,2}\bigl((\operatorname{ReLU}\circ\operatorname{Conv}_{3\times 3})^{n}(\mathsf{X})\bigr).
+\]
+
+\subsection{VGG网络}
+
+网络仍分卷积段与全连接段。超参数 $\mathrm{conv\_arch}$ 给出每块的 $(n,c)$。
+原始 VGG-11 含五块：前两块各一层卷积，后三块各两层，通道 $64,128,256,512,512$，
+故八层卷积加三层全连接。后续块将 $c$ 翻倍直至 $512$。
+
+\subsection{训练模型}
+
+完整 VGG-11 计算量大于 AlexNet。演示中减小各块通道数，仍在 Fashion-MNIST 上按同一损失训练，学习率可略高。
+
+\subsection{小结}
+
+VGG-11 由可复用块 $\mathrm{VGG\text{-}block}(\,\cdot\,;n,c)$ 串联；更深更窄的 $3\times 3$ 栈优于更浅更宽的大核。
+
+\subsection{练习}
+
+打印形状时卷积层计数为 $8$ 而非 $11$，核验其余三层是否为全连接；
+并把输入从 $224$ 改为 $96$ 后代入步幅公式，看每块输出高宽如何减半。
+
+\section{网络中的网络（NiN）}
+
+LeNet、AlexNet、VGG 都是卷积提取空间特征再接全连接。
+NiN 在每个空间位置的通道上再放多层感知机，即 $1\times 1$ 卷积，而不在早期展平。
+
+\subsection{NiN块}
+
+四维张量轴为样本、通道、高、宽。把每个像素当作样本、通道当作特征，则逐位置全连接即 $1\times 1$ 卷积。
+NiN 块为
+\[
+\mathrm{NiN\text{-}block}
+=
+(\operatorname{ReLU}\circ\operatorname{Conv}_{1\times 1})^{2}
+\circ
+(\operatorname{ReLU}\circ\operatorname{Conv}_{k\times k}),
+\]
+先用 $k\times k$ 提取局部，再用两个 $1\times 1$ 增加逐像素非线性。
+
+\subsection{NiN模型}
+
+卷积窗口取 $11\times 11$、$5\times 5$、$3\times 3$，通道设置平行于 AlexNet。
+每块后接 $3\times 3$、步幅 $2$ 的最大汇聚。
+取消末端全连接：最后一块输出通道数等于类别数 $q$，再全局平均汇聚
+\[
+o_c
+=
+\frac{1}{hw}\sum_{i=1}^{h}\sum_{j=1}^{w}[\mathsf{H}]_{c,ij},
+\qquad
+c=1,\ldots,q,
+\]
+得到 logits。参数量显著小于大全连接，但有时增加达到相同训练误差的时间。
+
+\subsection{训练模型}
+
+在 Fashion-MNIST 上的目标与 AlexNet、VGG 相同，只是 $f_{\bm{\theta}}$ 换成 NiN 块加全局平均汇聚。
+
+\subsection{小结}
+
+NiN 用 $k\times k$ 后接 $1\times 1$ 的块提供逐像素 MLP，并用全局平均汇聚代替全连接输出。
+
+\subsection{练习}
+
+去掉块中一个 $1\times 1$ 层，核验逐像素非线性深度如何改变；
+并估计参数量主要来自各 $\operatorname{Conv}_{k}$ 的 $c_o c_i k^{2}$。
+
+\section{含并行连结的网络（GoogLeNet）}
+
+不同任务上“最佳”核宽并不唯一。Inception 在同一层并行使用多种窗口，再沿通道连结。
+
+\subsection{Inception块}
+
+四条路径并行，输出在通道维连结：
+\begin{align*}
+\mathsf{P}_1
+&=
+\operatorname{Conv}_{1\times 1}(\mathsf{X}),\\
+\mathsf{P}_2
+&=
+\operatorname{Conv}_{3\times 3}\bigl(\operatorname{Conv}_{1\times 1}(\mathsf{X})\bigr),\\
+\mathsf{P}_3
+&=
+\operatorname{Conv}_{5\times 5}\bigl(\operatorname{Conv}_{1\times 1}(\mathsf{X})\bigr),\\
+\mathsf{P}_4
+&=
+\operatorname{Conv}_{1\times 1}\bigl(\operatorname{MaxPool}_{3\times 3}(\mathsf{X})\bigr),\\
+\mathsf{H}
+&=
+[\mathsf{P}_1,\mathsf{P}_2,\mathsf{P}_3,\mathsf{P}_4].
+\end{align*}
+中间路径的 $1\times 1$ 先把通道数降为 $c'$，再做 $3\times 3$ 或 $5\times 5$，以降低
+$c_o c_i k^{2} n_h' n_w'$。各路径输出高宽相同（靠填充），通道数相加。
+
+\subsection{GoogLeNet模型}
+
+九个 Inception 块与其间的最大汇聚堆叠，末端用全局平均汇聚而非大全连接。
+第一模块：$64$ 通道、$7\times 7$ 卷积。
+第二模块：$1\times 1$ 扩到 $64$ 通道再 $3\times 3$ 把通道乘三，对应 Inception 第二条路径。
+其后模块串联 Inception 块，块间汇聚降维。通道分配比由实验选定。
+
+\subsection{训练模型}
+
+输入先变成 $96\times 96$，再在 Fashion-MNIST 上最小化同一分类损失。
+
+\subsection{小结}
+
+Inception 把多尺度 $\operatorname{Conv}_{1,3,5}$ 与汇聚并行后连结，并用 $1\times 1$ 降维；GoogLeNet 将其重复九次。
+
+\subsection{练习}
+
+比较删去部分路径后的 Inception 与残差块的关系；并核验通道分配改变时 $\mathsf{H}$ 的通道维
+$c_1+c_2+c_3+c_4$。
+
+\section{批量规范化}
+
+深层网难以在短时间内收敛。批量规范化（batch normalization）用小批量统计量校正中间表示，
+并可与残差块一起支持很深的 $f$。
+
+\subsection{训练深层网络}
+
+对小批量 $\mathcal{B}$ 中的向量，
+\begin{align*}
+\hat{\bm{\mu}}_{\mathcal{B}}
+&=
+\frac{1}{|\mathcal{B}|}\sum_{\bm{x}\in\mathcal{B}}\bm{x},\\
+\hat{\bm{\sigma}}_{\mathcal{B}}^{2}
+&=
+\frac{1}{|\mathcal{B}|}\sum_{\bm{x}\in\mathcal{B}}
+(\bm{x}-\hat{\bm{\mu}}_{\mathcal{B}})^{2}
++\epsilon,\\
+\mathrm{BN}(\bm{x})
+&=
+\bm{\gamma}\odot
+\frac{\bm{x}-\hat{\bm{\mu}}_{\mathcal{B}}}{\hat{\bm{\sigma}}_{\mathcal{B}}}
++
+\bm{\beta}.
+\end{align*}
+$\bm{\gamma},\bm{\beta}$ 可学习，使该层仍能恢复任意仿射变换；$\epsilon>0$ 避免除零。
+
+\subsection{批量规范化层}
+
+BN 依赖整个小批量，不能在公式中把批量大小当作 $1$ 而忽略。
+全连接与卷积上的归约轴不同。
+
+\subsubsection{全连接层}
+
+放在仿射与激活之间：
+\[
+\bm{h}
+=
+\phi\bigl(\mathrm{BN}(\bm{W}\bm{x}+\bm{b})\bigr).
+\]
+均值与方差在批量维上对特征计算，$\bm{\gamma},\bm{\beta}$ 与特征同维。
+
+\subsubsection{卷积层}
+
+同样放在卷积之后、$\phi$ 之前。每个输出通道一套标量 $\gamma_c,\beta_c$。
+若批量大小为 $m$、空间为 $p\times q$，则第 $c$ 通道在 $m\cdot p\cdot q$ 个元素上共用同一
+$\hat{\mu}_c,\hat{\sigma}_c$。
+
+\subsubsection{预测过程中的批量规范化}
+
+预测时不再使用当前微批的噪声统计，且可能 $|\mathcal{B}|=1$。
+用训练期移动平均 $\bm{\mu},\bm{\sigma}$ 代替 $\hat{\bm{\mu}}_{\mathcal{B}},\hat{\bm{\sigma}}_{\mathcal{B}}$，
+使 $\mathrm{BN}$ 成为确定映射。因此训练与预测的计算公式不同。
+
+\subsection{从零实现}
+
+实现对应上面的 $\mathrm{BN}_{\bm{\gamma},\bm{\beta}}$：训练时用批量矩并更新移动平均，
+预测时用移动平均。$\bm{\gamma},\bm{\beta}$ 是参数；特征数在从零实现中需预先给出。
+
+\subsection{使用批量规范化层的 LeNet}
+
+在每个卷积或全连接之后、激活之前插入 BN。
+训练目标不变，但中间表示被校正，通常允许更大的 $\eta$。
+第一层 BN 学到的 $\bm{\gamma},\bm{\beta}$ 可直接读出。
+
+\subsection{简明实现}
+
+框架中的 BN 与从零公式同一映射，只是核在编译后端上计算。
+同一超参数下应得到同构的 $f_{\bm{\theta}}$。
+
+\subsection{争议}
+
+BN 常使优化更平滑，并有正则化副作用。
+将其解释为减少“内部协变量偏移”并不严谨：该说法与标准协变量偏移不是同一对象，
+也未构成对泛化的完整证明。
+
+\subsection{小结}
+
+训练时
+\[
+\mathrm{BN}(\bm{x})
+=
+\bm{\gamma}\odot(\bm{x}-\hat{\bm{\mu}}_{\mathcal{B}})/\hat{\bm{\sigma}}_{\mathcal{B}}+\bm{\beta};
+\]
+预测改用全局移动矩。全连接与卷积的归约轴不同。
+
+\subsection{练习}
+
+核验仿射层在 BN 前是否仍需要偏置 $\bm{b}$（BN 已含 $\bm{\beta}$）；
+并比较有无 BN 时可用的 $\eta$ 上界。
+
+\section{残差网络（ResNet）}
+
+加深时必须保证新层不会把已有函数类变差。残差连接把恒等映射作为默认分量。
+
+\subsection{函数类}
+
+在函数类 $\mathcal{F}$ 中选
+\[
+f^{\ast}_{\mathcal{F}}
+:=
+\operatorname*{argmin}_{f\in\mathcal{F}}
+L(\bm{X},\bm{y},f).
+\]
+若 $\mathcal{F}_1\subset\mathcal{F}_2$，则
+\[
+\min_{f\in\mathcal{F}_2}L
+\le
+\min_{f\in\mathcal{F}_1}L.
+\]
+嵌套类使更深模型至少能表示更浅模型；构造上需让恒等容易实现。
+
+\subsection{残差块}
+
+设理想映射为 $f(\bm{x})$。直接拟合 $f(\bm{x})$ 改为拟合残差 $F(\bm{x}):=f(\bm{x})-\bm{x}$，则
+\[
+f(\bm{x})=\bm{x}+F(\bm{x}).
+\]
+若最优为恒等 $f(\bm{x})=\bm{x}$，只需 $F\approx\bm{0}$。
+形状相同用恒等捷径；通道或步幅改变时用 $1\times 1$ 投影 $\bm{W}_s$：
+\[
+\bm{y}
+=
+\phi\bigl(\bm{x}+F(\bm{x})\bigr)
+\quad\text{或}\quad
+\phi\bigl(\bm{W}_s\bm{x}+F(\bm{x})\bigr).
+\]
+块内 $F$ 通常为两层 $\operatorname{Conv}\circ\mathrm{BN}\circ\operatorname{ReLU}$。
+
+\subsection{ResNet模型}
+
+前两层同 GoogLeNet 风格：$64$ 通道、$7\times 7$ 卷积（步幅 $2$），再 $3\times 3$ 最大汇聚（步幅 $2$），
+每卷积后接 BN。其后四个模块由残差块组成：第一模块不降空间尺寸，之后每模块在首块把通道翻倍、高宽减半。
+演示中每模块两个残差块。末端全局平均汇聚加全连接。
+
+\subsection{训练模型}
+
+在 Fashion-MNIST 上最小化同一分类损失；前向为嵌套的 $\bm{x}\mapsto\bm{x}+F(\bm{x})$。
+
+\subsection{小结}
+
+残差块实现 $f(\bm{x})=\bm{x}+F(\bm{x})$，使更深 $\mathcal{F}$ 容易包含恒等，从而可训练很深的网。
+
+\subsection{练习}
+
+比较 Inception 多路径连结与 $\bm{x}+F(\bm{x})$ 相加的差别；
+并说明即使 $\mathcal{F}$ 嵌套，仍要限制 $F$ 的复杂度以免过拟合。
+
+\section{稠密连接网络（DenseNet）}
+
+DenseNet 把残差的加法换成通道维连结，使第 $\ell$ 层看见之前所有层的特征。
+
+\subsection{从ResNet到DenseNet}
+
+泰勒展开
+\[
+f(x)=f(0)+f'(0)x+\frac{f''(0)}{2!}x^{2}+\frac{f'''(0)}{3!}x^{3}+\cdots
+\]
+把 $f$ 拆成不同阶项。ResNet 的一阶切分是
+\[
+f(\bm{x})=\bm{x}+g(\bm{x}).
+\]
+DenseNet 把“加上 $g(\bm{x})$”换成与此前所有映射的连结
+\[
+\bm{x}
+\;\longrightarrow\;
+\bigl[
+\bm{x},\;
+f_1(\bm{x}),\;
+f_2([\bm{x},f_1(\bm{x})]),\;
+f_3([\bm{x},f_1(\bm{x}),f_2([\bm{x},f_1(\bm{x})])]),\;
+\ldots
+\bigr].
+\]
+信息以拼接而非求和跨层传递。
+
+\subsection{稠密块体}
+
+块内使用 $\mathrm{BN}\circ\operatorname{ReLU}\circ\operatorname{Conv}$。
+第 $i$ 个卷积块输出 $k$ 个通道（增长率 growth rate），并与输入在通道维连结。
+若输入通道为 $c_0$、块内 $m$ 个卷积块，则输出通道
+\[
+c_0+m k.
+\]
+例如 $c_0=3$、$m=2$、$k=10$ 时输出 $3+20=23$ 通道。
+
+\subsection{过渡层}
+
+稠密块使通道单调增加。过渡层用 $1\times 1$ 卷积把通道压到 $c'$，再用步幅 $2$ 的平均汇聚减半高宽：
+\[
+\mathsf{X}
+\;\mapsto\;
+\operatorname{AvgPool}_{2,2}\bigl(\operatorname{Conv}_{1\times 1}(\mathsf{X})\bigr).
+\]
+从而控制模型复杂度。
+
+\subsection{DenseNet模型}
+
+茎部与 ResNet 相同：卷积加最大汇聚。随后四个稠密块，演示中每块 $4$ 层、增长率 $32$，故每块增加 $128$ 通道。
+块间用过渡层减半空间并减半通道。末端全局汇聚加全连接。
+
+\subsection{训练模型}
+
+网络较深时把输入高宽从 $224$ 降到 $96$ 以减小
+$c\,h\,w$ 带来的显存，再在 Fashion-MNIST 上训练。
+
+\subsection{小结}
+
+ResNet 用 $\bm{x}+F(\bm{x})$；DenseNet 用通道连结
+$[\bm{x},f_1(\bm{x}),f_2([\bm{x},f_1(\bm{x})]),\ldots]$，并由过渡层控制维数。
+
+\subsection{练习}
+
+解释参数量相对 ResNet 更小（核看到已拼接特征，无需再学一份副本）；
+并核验输入改为 $224\times 224$ 时连结张量的显存如何随层数线性增长。

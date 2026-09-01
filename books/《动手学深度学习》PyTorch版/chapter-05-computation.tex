@@ -1,0 +1,362 @@
+\chapter{深度学习计算}
+
+层把输入映成输出并携带参数；块把层或块再复合。
+训练需要访问、初始化与共享这些参数，必要时延后到首次前向才确定形状。
+自定义层给出新的映射，读写把参数与张量固化到存储，计算设备决定张量所在的空间。
+
+\section{层和块}
+
+单输出线性模型是映射 $f:\mathbb{R}^{d}\to\mathbb{R}$，带参数 $\bm{\theta}$。
+一层接受向量、产生向量、并由可训练参数描述；整个多层感知机仍是同一类对象。
+块（block）是可嵌套的计算单元：输入进前向映射，输出可改形状，梯度由反向传播给出。
+
+\subsection{自定义块}
+
+块必须实现前向 $f(\bm{x})$，并持有参数以便求导与初始化。
+以单隐层感知机为例，设 $\bm{x}\in\mathbb{R}^{20}$，
+\begin{align*}
+\bm{h}
+&=
+\operatorname{ReLU}(\bm{W}_1\bm{x}+\bm{b}_1),
+\qquad
+\bm{W}_1\in\mathbb{R}^{256\times 20},\\
+\bm{o}
+&=
+\bm{W}_2\bm{h}+\bm{b}_2,
+\qquad
+\bm{W}_2\in\mathbb{R}^{10\times 256}.
+\end{align*}
+即 $f=\ell_2\circ\operatorname{ReLU}\circ\ell_1$。
+形状允许 $f(\bm{x})\in\mathbb{R}^{10}$ 与 $\bm{x}\in\mathbb{R}^{20}$ 不同。
+反向传播给出 $\nabla_{\bm{W}_1}L$、$\nabla_{\bm{W}_2}L$ 及对输入的 $\nabla_{\bm{x}}L$。
+
+\subsection{顺序块}
+
+顺序复合定义为
+\[
+\bigl(\operatorname{Seq}(f_1,\ldots,f_n)\bigr)(\bm{x})
+=
+f_n\circ f_{n-1}\circ\cdots\circ f_1(\bm{x}).
+\]
+追加操作把 $f_{n+1}$ 接到链条末端。
+参数集是各子块参数的不交并
+\[
+\operatorname{params}\bigl(\operatorname{Seq}(f_1,\ldots,f_n)\bigr)
+=
+\bigsqcup_{i=1}^{n}\operatorname{params}(f_i),
+\]
+这要求每个 $f_i$ 登记为子模块，而不能只放入普通列表。
+
+\subsection{在前向传播函数中执行代码}
+
+并非所有架构都是 $f_n\circ\cdots\circ f_1$。
+前向中可插入控制流或与参数无关的常数。
+设 $c$ 为常数参数（constant parameter），层
+\[
+f(\bm{x},\bm{w})=c\cdot\bm{w}^{\mathsf T}\bm{x}
+\]
+在 $\bm{w}$ 上可训练，$c$ 不进入 $\operatorname{params}(f)$。
+亦允许按范数分支，例如
+\[
+\bm{h}
+\leftarrow
+\begin{cases}
+\bm{h}/\|\bm{h}\|_2, & \|\bm{h}\|_2>1,\\
+\bm{h}, & \text{否则,}
+\end{cases}
+\]
+再进入后续线性层。只要这些运算可微或次可微，反向传播仍给出 $\nabla_{\bm{\theta}}L$。
+
+\subsection{效率}
+
+前向若含大量宿主解释与字典查找，加速器上的核必须等待。
+总时间可写成
+\[
+T=T_{\mathrm{host}}+T_{\mathrm{device}}+T_{\mathrm{copy}}.
+\]
+当 $T_{\mathrm{host}}$ 因全局解释器锁而串行时，$T_{\mathrm{device}}$ 被阻塞。
+把可向量化的映射尽量放进一次设备核，可减小 $T_{\mathrm{host}}/T$。
+
+\subsection{小结}
+
+块是可嵌套映射 $f$，顺序块实现 $f_n\circ\cdots\circ f_1$，并负责参数登记与反向传播。
+
+\subsection{练习}
+
+核验列表存储是否仍使 $\operatorname{params}$ 递归可收集，以及并联
+$[f_1(\bm{x}),f_2(\bm{x})]$ 与重复实例 $f\circ\cdots\circ f$ 的形状。
+
+\section{参数管理}
+
+架构与超参数固定后，训练求解
+\[
+\bm{\theta}^{\ast}\in\operatorname*{argmin}_{\bm{\theta}}L(\bm{\theta}).
+\]
+随后需要读出 $\bm{\theta}$ 以便复用、保存或检查。
+下面把访问、初始化与共享写成对 $\bm{\theta}$ 的运算。
+
+\subsection{参数访问}
+
+顺序模型中第 $\ell$ 层参数是命名张量，通常含权重 $\bm{W}^{(\ell)}$ 与偏置 $\bm{b}^{(\ell)}$。
+名称在整网中唯一，即使层数达数百。
+
+\subsubsection{目标参数}
+
+参数对象同时携带值、梯度与状态。
+未反向传播时 $\nabla_{\bm{\theta}}L$ 处于初始（通常为零）状态；
+一次 $L.\mathrm{backward}$ 之后
+\[
+\frac{\partial L}{\partial \bm{W}^{(\ell)}},\qquad
+\frac{\partial L}{\partial \bm{b}^{(\ell)}}
+\]
+才有定义。对参数的数值运算必须先取出底层张量。
+
+\subsubsection{一次性访问所有参数}
+
+嵌套块的参数树为
+\[
+\operatorname{params}(B)
+=
+\operatorname{local}(B)
+\cup
+\bigcup_{B'\in\operatorname{children}(B)}\operatorname{params}(B').
+\]
+一次性遍历给出全部 $(\text{name},\bm{\theta}_{\text{name}})$，而不必按层手工索引。
+
+\subsubsection{从嵌套块收集参数}
+
+若 $B=\operatorname{Seq}(B_1,B_2,\ldots)$ 且每个 $B_i$ 自身又是顺序块，
+则名称按层级拼接。
+访问“第一主块、第二子块、第一层”的偏置，对应路径索引下的 $\bm{b}$。
+分层嵌套与嵌套列表索引同构。
+
+\subsection{参数初始化}
+
+默认把 $\bm{W}$、$\bm{b}$ 抽自由输入输出维决定的均匀区间。
+自定义规则是从另一分布 $P$ 抽样
+\[
+\bm{W}\sim P.
+\]
+
+\subsubsection{内置初始化}
+
+高斯初始化取
+\[
+w_{ij}\sim\mathcal{N}(0,0.01^{2}),\qquad b_i=0.
+\]
+亦可令全部元素为常数，例如 $\bm{W}=\bm{1}$。
+不同块可使用不同规则：第一层 Xavier，第三层常数 $42$。
+Xavier 对 $\bm{W}\in\mathbb{R}^{n_{\mathrm{out}}\times n_{\mathrm{in}}}$ 满足
+\[
+\operatorname{Var}(w)
+=
+\frac{2}{n_{\mathrm{in}}+n_{\mathrm{out}}}
+\quad\text{（或均匀区间按该方差标定）}.
+\]
+
+\subsubsection{自定义初始化}
+
+按元素独立抽样
+\[
+w
+\sim
+\begin{cases}
+U(5,10), & \text{概率 }1/4,\\
+0, & \text{概率 }1/2,\\
+U(-10,-5), & \text{概率 }1/4.
+\end{cases}
+\]
+该规则仍是合法的 $P$，只是把质量放在远离零的两侧与原点。
+
+\subsection{参数绑定}
+
+共享指定 $\bm{W}^{(3)}=\bm{W}^{(5)}=\bm{W}$ 为同一张量，而非值相等的两份副本。
+于是 $\mathrm{d}\bm{W}^{(3)}=\mathrm{d}\bm{W}^{(5)}$。
+反向传播时梯度相加：
+\[
+\frac{\partial L}{\partial \bm{W}}
+=
+\frac{\partial L}{\partial \bm{W}^{(3)}}
++
+\frac{\partial L}{\partial \bm{W}^{(5)}}.
+\]
+前向两次使用同一 $\bm{W}$，更新一步同时改变两处表观层。
+
+\subsection{小结}
+
+参数是带梯度的命名张量；初始化给定 $P$，绑定使若干层共享同一 $\bm{W}$ 并把梯度相加。
+
+\subsection{练习}
+
+在含共享层的感知机上核验 $\bm{W}^{(i)}=\bm{W}^{(j)}$ 是否为同一存储，
+以及 $\nabla_{\bm{W}}L$ 是否等于两条路径梯度之和。
+
+\section{延后初始化}
+
+定义网络时可以暂不给出输入维 $d$。
+此时第一层权重 $\bm{W}^{(1)}\in\mathbb{R}^{h\times d}$ 中的 $d$ 未知，无法分配。
+延后初始化（deferred initialization）把形状推断推迟到数据第一次通过模型。
+
+\subsection{实例化网络}
+
+实例化后、首次前向之前，$\operatorname{params}$ 为空。
+设首个批量 $\bm{X}\in\mathbb{R}^{n\times d}$ 到达，由 $d$ 确定
+\[
+\bm{W}^{(1)}\in\mathbb{R}^{h\times d},
+\qquad
+\bm{W}^{(2)}\in\mathbb{R}^{q\times h},
+\]
+再依层顺序分配并抽样。
+仅第一层真正依赖未知输入维，但框架仍按拓扑顺序完成全部形状。
+
+\subsection{小结}
+
+首次前向把未知维代入，使
+\[
+\operatorname{shape}(\bm{W}^{(\ell)})
+\]
+全部成为已知后再初始化。
+
+\subsection{练习}
+
+核验：只给出第一层输入维时哪些层立即分配；维不匹配是否使乘法
+$\bm{W}\bm{x}$ 无定义；输入维改变时共享参数如何约束形状。
+
+\section{自定义层}
+
+层是块的特例。当预置层不包含所需映射时，按同一接口定义新层：
+前向 $f$ 加上可选的 $\operatorname{params}(f)$。
+
+\subsection{不带参数的层}
+
+中心化层是无参数映射
+\[
+f(\bm{x})
+=
+\bm{x}-\bar{x}\bm{1},
+\qquad
+\bar{x}=\frac{1}{n}\sum_{i=1}^{n}x_i.
+\]
+对批量矩阵按约定的轴取均值后广播相减。
+浮点下 $\sum_i f(\bm{x})_i$ 只是接近 $0$。
+该层可嵌入任意 $\operatorname{Seq}$。
+
+\subsection{带参数的层}
+
+自定义全连接层需要 $\bm{W}\in\mathbb{R}^{q\times d}$、$\bm{b}\in\mathbb{R}^{q}$，
+\[
+f(\bm{x})
+=
+\operatorname{ReLU}(\bm{W}\bm{x}+\bm{b}).
+\]
+用框架的参数构造器登记 $\bm{W},\bm{b}$，则访问、初始化、共享、序列化都沿用统一接口，
+而不必为该层单独写读写程序。
+
+\subsection{小结}
+
+自定义层是映射 $f$，可无参数或带 $\bm{W},\bm{b}$；登记后即可出现在任意架构中。
+
+\subsection{练习}
+
+核验二次型层
+\[
+y_k=\sum_{i,j}W_{ijk}\,x_i x_j
+\]
+的形状 $k\mapsto y_k$，以及把输入映到傅里叶系数前半部分的线性映射。
+
+\section{读写文件}
+
+训练得到 $\bm{\theta}$ 后，需要把张量或整份参数字典写入存储，以便部署或断点续训。
+
+\subsection{加载和保存张量}
+
+单个张量的读写是一对互逆映射
+\[
+\operatorname{save}(\bm{X},p),\qquad
+\bm{X}'=\operatorname{load}(p),
+\]
+在格式一致时 $\bm{X}'=\bm{X}$。
+列表 $(\bm{X}_1,\ldots,\bm{X}_m)$ 与字典 $k\mapsto\bm{X}_k$ 同样可往返，
+后者直接对应“全部权重名到张量”。
+
+\subsection{加载和保存模型参数}
+
+整网保存的是参数字典而非可执行架构，因为架构含任意代码，难以序列化。
+恢复过程为
+\[
+f\leftarrow \operatorname{arch}(),
+\qquad
+\bm{\theta}(f)\leftarrow \operatorname{load}(p).
+\]
+必须先用代码重建与保存时相同的 $f$，再填入 $\bm{\theta}$。
+随机初始化被文件中的值覆盖。
+
+\subsection{小结}
+
+$\operatorname{save}/\operatorname{load}$ 作用于张量；整网只固化 $\bm{\theta}$，架构仍由代码给出。
+
+\subsection{练习}
+
+核验只加载前两层 $\bm{\theta}_{1:2}$ 并入新架构是否形状相容，
+以及同时保存架构时必须对 $f$ 施加何种可序列化限制。
+
+\section{GPU}
+
+张量带有设备（device）。默认在主机内存由 CPU 计算；
+GPU 把同一线性代数核放到高吞吐器件上。
+记设备集合 $\{\mathrm{cpu},\mathrm{cuda}{:}0,\ldots,\mathrm{cuda}{:}{k-1}\}$。
+
+\subsection{计算设备}
+
+$\mathrm{cpu}$ 表示全部主机核与内存；$\mathrm{cuda}{:}i$ 表示第 $i$ 块卡及其显存（$i$ 从 $0$ 起）。
+$\mathrm{cuda}{:}0$ 与 $\mathrm{cuda}$ 等价。
+可用卡数 $k$ 查询后，第 $i$ 块记为 $\mathrm{cuda}{:}i$。
+
+\subsection{张量与GPU}
+
+每个张量 $\bm{X}$ 有位置 $\operatorname{loc}(\bm{X})$。
+二元运算 $\bm{X}+\bm{Y}$ 有定义当且仅当
+\[
+\operatorname{loc}(\bm{X})=\operatorname{loc}(\bm{Y}),
+\]
+否则结果的存储位置与计算位置均不确定。
+
+\subsubsection{存储在GPU上}
+
+创建时可指定 $\operatorname{loc}(\bm{X})=\mathrm{cuda}{:}0$。
+该张量只占用该卡显存，容量受显存上界约束。
+第二块卡上的张量满足 $\operatorname{loc}(\bm{Y})=\mathrm{cuda}{:}1$。
+
+\subsubsection{复制}
+
+若 $\operatorname{loc}(\bm{X})\neq\operatorname{loc}(\bm{Y})$，应先做设备间复制
+\[
+\bm{Z}=\operatorname{copy}_{\operatorname{loc}(\bm{Y})}(\bm{X}),
+\]
+再计算 $\bm{Z}+\bm{Y}$。
+若 $\bm{Z}$ 已在目标设备，再次请求同一设备不分配新存储，即 $\operatorname{id}$ 不变。
+
+\subsubsection{旁注}
+
+器件间传输带宽远低于器件内计算。
+多次小复制的开销通常大于一次大复制。
+打印或转为主机数组会把数据拉回内存，并可能触发全局解释器锁，从而阻塞全部 GPU 核。
+
+\subsection{神经网络与GPU}
+
+模型参数同样带位置。把 $\bm{\theta}$ 放到设备 $d$ 后，输入必须满足
+\[
+\operatorname{loc}(\bm{X})=d,
+\]
+前向才在 $d$ 上计算 $f_{\bm{\theta}}(\bm{X})$。
+数据和参数同设备是有效训练的成立条件。
+
+\subsection{小结}
+
+运算要求全部输入同设备；默认 $\operatorname{loc}=\mathrm{cpu}$。
+不必要的 $\operatorname{copy}$ 会支配 $T$。
+
+\subsection{练习}
+
+比较大矩阵乘法上 CPU 与 GPU 的 $T$，并核验逐次把 Frobenius 范数拉回主机
+是否显著增加 $T_{\mathrm{copy}}$；两卡并行与单卡顺序的时间比应接近线性。

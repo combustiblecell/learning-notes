@@ -1,0 +1,537 @@
+\chapter{现代循环神经网络}
+
+门控让隐状态学会何时写入、何时遗忘。GRU 与 LSTM 用可学习的门缓解长程梯度问题，
+再堆成深层或双向结构。编码器--解码器把变长输入映成变长输出，束搜索在词表上近似最大似然序列。
+
+\section{门控循环单元（GRU）}
+
+普通循环中 $\prod_j\partial h_j/\partial h_{j-1}$ 容易消失或爆炸。
+若早期词元必须影响很晚的预测，就需要能够长期保存 $h$ 的机制；
+若中间词元无关，则应学会跳过更新。GRU 用重置门与更新门实现这两种行为。
+
+\subsection{门控隐状态}
+
+门的取值在 $(0,1)$ 中，由当前输入与上一隐状态共同决定，因此何时重置、何时拷贝都可以学习。
+
+\subsubsection{重置门和更新门}
+
+对批量输入 $\bm{X}_t$ 与上一隐状态 $\bm{H}_{t-1}$，
+\begin{align*}
+\bm{R}_t
+&=
+\sigma(\bm{X}_t\bm{W}_{xr}+\bm{H}_{t-1}\bm{W}_{hr}+\bm{b}_r),
+\\
+\bm{Z}_t
+&=
+\sigma(\bm{X}_t\bm{W}_{xz}+\bm{H}_{t-1}\bm{W}_{hz}+\bm{b}_z).
+\end{align*}
+$\bm{R}_t$ 靠近 $0$ 时清空历史，$\bm{Z}_t$ 靠近 $1$ 时倾向原样保留 $\bm{H}_{t-1}$。
+
+\subsubsection{候选隐状态}
+
+重置后的历史再与当前输入混合：
+\[
+\tilde{\bm{H}}_t
+=
+\tanh\bigl(\bm{X}_t\bm{W}_{xh}+(\bm{R}_t\odot\bm{H}_{t-1})\bm{W}_{hh}+\bm{b}_h\bigr).
+\]
+$\bm{R}_t=\bm{1}$ 时退化为普通候选隐状态；$\bm{R}_t=\bm{0}$ 时候选只看 $\bm{X}_t$。
+
+\subsubsection{隐状态}
+
+更新门在旧状态与候选之间插值：
+\[
+\bm{H}_t
+=
+\bm{Z}_t\odot\bm{H}_{t-1}+(1-\bm{Z}_t)\odot\tilde{\bm{H}}_t.
+\]
+$\bm{Z}_t=\bm{1}$ 时 $\bm{H}_t=\bm{H}_{t-1}$，梯度可沿时间原路回传；
+$\bm{Z}_t=\bm{0}$ 时完全改写。
+
+\subsection{从零开始实现}
+
+门控递推与上一章字符语言模型相同，只是 $h_t$ 的更新换成上面三式，输出层仍是
+$\bm{O}_t=\bm{H}_t\bm{W}_{hq}+\bm{b}_q$。
+
+\subsubsection{初始化模型参数}
+
+高斯初始化权重、零偏置。需要实例化
+$(\bm{W}_{xr},\bm{W}_{hr},\bm{b}_r)$、
+$(\bm{W}_{xz},\bm{W}_{hz},\bm{b}_z)$、
+$(\bm{W}_{xh},\bm{W}_{hh},\bm{b}_h)$
+以及输出层 $(\bm{W}_{hq},\bm{b}_q)$。隐藏宽度仍由 $h$ 给出。
+
+\subsubsection{定义模型}
+
+$\bm{H}_0=\bm{0}$。逐步计算 $(\bm{R}_t,\bm{Z}_t,\tilde{\bm{H}}_t,\bm{H}_t,\bm{O}_t)$，
+参数在所有 $t$ 上共享。映射与定义式逐项相同。
+
+\subsubsection{训练与预测}
+
+损失、裁剪、困惑度与前缀续写均沿用循环神经网络从零实现中的流程。
+训练后比较训练集困惑度以及给定前缀时的续写序列。
+
+\subsection{简洁实现}
+
+框架中的 GRU 层实现同一组门。前向仍是
+\[
+(\bm{H}_{1:T},\bm{H}_T)=\operatorname{GRU}(\bm{X}_{1:T},\bm{H}_0),
+\]
+再接输出层；数值上应与从零实现一致，只是算子被编译。
+
+\subsection{小结}
+
+GRU 的状态更新
+\[
+\bm{H}_t=\bm{Z}_t\odot\bm{H}_{t-1}+(1-\bm{Z}_t)\odot\tilde{\bm{H}}_t
+\]
+用 $\bm{Z}_t$ 保持长程信息、用 $\bm{R}_t$ 控制短程候选；两门全开或全关时分别覆盖拷贝与普通 RNN。
+
+\subsection{练习}
+
+核验仅用 $x_{t'}$ 预测更晚输出时 $\bm{R},\bm{Z}$ 的理想取值，
+以及只保留一扇门时递推如何退化。
+
+\section{长短期记忆网络（LSTM）}
+
+LSTM 在隐状态之外再设记忆元 $\bm{C}_t$，用三扇门分别控制写入、遗忘与读出。
+
+\subsection{门控记忆元}
+
+记忆元与 $\bm{H}_t$ 同形，但不直接进入输出层。输入门决定吸收候选，
+遗忘门决定丢弃旧记忆，输出门决定暴露多少记忆给 $h_t$。
+
+\subsubsection{输入门、忘记门和输出门}
+
+\begin{align*}
+\bm{I}_t
+&=
+\sigma(\bm{X}_t\bm{W}_{xi}+\bm{H}_{t-1}\bm{W}_{hi}+\bm{b}_i),
+\\
+\bm{F}_t
+&=
+\sigma(\bm{X}_t\bm{W}_{xf}+\bm{H}_{t-1}\bm{W}_{hf}+\bm{b}_f),
+\\
+\bm{O}_t
+&=
+\sigma(\bm{X}_t\bm{W}_{xo}+\bm{H}_{t-1}\bm{W}_{ho}+\bm{b}_o).
+\end{align*}
+三者均在 $(0,1)$ 中逐元素取值。
+
+\subsubsection{候选记忆元}
+
+\[
+\tilde{\bm{C}}_t
+=
+\tanh(\bm{X}_t\bm{W}_{xc}+\bm{H}_{t-1}\bm{W}_{hc}+\bm{b}_c).
+\]
+$\tanh$ 把候选限制在 $(-1,1)$。
+
+\subsubsection{记忆元}
+
+\[
+\bm{C}_t
+=
+\bm{F}_t\odot\bm{C}_{t-1}+\bm{I}_t\odot\tilde{\bm{C}}_t.
+\]
+$\bm{F}_t=\bm{1},\bm{I}_t=\bm{0}$ 时记忆原样传递，梯度可沿 $\bm{C}$ 传播。
+
+\subsubsection{隐状态}
+
+\[
+\bm{H}_t=\bm{O}_t\odot\tanh(\bm{C}_t).
+\]
+只有 $\bm{H}_t$ 进入 $\bm{O}_t^{\text{out}}=\bm{H}_t\bm{W}_{hq}+\bm{b}_q$；
+$\bm{C}_t$ 是内部状态。
+
+\subsection{从零开始实现}
+
+隐状态现在是二元组 $(\bm{H}_t,\bm{C}_t)$，其余训练回路不变。
+
+\subsubsection{初始化模型参数}
+
+除三扇门与候选记忆的权重偏置外，输出层维度仍等于词表大小。
+权重取标准差 $0.01$ 的高斯，偏置为零。
+
+\subsubsection{定义模型}
+
+初始化 $(\bm{H}_0,\bm{C}_0)=(\bm{0},\bm{0})$。逐步计算
+$(\bm{I}_t,\bm{F}_t,\bm{O}_t,\tilde{\bm{C}}_t,\bm{C}_t,\bm{H}_t)$，
+仅把 $\bm{H}_t$ 映到词表 logits。
+
+\subsubsection{训练和预测}
+
+与 GRU 相同的困惑度目标与前缀生成。记忆元在预测时随 $\bm{H}$ 一起递推，但不直接解码。
+
+\subsection{简洁实现}
+
+\[
+\bigl((\bm{H}_{1:T},\bm{C}_T),\bm{H}_T\bigr)
+=
+\operatorname{LSTM}(\bm{X}_{1:T},(\bm{H}_0,\bm{C}_0)).
+\]
+这是带状态控制的隐变量自回归模型；长程依赖仍使逐步展开代价随 $T$ 增长。
+
+\subsection{小结}
+
+LSTM 用
+\[
+\bm{C}_t=\bm{F}_t\odot\bm{C}_{t-1}+\bm{I}_t\odot\tilde{\bm{C}}_t,
+\qquad
+\bm{H}_t=\bm{O}_t\odot\tanh(\bm{C}_t)
+\]
+把长期记忆与对外隐状态分开，从而缓解梯度消失。
+
+\subsection{练习}
+
+核验 $\tilde{\bm{C}}_t$ 已经过 $\tanh$ 后输出为何再套 $\tanh$，
+以及在相同 $h$ 下 GRU、LSTM 与普通 RNN 的逐步乘法次数。
+
+\section{深度循环神经网络}
+
+单层循环的 $\phi$ 可能不够灵活。把若干循环层堆叠，使不同层刻画不同时间尺度。
+
+\subsection{函数依赖关系}
+
+令 $\bm{H}_t^{(0)}=\bm{X}_t$。第 $\ell=1,\ldots,L$ 层
+\[
+\bm{H}_t^{(\ell)}
+=
+\phi_\ell\bigl(
+\bm{H}_t^{(\ell-1)}\bm{W}_{xh}^{(\ell)}
++
+\bm{H}_{t-1}^{(\ell)}\bm{W}_{hh}^{(\ell)}
++
+\bm{b}_h^{(\ell)}
+\bigr).
+\]
+顶层再接到输出
+\[
+\bm{O}_t=\bm{H}_t^{(L)}\bm{W}_{hq}+\bm{b}_q.
+\]
+于是信息同时沿时间传到 $\bm{H}_{t+1}^{(\ell)}$，并沿深度传到 $\bm{H}_t^{(\ell+1)}$。
+
+\subsection{简洁实现}
+
+以 LSTM 为例，仅增加层数 $L$。词表大小决定输入输出维，隐藏宽度仍取 $h$，
+层间按上式串联。GRU 或普通 RNN 只需更换 $\phi_\ell$ 所对应的单元。
+
+\subsection{训练与预测}
+
+多层逐步展开使每步代价约为单层的 $L$ 倍，收敛对学习率与裁剪更敏感。
+预测时逐层递推全部 $\bm{H}_t^{(\ell)}$。
+
+\subsection{小结}
+
+深度循环的依赖是
+\[
+\bm{H}_t^{(\ell)}=
+\phi_\ell(\bm{H}_t^{(\ell-1)}\bm{W}_{xh}^{(\ell)}+\bm{H}_{t-1}^{(\ell)}\bm{W}_{hh}^{(\ell)}+\bm{b}_h^{(\ell)}),
+\]
+同一套门控单元可以替换 $\phi_\ell$。
+
+\subsection{练习}
+
+核验两层从零展开时 $\bm{H}_t^{(1)}$ 如何作为 $\bm{H}_t^{(2)}$ 的输入，
+以及用 GRU 替换 LSTM 后困惑度与逐步代价如何变化。
+
+\section{双向循环神经网络}
+
+单向循环只能看过去。填空、标注等任务需要未来上下文，因此再设一条反向循环。
+
+\subsection{隐马尔可夫模型中的动态规划}
+
+隐状态与观测的联合分布为
+\[
+P(x_1,\ldots,x_T,h_1,\ldots,h_T)
+=
+\prod_{t=1}^{T}P(h_t \mid h_{t-1})P(x_t \mid h_t),
+\]
+其中 $P(h_1 \mid h_0)=P(h_1)$。边际化全部 $h$ 时，前向量
+\[
+\pi_{t+1}(h_{t+1})
+=
+\sum_{h_t}\pi_t(h_t)P(x_t \mid h_t)P(h_{t+1} \mid h_t)
+\]
+把过去的贡献压缩成关于 $h_{t+1}$ 的函数，最终
+\[
+P(x_1,\ldots,x_T)=\sum_{h_T}\pi_T(h_T)P(x_T \mid h_T).
+\]
+后向量
+\[
+\rho_{t-1}(h_{t-1})
+=
+\sum_{h_t}P(h_t \mid h_{t-1})P(x_t \mid h_t)\rho_t(h_t)
+\]
+压缩未来。两者合起来给出缺省位置的条件
+\[
+P(x_j \mid x_{-j})
+\propto
+\sum_{h_j}\pi_j(h_j)\rho_j(h_j)P(x_j \mid h_j).
+\]
+
+\subsection{双向模型}
+
+用一条前向 RNN 扮演 $\pi$，一条后向 RNN 扮演 $\rho$，在每个 $t$ 拼接两边的隐状态。
+
+\subsubsection{定义}
+
+\begin{align*}
+\overrightarrow{\bm{H}}_t
+&=
+\phi(\bm{X}_t\bm{W}_{xh}^{(f)}+\overrightarrow{\bm{H}}_{t-1}\bm{W}_{hh}^{(f)}+\bm{b}_h^{(f)}),
+\\
+\overleftarrow{\bm{H}}_t
+&=
+\phi(\bm{X}_t\bm{W}_{xh}^{(b)}+\overleftarrow{\bm{H}}_{t+1}\bm{W}_{hh}^{(b)}+\bm{b}_h^{(b)}).
+\end{align*}
+拼接 $\bm{H}_t=[\overrightarrow{\bm{H}}_t;\overleftarrow{\bm{H}}_t]$ 后
+\[
+\bm{O}_t=\bm{H}_t\bm{W}_{hq}+\bm{b}_q.
+\]
+
+\subsubsection{模型的计算代价及其应用}
+
+每个 $t$ 的输出同时依赖 $x_1,\ldots,x_T$，因此不能用于“只根据过去预测下一个词元”。
+前向需要跑完反向递归，反向传播的链大约加倍，训练代价高。适用场合是编码整句或双向上下文标注。
+
+\subsection{双向循环神经网络的错误应用}
+
+若把双向模型当作语言模型训练，训练时未来词元可见，测试时不可见，
+条件分布 $P(x_t \mid x_{<t})$ 被错误地换成 $P(x_t \mid x_{\neq t})$，续写会崩溃。
+
+\subsection{小结}
+
+双向更新
+\[
+\bm{O}_t=\bigl[\overrightarrow{\bm{H}}_t;\overleftarrow{\bm{H}}_t\bigr]\bm{W}_{hq}+\bm{b}_q
+\]
+对应 HMM 中的前向--后向量；它编码双向上下文，而不能当作因果语言模型。
+
+\subsection{练习}
+
+核验两个方向隐藏宽度不同时 $\bm{H}_t$ 的拼接维，
+以及如何用双向上下文表示多义词在句中的向量。
+
+\section{机器翻译与数据集}
+
+机器翻译把源语言序列映到目标语言序列，是变长到变长的序列转换。
+后续编码器--解码器都在这对平行语料上训练。
+
+\subsection{下载和预处理数据集}
+
+英--法句对经制表符分隔。预处理把不间断空格换成普通空格、字母小写，
+并在单词与标点之间插入空格，得到可切分的字符串对 $(s,t)$。
+
+\subsection{词元化}
+
+与字符级语言模型不同，这里按单词（及标点）切分。第 $i$ 对变成
+\[
+\operatorname{source}^{(i)}=(x_1,\ldots,x_{T}),
+\qquad
+\operatorname{target}^{(i)}=(y_1,\ldots,y_{T'}).
+\]
+多数句对的词元数小于 $20$。
+
+\subsection{词表}
+
+源、目标各建一个词表。单词级使 $|\mathcal{V}|$ 远大于字符级，
+故把频次小于 $2$ 的项并入 $\texttt{<unk>}$，并加入
+$\texttt{<pad>}$、$\texttt{<bos>}$、$\texttt{<eos>}$。
+
+\subsection{加载数据集}
+
+句长不同。截断与填充把每条序列补/切到固定 $n_{\text{steps}}$，
+同时记录有效长度 $T_{\text{valid}}\le n_{\text{steps}}$，
+以便后面的损失与注意力忽略填充。
+
+\subsection{训练模型}
+
+数据迭代器每次返回一个小批量的源下标、源有效长度、目标下标与目标有效长度，
+以及两个词表。这给出监督学习对 $(\bm{X},\bm{Y})$。
+
+\subsection{小结}
+
+平行语料经过词元化与填充后，每个样本是长度同为 $n_{\text{steps}}$ 的整数对
+$(\bm{x},\bm{y})$，低频率词并入未知词元以控制 $|\mathcal{V}|$。
+
+\subsection{练习}
+
+核验句对数如何改变两个词表大小，以及无空格语言上单词切分是否仍有良定义的 $\mathcal{Z}$。
+
+\section{编码器-解码器架构}
+
+输入长度 $T$ 与输出长度 $T'$ 都可以变。编码器把变长输入压成固定形状的状态，
+解码器再把该状态展开成变长输出。
+
+\subsection{编码器}
+
+编码器是映射
+\[
+\operatorname{Enc}:\ \mathcal{X}^{T}\to\mathcal{C},
+\qquad
+\bm{X}\mapsto\bm{c}.
+\]
+$\mathcal{C}$ 的形状不随 $T$ 改变。任何具体网络只要实现这一接口即可。
+
+\subsection{解码器}
+
+解码器在每步消费已经生成的词元与编码状态：
+\[
+\operatorname{Dec}:\ \mathcal{C}\times\mathcal{Y}^{t'-1}\to\mathcal{Y},
+\qquad
+(\bm{c},y_{1:t'-1})\mapsto y_{t'}.
+\]
+$\operatorname{init\_state}$ 把编码器输出转换成解码器的初始状态，必要时使用源序列有效长度。
+
+\subsection{合并编码器和解码器}
+
+前向先算 $\bm{c}=\operatorname{Enc}(\bm{X})$，再逐步
+\[
+y_{t'}=\operatorname{Dec}(\bm{c},y_{1:t'-1}),
+\qquad t'=1,\ldots,T'.
+\]
+具有隐状态的网络自然适合携带 $\bm{c}$。下一节用两个循环网络实现该架构。
+
+\subsection{小结}
+
+编码器--解码器把变长到变长写成
+\[
+\bm{c}=\operatorname{Enc}(\bm{X}),
+\qquad
+y_{1:T'}=\operatorname{Dec}(\bm{c}),
+\]
+因此适用于机器翻译这类序列转换。
+
+\subsection{练习}
+
+核验 $\operatorname{Enc}$ 与 $\operatorname{Dec}$ 不必同一类网络，
+以及哪些其他变长到变长任务可用同一接口。
+
+\section{序列到序列学习（seq2seq）}
+
+用循环神经网络实现上一节的两个映射：编码器消费 $\bm{x}_{1:T}$，
+解码器生成 $\bm{y}_{1:T'}$。
+
+\subsection{编码器}
+
+逐步
+\[
+\bm{h}_t=f(\bm{x}_t,\bm{h}_{t-1}).
+\]
+上下文变量把全部隐状态汇总为固定向量
+\[
+\bm{c}=q(\bm{h}_1,\ldots,\bm{h}_T).
+\]
+最常见的取法是 $q$ 只保留 $\bm{h}_T$，或取多层最终隐状态的拼接。
+
+\subsection{解码器}
+
+解码器隐状态
+\[
+\bm{s}_{t'}=g(y_{t'-1},\bm{c},\bm{s}_{t'-1}),
+\]
+再由 $\bm{s}_{t'}$ 产生 $P(y_{t'}\mid y_{1:t'-1},\bm{c})$。
+训练时 $y_{t'-1}$ 来自真实标签，预测时来自上一时刻的输出。
+
+\subsection{损失函数}
+
+每步在词表上做 softmax 交叉熵。填充位置不应计入损失。
+有效长度掩码把越界项置零，等价于
+\[
+L
+=
+\frac{1}{\sum_{t'}\mathbb{I}\{t'\le T'_{\text{valid}}\}}
+\sum_{t'=1}^{n_{\text{steps}}}
+\mathbb{I}\{t'\le T'_{\text{valid}}\}\,
+\ell(y_{t'},\hat{y}_{t'}).
+\]
+
+\subsection{训练}
+
+解码器输入是 $\texttt{<bos>}$ 与去掉 $\texttt{<eos>}$ 的真实目标序列拼接，
+即强制教学。也可以改用模型自己的 $\hat{y}_{t'-1}$。编码器可多层，解码器初始 $\bm{s}_0$ 由 $\bm{c}$ 给出。
+
+\subsection{预测}
+
+从 $\texttt{<bos>}$ 开始，每步把 $\hat{y}_{t'}$ 送回解码器，直到输出 $\texttt{<eos>}$
+或达到最大长度。这是贪心生成；下一节讨论束搜索。
+
+\subsection{预测序列的评估}
+
+BLEU 比较预测与标签的 $n$ 元匹配率 $p_n$，并惩罚过短输出：
+\[
+\exp\Biggl(
+\min\Bigl(0,1-\frac{\mathrm{len}_{\mathrm{label}}}{\mathrm{len}_{\mathrm{pred}}}\Bigr)
+\Biggr)
+\prod_{n=1}^{k}p_n^{1/2^{n}}.
+\]
+
+\subsection{小结}
+
+seq2seq 用
+\[
+\bm{c}=q(\bm{h}_{1:T}),
+\qquad
+\bm{s}_{t'}=g(y_{t'-1},\bm{c},\bm{s}_{t'-1})
+\]
+实现编码器--解码器；训练用强制教学，评价用 BLEU。
+
+\subsection{练习}
+
+核验去掉掩码后填充位置如何污染 $L$，
+以及编码器与解码器隐藏宽度不同时 $\bm{s}_0$ 应如何由 $\bm{c}$ 初始化。
+
+\section{束搜索}
+
+解码要在词表 $\mathcal{Y}$ 上找一条序列最大化
+$P(y_1,\ldots,y_{T'}\mid\bm{c})$。逐步取最大是贪心；枚举全部序列是穷举；
+束搜索在二者之间保留 $k$ 条候选。
+
+\subsection{贪心搜索}
+
+每步
+\[
+y_{t'}=\operatorname*{argmax}_{y\in\mathcal{Y}}P(y \mid y_1,\ldots,y_{t'-1},\bm{c}).
+\]
+计算量 $\mathcal{O}(|\mathcal{Y}|T')$，但不能改正早期错误，整体不必最优。
+
+\subsection{穷举搜索}
+
+枚举 $\mathcal{Y}^{T'}$ 中全部序列并取联合概率最大者。
+计算量 $\mathcal{O}(|\mathcal{Y}|^{T'})$。例如 $|\mathcal{Y}|=10^{4}$、$T'=10$ 时约 $10^{40}$ 条，不可行。
+
+\subsection{束搜索}
+
+束宽为 $k$ 时，每步只保留条件概率最高的 $k$ 条前缀。例如 $k=2$ 时，
+若第一步留下 $A,C$，则第二步比较
+\begin{align*}
+P(A,y_2 \mid \bm{c})&=P(A \mid \bm{c})P(y_2 \mid A,\bm{c}),
+\\
+P(C,y_2 \mid \bm{c})&=P(C \mid \bm{c})P(y_2 \mid C,\bm{c}),
+\end{align*}
+再留下两条；第三步同理，
+\begin{align*}
+P(A,B,y_3 \mid \bm{c})&=P(A,B \mid \bm{c})P(y_3 \mid A,B,\bm{c}),
+\\
+P(C,E,y_3 \mid \bm{c})&=P(C,E \mid \bm{c})P(y_3 \mid C,E,\bm{c}).
+\end{align*}
+最终在候选完整序列上用长度归一化分数
+\[
+\frac{1}{L^{\alpha}}\log P(y_1,\ldots,y_L \mid \bm{c})
+=
+\frac{1}{L^{\alpha}}\sum_{t'=1}^{L}\log P(y_{t'} \mid y_{1:t'-1},\bm{c})
+\]
+选出输出。$k=1$ 退化为贪心；$k=|\mathcal{Y}|$ 恢复穷举。
+
+\subsection{小结}
+
+束搜索用宽度 $k$ 在
+\[
+\max_{y_{1:L}}P(y_{1:L}\mid\bm{c})
+\]
+的精度与 $\mathcal{O}(k|\mathcal{Y}|T')$ 的代价之间折中。
+
+\subsection{练习}
+
+核验穷举是否为 $k=|\mathcal{Y}|$ 的束搜索，以及 $k$ 如何改变机器翻译的速度与 BLEU。

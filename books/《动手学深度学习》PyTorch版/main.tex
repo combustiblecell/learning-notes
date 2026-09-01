@@ -28,6 +28,10 @@
 \renewcommand{\arraystretch}{1.25}
 \setcounter{secnumdepth}{3}
 \setcounter{tocdepth}{1}
+\allowdisplaybreaks[4]
+\emergencystretch=3em
+\hfuzz=5pt
+\vfuzz=5pt
 
 \pagestyle{fancy}
 \fancyhf{}
@@ -55,28 +59,45 @@
 \newcommand{\code}[1]{\texttt{#1}}
 
 \title{\heiti 《动手学深度学习》\\[0.4em]\Large PyTorch版学习笔记}
-\author{内容提炼试作}
+\author{内容提炼}
 \date{\today}
 
 \begin{document}
 
 \maketitle
-\clearpage
-\pagenumbering{roman}
+\frontmatter
 
-\chapter*{试作说明}
-\addcontentsline{toc}{chapter}{试作说明}
-本 PDF 用于检验笔记的内容密度、排版和编译流程，仅提炼原书第二章“预备知识”。
-章内全部标题的名称、层级与顺序严格沿用 PyTorch 版原始目录。
-印刷目录与侧栏书签只列出章和七个主要部分，正文仍保留全部原书标题。
-正文以公式陈述定义、成立条件、关键推导与结论；衔接句只连接相邻公式，代码仅作最小验证。
+\chapter*{说明}
+\addcontentsline{toc}{chapter}{说明}
+本笔记按 \texttt{d2l-zh 2.0.0} PyTorch 版原书目录提炼全书。
+正文保留全部章、节、子节标题；印刷目录与书签只显示到章和主要节。
+正文以公式陈述定义、成立条件、关键推导与结论；衔接句只连接相邻公式。
 
 \hypertarget{contents}{}
 \tableofcontents
 
-\clearpage
-\pagenumbering{arabic}
-\setcounter{chapter}{1}
+\input{chapter-00-preface}
+\input{chapter-00-installation}
+\input{chapter-00-notation}
+
+\mainmatter
+\input{chapter-01-introduction}
 \input{chapter-02-preliminaries}
+\input{chapter-03-linear-networks}
+\input{chapter-04-mlp}
+\input{chapter-05-computation}
+\input{chapter-06-cnn}
+\input{chapter-07-modern-cnn}
+\input{chapter-08-rnn}
+\input{chapter-09-modern-rnn}
+\input{chapter-10-attention}
+\input{chapter-11-optimization}
+\input{chapter-12-performance}
+\input{chapter-13-cv}
+\input{chapter-14-nlp-pretrain}
+\input{chapter-15-nlp-app}
+
+\appendix
+\input{chapter-16-appendix}
 
 \end{document}

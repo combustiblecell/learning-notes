@@ -1,0 +1,616 @@
+\chapter{计算机视觉}
+
+图像分类把整图映到类别；检测还要位置，分割还要逐像素类别。
+增广扩大训练分布，锚框把空间离散成候选框，转置卷积把特征图拉回像素网格。
+
+\section{图像增广}
+
+增广是随机映射 $T$，使 $T(\bm{X})$ 与 $\bm{X}$ 同类但统计不同，从而减小对位置、颜色的依赖。
+
+\subsection{常用的图像增广方法}
+
+多数 $T$ 含随机数。下面在固定示例图上重复采样 $T$。
+
+\subsubsection{翻转和裁剪}
+
+水平翻转 $T_{\mathrm{flip}}$ 以 $1/2$ 概率作用。
+随机裁剪先采区域再缩放到固定 $H\times W$，降低对物体绝对位置的依赖。
+
+\subsubsection{改变颜色}
+
+亮度、对比度、饱和度、色调各乘以接近 $1$ 的随机因子，例如亮度在 $[1-\delta,1+\delta]$。
+
+\subsubsection{结合多种图像增广方法}
+
+复合 $T=T_k\circ\cdots\circ T_1$，对每张训练图独立采样一次。
+
+\subsection{使用图像增广进行训练}
+
+训练用随机 $T$，预测用确定性预处理 $T_{\mathrm{det}}$（如 ToTensor）。
+输入形状为 $(\text{批量},C,H,W)$，像素在 $[0,1]$。
+
+\subsubsection{多GPU训练}
+
+在 CIFAR-10 上训练 ResNet-18。优化器为 Adam。
+增广只作用于训练集；多卡按数据并行切批量。
+
+\subsection{小结}
+
+训练分布是 $\{T(\bm{X})\}$，测试分布仍是原始 $\bm{X}$。
+随机 $T$ 只出现在训练。
+
+\subsection{练习}
+
+核验：去掉 $T$ 后训练–测试间隙是否增大，以及复合多种 $T$ 是否降低测试误差。
+
+\section{微调}
+
+源数据集大、目标数据集小。微调把源模型的特征层参数当目标模型的初值。
+
+\subsection{步骤}
+
+源模型 $f_{\bm{\theta}_{\mathrm{src}}}$ 在源数据上预训练。
+目标模型复制除输出层外的结构与参数，换上类别数为 $K_{\mathrm{tgt}}$ 的新输出层并随机初始化，再在目标数据上以较小 $\eta$ 更新全部（或大部分）参数。
+
+\subsection{热狗识别}
+
+在热狗/非热狗二分类上微调 ImageNet 预训练的 ResNet-18。
+
+\subsubsection{获取数据集}
+
+正负类各约 $1400$ 张，每类 $1000$ 张训练。
+训练时随机裁剪并缩放到 $224\times 224$；测试用确定性中心裁剪。
+
+\subsubsection{定义和初始化模型}
+
+源模型最后线性层 $\mathbb{R}^{d}\to\mathbb{R}^{1000}$。
+目标模型改为 $\mathbb{R}^{d}\to\mathbb{R}^{2}$，特征层参数 $\bm{\theta}_{\mathrm{feat}}\leftarrow\bm{\theta}_{\mathrm{src}}$，输出层随机。
+
+\subsubsection{微调模型}
+
+特征层用小 $\eta$，输出层可用更大 $\eta$。
+对照实验把全部参数随机初始化并用更大 $\eta$ 从头训练。
+
+\subsection{小结}
+
+除输出层外 $\bm{\theta}_{\mathrm{tgt}}\leftarrow\bm{\theta}_{\mathrm{src}}$，输出层从头学。
+微调 $\eta$ 小于从头训练。
+
+\subsection{练习}
+
+核验：只训练输出层（冻结 $\bm{\theta}_{\mathrm{feat}}$）时精度，以及提高微调 $\eta$ 是否破坏预训练特征。
+
+\section{目标检测和边界框}
+
+检测输出类别与位置。位置用矩形边界框。
+
+\subsection{边界框}
+
+两角表示 $(x_1,y_1,x_2,y_2)$ 与中心表示 $(x,y,w,h)$ 互转：
+\begin{align*}
+x&=\frac{x_1+x_2}{2},\quad
+y=\frac{y_1+y_2}{2},\quad
+w=x_2-x_1,\quad
+h=y_2-y_1,
+\\
+x_1&=x-w/2,\quad
+x_2=x+w/2,\quad
+y_1=y-h/2,\quad
+y_2=y+h/2.
+\end{align*}
+图像坐标原点在左上，向右为 $x$ 正、向下为 $y$ 正。
+
+\subsection{小结}
+
+检测 $=$ 分类 $+$ 框回归。框在两角与中心宽高两种坐标之间是双射。
+
+\subsection{练习}
+
+核验：最内维为 $4$ 才能同时存两个角或 $(x,y,w,h)$。
+
+\section{锚框}
+
+以像素为中心放置多尺度、多宽高比的候选框，再预测其类别与偏移。
+
+\subsection{生成多个锚框}
+
+给定尺度 $s_1>\cdots>s_n$ 与宽高比 $r_1,\ldots,r_m$，每个中心生成
+\[
+(s_1,r_1),\ldots,(s_1,r_m),\;(s_2,r_1),\ldots,(s_n,r_1)
+\]
+共 $n+m-1$ 个锚框。宽高由 $s\sqrt{r}$ 与 $s/\sqrt{r}$ 确定。
+
+\subsection{交并比（IoU）}
+
+\[
+J(\mathcal{A},\mathcal{B})
+=
+\frac{|\mathcal{A}\cap\mathcal{B}|}{|\mathcal{A}\cup\mathcal{B}|}\in[0,1].
+\]
+
+\subsection{在训练数据中标注锚框}
+
+每个锚框需要类别与相对真实框的偏移。预测时对所有锚框回归后再筛选。
+
+\subsubsection{将真实边界框分配给锚框}
+
+锚框 $A_1,\ldots,A_{n_a}$，真实框 $B_1,\ldots,B_{n_b}$，$n_a\geq n_b$。
+矩阵 $\bm{X}\in\mathbb{R}^{n_a\times n_b}$，$x_{ij}=J(A_i,B_j)$。
+反复取剩余子阵的最大元 $(i^{\ast},j^{\ast})$，把 $B_{j^{\ast}}$ 分给 $A_{i^{\ast}}$ 并删去该行该列；
+然后对未分配锚框，若 $\max_j x_{ij}$ 超过阈值则赋予对应真实框，否则标为背景。
+
+\subsubsection{标记类别和偏移量}
+
+正锚框类别为所赋真实框类别。偏移（标准化后）为
+\[
+\Biggl(
+\frac{\frac{x_b-x_a}{w_a}-\mu_x}{\sigma_x},\;
+\frac{\frac{y_b-y_a}{h_a}-\mu_y}{\sigma_y},\;
+\frac{\log\frac{w_b}{w_a}-\mu_w}{\sigma_w},\;
+\frac{\log\frac{h_b}{h_a}-\mu_h}{\sigma_h}
+\Biggr).
+\]
+
+\subsubsection{一个例子}
+
+给定若干 $A_i$ 与 $B_j$，上述分配输出类别张量（$0$ 为背景）与偏移张量。
+
+\subsection{使用非极大值抑制预测边界框}
+
+由锚框与预测偏移经逆变换得预测框 $B$，并带类别概率 $p$。
+NMS：按 $p$ 排序，保留当前最高，删去与其 IoU 超过阈值的其余框，重复直到空。
+
+\subsection{小结}
+
+锚框是候选；IoU 是 $J(\mathcal{A},\mathcal{B})$；训练标签是类别加偏移；预测用 NMS 去掉重叠框。
+
+\subsection{练习}
+
+核验：$\mathrm{IoU}=0.5$ 的两框如何重叠，以及 NMS 阈值如何改变保留集合。
+
+\section{多尺度目标检测}
+
+对每个像素生成锚框数量为 $H\times W\times a$，输入稍大就会上百万。需在特征图网格上采样中心。
+
+\subsection{多尺度锚框}
+
+小目标可能位置多，用密而小的锚；大目标用疏而大的锚。
+特征图尺寸 $(h,w)$ 决定中心网格。
+
+\subsection{多尺度检测}
+
+某尺度特征图 $\mathsf{Y}\in\mathbb{R}^{c\times h\times w}$ 生成 $hwa$ 个锚框。
+该单元的感受野内信息用于预测对应锚的类别与偏移。
+深层特征图感受野更大，对应更大锚。
+
+\subsection{小结}
+
+尺度 $s$ 上锚框数由特征图 $h\times w$ 与每单元 $a$ 决定。
+类别与偏移从该感受野的特征预测。
+
+\subsection{练习}
+
+核验：形状 $1\times c\times h\times w$ 的特征如何映到类别与偏移，输出形状是什么。
+
+\section{目标检测数据集}
+
+用小型香蕉检测集演示：图像加框标签，而非仅类别。
+
+\subsection{下载数据集}
+
+图像与 CSV 标签（类别、左上、右下）成对出现。
+
+\subsection{读取数据集}
+
+小批量图像形状 $(B,C,H,W)$；标签形状 $(B,m,5)$，
+$m$ 为每图最大目标数，每条为 $(\text{类},x_1,y_1,x_2,y_2)$。
+
+\subsection{演示}
+
+香蕉的旋转、尺度与位置在图间变化；真实框随目标走。
+
+\subsection{小结}
+
+检测加载器多返回真实框。类别分类没有这第五维几何。
+
+\subsection{练习}
+
+核验：随机裁剪若只留下目标的一小块，框标签应如何同步变换。
+
+\section{单发多框检测（SSD）}
+
+SSD 用基础网络加若干多尺度特征块，一次前向预测所有锚的类与偏移。
+
+\subsection{模型}
+
+基础网输出较大 $h\times w$ 以检小目标；后续块反复减半空间尺寸、扩大感受野以检大目标。
+
+\subsubsection{类别预测层}
+
+$q$ 个物体类加背景共 $q+1$。特征图 $h\times w$、每单元 $a$ 个锚，需 $hwa$ 个分类。
+用保持空间尺寸的卷积，输出通道 $a(q+1)$，使位置 $(x,y)$ 的通道对应该中心全部锚的类别。
+
+\subsubsection{边界框预测层}
+
+同样卷积，输出通道 $4a$，每锚 $4$ 个偏移。
+
+\subsubsection{连结多尺度的预测}
+
+不同尺度的 $(C,H,W)$ 不同。把批量维保留，将其余维展平后在锚维上拼接，得到整图全部预测。
+
+\subsubsection{高和宽减半块}
+
+两个填充 $1$ 的 $3\times 3$ 卷积加步幅 $2$ 的 $2\times 2$ 最大汇聚，空间减半。
+输出单元相对输入有 $6\times 6$ 感受野。
+
+\subsubsection{基本网络块}
+
+串联三个减半块并倍增通道。$256\times 256$ 输入得到 $32\times 32$ 特征图。
+
+\subsubsection{完整的模型}
+
+五块：基础网、三个减半块、全局最大汇聚到 $1\times 1$。
+每块输出特征图、该尺度锚框、类别与偏移。较深层生成更大锚。
+
+\subsection{训练模型}
+
+前向生成多尺度锚并预测；用真实框标注；类损失加偏移损失。
+
+\subsubsection{读取数据集和初始化}
+
+香蕉数据集 $q=1$。随机初始化后选优化算法。
+
+\subsubsection{定义损失函数和评价函数}
+
+类别用交叉熵。正锚偏移用 $L_1$：
+\[
+\ell_{\mathrm{bbox}}
+=
+\sum_{k=1}^{4}\lvert\hat{o}_k-o_k\rvert,
+\]
+负锚与填充锚由掩码不计入。总损失为两类之和。分类看准确率，框看平均绝对误差。
+
+\subsubsection{训练模型}
+
+每个批量：生成 $\mathrm{anchors}$，预测 $\mathrm{cls},\mathrm{bbox}$，由 $Y$ 标出标签，再求损失。
+
+\subsection{预测目标}
+
+图像缩放到训练尺寸，得预测框后 NMS，再保留置信度不低于阈值（如 $0.9$）的框。
+
+\subsection{小结}
+
+SSD 在多尺度特征上生成锚并预测类与偏移。
+损失是交叉熵与正锚 $L_1$ 之和。
+
+\subsection{练习}
+
+练习中的 Smooth $L_1$ 与焦点损失分别为
+\begin{align*}
+f(x)
+&=
+\begin{cases}
+(\sigma x)^2/2,& |x|<1/\sigma^2,\\
+|x|-0.5/\sigma^2,& \text{否则},
+\end{cases}
+\\
+\ell
+&=
+-\alpha(1-p_j)^{\gamma}\log p_j.
+\end{align*}
+核验二者相对 $L_1$ 与交叉熵如何改变难例权重。
+
+\section{区域卷积神经网络（R-CNN）系列}
+
+R-CNN 先提区域再分类；后续工作共享卷积并学习提议。
+
+\subsection{R-CNN}
+
+选择性搜索得到约 $2000$ 个提议；对每个提议独立卷积抽特征；再用分类器与回归器预测类和框。
+重复卷积是主要瓶颈。
+
+\subsection{Fast R-CNN}
+
+整图只卷积一次，得 $\mathsf{Y}\in\mathbb{R}^{c\times h_1\times w_1}$。
+兴趣区域汇聚把每个提议映到固定 $h\times w$ 特征，再经全连接预测类与框。
+
+\subsection{Faster R-CNN}
+
+用区域提议网络代替选择性搜索：在特征图上 $3\times 3$ 卷积后分出物体性分数与框回归，
+生成较少且可学习的提议，其余与 Fast R-CNN 相同。
+
+\subsection{Mask R-CNN}
+
+兴趣区域对齐用双线性插值保留空间。
+对齐特征除预测类与框外，再经全卷积支路输出该区域的像素掩码。
+
+\subsection{小结}
+
+R-CNN：每区域独立卷积。Fast：整图卷积加 RoI 汇聚。
+Faster：RPN 学提议。Mask：对齐加像素掩码。
+
+\subsection{练习}
+
+核验：把检测写成一次回归（如 YOLO）与多阶段提议在输出形式上的差别。
+
+\section{语义分割和数据集}
+
+语义分割给每个像素一个类别，边界是像素级的，不是框。
+
+\subsection{图像分割和实例分割}
+
+图像分割按像素相似性分区，不必有语义标签。
+实例分割还要区分同类的不同物体；语义分割把同类像素标成同一类。
+
+\subsection{Pascal VOC2012 语义分割数据集}
+
+输入 JPEG 与同尺寸的彩色标签图，同色像素同类。
+
+\subsubsection{预处理数据}
+
+缩放会错位像素类别。改为对图像与标签做同一随机裁剪到固定 $H\times W$。
+
+\subsubsection{自定义语义分割数据集类}
+
+索引 $i$ 返回 $(\mathsf{X}^{(i)},\mathsf{Y}^{(i)})$，$\mathsf{Y}$ 是像素类别。
+过小图过滤；RGB 按通道标准化。
+
+\subsubsection{读取数据集}
+
+裁剪 $320\times 480$ 后统计保留样本。标签小批量是三维数组 $(B,H,W)$。
+
+\subsubsection{整合所有组件}
+
+加载器返回训练与测试迭代器。
+
+\subsection{小结}
+
+分割标签与输入像素一一对应，故用同步裁剪而非缩放。
+
+\subsection{练习}
+
+核验：分类里常用的颜色抖动若不同步改标签，分割监督是否失效。
+
+\section{转置卷积}
+
+普通卷积缩小空间。转置卷积把特征图放大，便于像素级输出。
+
+\subsection{基本操作}
+
+输入 $n_h\times n_w$、核 $k_h\times k_w$、步幅 $1$、无填充。
+每个输入标量乘核，放到与该输入位置对应的输出块，所有块相加。
+输出空间为 $(n_h+k_h-1)\times(n_w+k_w-1)$。
+
+\subsection{填充、步幅和多通道}
+
+填充作用在输出上：两侧填充 $1$ 会删掉输出最外一行一列。
+步幅作用在中间结果的间距上，步幅 $2$ 使输出更稀、更大。
+多通道与普通卷积相同：$c_i$ 入、$c_o$ 出。
+
+\subsection{与矩阵变换的联系}
+
+卷积 $Y=f(X)$ 可写成 $\operatorname{vec}(Y)=\bm{W}\operatorname{vec}(X)$。
+转置卷积对应 $\operatorname{vec}(X')=\bm{W}^{\mathsf T}\operatorname{vec}(Y)$，
+故正向与反向在卷积与转置卷积之间对换。
+若 $g$ 与 $f$ 超参数对应且通道对齐，则 $g(f(X))$ 与 $X$ 同空间形状。
+
+\subsection{小结}
+
+转置卷积经核广播输入，增大空间。它是卷积矩阵的转置作用在向量化特征上。
+
+\subsection{练习}
+
+核验：$X$ 与 $g(f(X))$ 形状相同是否蕴含数值相同。
+
+\section{全卷积网络}
+
+FCN 把分类网改成像素分类：特征、 $1\times 1$ 卷积改通道、转置卷积恢复 $H\times W$。
+
+\subsection{构造模型}
+
+预训练 ResNet-18 去掉全局平均汇聚与全连接。
+$1\times 1$ 卷积把通道变为类别数 $K$，再转置卷积使空间回到输入尺寸。
+输出 $\hat{\mathsf{Y}}\in\mathbb{R}^{K\times H\times W}$，通道维是逐像素 logits。
+
+\subsection{初始化转置卷积层}
+
+双线性上采样：把输出坐标 $(x,y)$ 映到输入实坐标 $(x',y')$，
+用最近四像素按距离加权。该核可作为转置卷积的初值。
+
+\subsection{读取数据集}
+
+VOC 随机裁剪 $320\times 480$，使高宽可被 $32$ 整除（与步幅一致）。
+
+\subsection{训练}
+
+损失是逐像素交叉熵，在通道维上做 Softmax。
+准确率是像素类别是否正确的平均。
+
+\subsection{预测}
+
+输入标准化为四维。类别映回调色板颜色。
+若 $H$ 或 $W$ 不能被 $32$ 整除，切多块可整除区域，重叠像素对 logits 取平均再分类。
+
+\subsection{小结}
+
+FCN：$\hat{\mathsf{Y}}=g_{H,W}\bigl(h_{1\times 1}(f(\mathsf{X}))\bigr)$，
+$g$ 为转置卷积，可用双线性核初始化。
+
+\subsection{练习}
+
+核验：转置卷积改 Xavier 随机初始化对分割精度的影响。
+
+\section{风格迁移}
+
+内容图 $\mathsf{X}_c$ 与风格图 $\mathsf{X}_s$。合成图 $\mathsf{X}$ 是唯一优化变量；预训练 CNN 只抽特征。
+
+\subsection{方法}
+
+初始化 $\mathsf{X}\leftarrow\mathsf{X}_c$。选若干层作内容层、若干层作风格层。
+最小化内容损失、风格损失与全变分损失的加权和，只更新 $\mathsf{X}$。
+
+\subsection{阅读内容和风格图像}
+
+两图空间尺寸一般不同，后续会缩放到同一训练尺寸。
+
+\subsection{预处理和后处理}
+
+预处理：RGB 标准化并变成卷积输入格式。
+后处理：反标准化并把像素裁到 $[0,1]$。
+
+\subsection{抽取图像特征}
+
+VGG-19。内容层取较深卷积以去细节；风格层取各块较浅卷积以同时匹配局部与全局纹理。
+
+\subsection{定义损失函数}
+
+三项加权。
+
+\subsubsection{内容损失}
+
+内容层输出 $\bm{\phi}_c(\mathsf{X})$ 与 $\bm{\phi}_c(\mathsf{X}_c)$ 的平方误差。
+
+\subsubsection{风格损失}
+
+风格层输出整形为 $\bm{X}\in\mathbb{R}^{c\times hw}$，格拉姆矩阵
+\[
+\bm{G}=\bm{X}\bm{X}^{\mathsf T}\in\mathbb{R}^{c\times c}.
+\]
+风格损失为 $\bigl\|\bm{G}(\mathsf{X})-\bm{G}(\mathsf{X}_s)\bigr\|_F^2$（对各风格层求和）。
+
+\subsubsection{全变分损失}
+
+\[
+\sum_{i,j}
+\bigl(|x_{i,j}-x_{i+1,j}|+|x_{i,j}-x_{i,j+1}|\bigr)
+\]
+鼓励相邻像素接近，减少噪点。
+
+\subsubsection{损失函数}
+
+\[
+\ell
+=
+\alpha\,\ell_{\mathrm{content}}
++\beta\,\ell_{\mathrm{style}}
++\gamma\,\ell_{\mathrm{TV}}.
+\]
+权重控制保内容、迁风格与去噪的折中。
+
+\subsection{初始化合成图像}
+
+把 $\mathsf{X}$ 当作模型参数，前向即返回该参数。
+风格图的格拉姆在训练前算一次。
+
+\subsection{训练模型}
+
+反复抽 $\mathsf{X}$ 的内容/风格特征，求 $\ell$，对 $\mathsf{X}$ 求梯度并更新。
+
+\subsection{小结}
+
+$\ell=\alpha\ell_{\mathrm{content}}+\beta\ell_{\mathrm{style}}+\gamma\ell_{\mathrm{TV}}$，
+风格由 $\bm{G}=\bm{X}\bm{X}^{\mathsf T}$ 表达，只更新合成图像。
+
+\subsection{练习}
+
+核验：改内容/风格层集合或 $(\alpha,\beta,\gamma)$ 时，$\mathsf{X}$ 更贴近哪一张输入。
+
+\section{实战 Kaggle 比赛：图像分类 (CIFAR-10)}
+
+从原始 PNG 组织数据，再用卷积与增广做十分类。
+
+\subsection{获取并组织数据集}
+
+训练 $5\times 10^4$ 张，测试 $3\times 10^5$ 张（其中 $10^4$ 用于评分）。
+图为 $32\times 32$ RGB，十类。
+
+\subsubsection{下载数据集}
+
+\texttt{train/}、\texttt{test/} 与 \texttt{trainLabels.csv}。
+
+\subsubsection{整理数据集}
+
+按标签分文件夹。验证比例 $r$，每类验证张数为 $\max(\lfloor nr\rfloor,1)$，
+$n$ 为最小类的训练张数。
+
+\subsection{图像增广}
+
+训练：随机水平翻转与 RGB 标准化。测试：仅标准化。
+
+\subsection{读取数据集}
+
+训练加载器施用随机 $T$；验证与最终训练（训练$+$验证）用确定性变换。
+
+\subsection{定义模型}
+
+ResNet-18，输出 $10$ 类。
+
+\subsection{定义训练函数}
+
+按验证集指标选超参。学习率可每 $T$ 个周期乘衰减因子。
+
+\subsection{训练和验证模型}
+
+可调批量、周期、$\eta$、衰减周期与因子。演示可用较少周期。
+
+\subsection{在 Kaggle 上对测试集进行分类并提交结果}
+
+用全部有标签数据重训，对测试集写类别，生成提交表。
+
+\subsection{小结}
+
+文件数据集 $\to$ 按类目录 $\to$ 增广加载器 $\to$ $f_{\bm{\theta}}$ 的十分类。
+
+\subsection{练习}
+
+核验：完整数据与给定超参下的测试精度，以及去掉增广后的精度差。
+
+\section{实战Kaggle比赛：狗的品种识别（ImageNet Dogs）}
+
+$120$ 类犬种，图像大于 CIFAR，且尺寸不一，来自 ImageNet 子集。
+
+\subsection{获取和整理数据集}
+
+训练约 $10^{4}$ 张，测试约 $10^{4}$ 张 JPEG。
+
+\subsubsection{下载数据集}
+
+\texttt{labels.csv} 与 \texttt{train/}、\texttt{test/}。
+
+\subsubsection{整理数据集}
+
+与 CIFAR 相同：读标签、拆验证、按类建目录。
+
+\subsection{图像增广}
+
+更大图上用随机裁剪缩放到网络输入尺寸，测试用确定性缩放与裁剪。
+
+\subsection{读取数据集}
+
+加载器构造与 CIFAR 一节相同，只是 $T$ 不同。
+
+\subsection{微调预训练模型}
+
+ResNet-34 在 ImageNet 上预训练，冻结特征，只训练小型输出头（如两层全连接，$120$ 类）。
+不反传主干以省计算与显存。
+
+\subsection{定义训练函数}
+
+$\operatorname{train}$ 只迭代输出头参数。按验证指标选头。
+
+\subsection{训练和验证模型}
+
+$\eta$ 每若干周期乘衰减。周期与衰减可调。
+
+\subsection{对测试集分类并在Kaggle提交结果}
+
+用全部有标签数据训输出头，对测试集写 $120$ 维概率或类别。
+
+\subsection{小结}
+
+大图子集上，冻结 ImageNet 主干 $f$，只学
+$\mathbb{R}^{d}\to\mathbb{R}^{120}$ 的头，并配以更强的空间增广。
+
+\subsection{练习}
+
+核验：更大主干与不同 $(\eta,T_{\mathrm{decay}})$ 是否降低验证误差。

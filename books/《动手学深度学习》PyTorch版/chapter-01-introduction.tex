@@ -1,0 +1,129 @@
+\chapter{引言}
+
+程序不再只执行固定业务规则，而从数据中估计映射 $f$。
+深度学习把 $f$ 参数化为一串可微变换，用优化更新参数。
+
+\section{日常生活中的机器学习}
+
+日常系统把观测 $x$ 映到决策 $a$。语音识别、推荐、视觉检测都是在估计
+\[
+a=\hat{f}(x),\qquad \hat{f}\in\mathcal{F},
+\]
+其中 $\mathcal{F}$ 由数据而非手写规则确定。经验增加时，$\hat{f}$ 的风险下降；
+固定规则程序不自动改进。
+
+\section{机器学习中的关键组件}
+
+学习问题写成四元组 $(\mathcal{D},\mathcal{F},L,\mathcal{A})$：
+数据、模型类、目标、优化算法。
+
+\subsection{数据}
+
+训练集 $\mathcal{D}=\{(\bm{x}^{(i)},y^{(i)})\}_{i=1}^{n}$ 提供经验。
+样本应尽可能独立同分布地来自未知 $P(\bm{x},y)$。
+特征维度、标签类型和 $n$ 决定 $\mathcal{F}$ 能多复杂。
+
+\subsection{模型}
+
+模型是带参数 $\bm{\theta}$ 的映射
+\[
+\hat{y}=f_{\bm{\theta}}(\bm{x}).
+\]
+线性模型对应 $\mathcal{F}=\{ \bm{x}\mapsto \bm{w}^{\mathsf T}\bm{x}+b\}$；
+深度模型把若干简单映射复合为 $f_L\circ\cdots\circ f_1$。
+
+\subsection{目标函数}
+
+目标（损失）把预测与真值变成可比较的标量：
+\[
+L(\bm{\theta})
+=
+\frac{1}{n}\sum_{i=1}^{n}
+\ell\bigl(f_{\bm{\theta}}(\bm{x}^{(i)}),y^{(i)}\bigr).
+\]
+回归常用平方损失，分类常用交叉熵。经验风险 $L(\bm{\theta})$ 是对
+真实风险 $R(\bm{\theta})=\mathbb{E}[\ell(f_{\bm{\theta}}(\bm{x}),y)]$ 的近似。
+
+\subsection{优化算法}
+
+训练求解
+\[
+\bm{\theta}^{\ast}
+\in
+\operatorname*{argmin}_{\bm{\theta}} L(\bm{\theta}).
+\]
+深度学习中 $L$ 通常非凸且无闭式解，故用梯度迭代
+\[
+\bm{\theta}
+\leftarrow
+\bm{\theta}-\eta\,\widehat{\nabla L}(\bm{\theta}),
+\]
+其中 $\widehat{\nabla L}$ 常由小批量估计。
+
+\section{各种机器学习问题}
+
+按是否提供标签、是否与环境交互，学习问题分成不同的条件设置。
+
+\subsection{监督学习}
+
+每个 $\bm{x}$ 配有 $y$，目标是估计 $P(y\mid\bm{x})$ 或 $f(\bm{x})\approx y$。
+回归取 $y\in\mathbb{R}$，分类取 $y\in\{1,\ldots,K\}$。
+
+\subsection{无监督学习}
+
+只有 $\{\bm{x}^{(i)}\}$。任务是估计结构，例如密度 $p(\bm{x})$、聚类划分、
+或低维表示 $\bm{z}=g(\bm{x})$。
+
+\subsection{与环境互动}
+
+数据不再一次性给定，而由策略与环境交互产生轨迹
+\[
+(\bm{s}_t,a_t,r_t,\bm{s}_{t+1})_{t\ge 0}.
+\]
+分布依赖于当前策略，因此 i.i.d.\ 假设不自动成立。
+
+\subsection{强化学习}
+
+目标是最大化期望回报
+\[
+J(\pi)=\mathbb{E}_{\pi}\Bigl[\sum_{t=0}^{T}\gamma^{t} r_t\Bigr],
+\quad 0\le\gamma\le 1.
+\]
+监督信号是延迟的标量奖励，而不是每步的正确标签。
+
+\section{起源}
+
+可学习机器的思想来自神经科学中的神经元加权求和、统计学中的回归与决策理论、
+以及控制论中的反馈。感知机给出
+\[
+\hat{y}=\mathbf{1}\{\bm{w}^{\mathsf T}\bm{x}+b>0\},
+\]
+多层网络则取消线性可分限制。
+
+\section{深度学习的发展}
+
+关键条件是：可微复合模型、反向传播计算 $\nabla_{\bm{\theta}}L$、
+大规模数据与并行硬件。深度指复合层数 $L$ 增大，使 $\mathcal{F}$ 更丰富。
+
+\section{深度学习的成功案例}
+
+当 $x$ 具有局部相关结构（图像、语音、文本）且 $n$ 足够大时，
+端到端训练的 $f_{\bm{\theta}}$ 在分类、检测、翻译等风险上低于手工特征加浅层模型。
+
+\section{特点}
+
+深度学习用端到端可微管道代替分阶段特征工程：
+\[
+x\;\xrightarrow{f_1}\;h_1\;\xrightarrow{f_2}\;\cdots\;\xrightarrow{f_L}\;\hat{y},
+\]
+各 $f_{\ell}$ 的参数由同一 $L(\bm{\theta})$ 的梯度同时更新。
+
+\section{小结}
+
+机器学习估计 $f_{\bm{\theta}}$；深度学习把 $f_{\bm{\theta}}$ 写成深层复合，
+并用 $L(\bm{\theta})$ 的梯度迭代求解。
+
+\section{练习}
+
+核验四元组 $(\mathcal{D},\mathcal{F},L,\mathcal{A})$ 在回归与分类中如何特化，
+以及经验风险与真实风险的差别。

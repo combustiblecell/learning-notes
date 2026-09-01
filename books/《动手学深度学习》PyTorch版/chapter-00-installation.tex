@@ -1,0 +1,13 @@
+\chapter*{安装}
+\addcontentsline{toc}{chapter}{安装}
+
+运行原书代码需要 Python 3 环境、PyTorch 与辅助包 \code{d2l}。
+记依赖集合为 $\mathcal{P}$，运行时环境为映射
+\[
+(\text{Python},\;\mathcal{P})
+\;\longmapsto\;
+\text{可执行的 Jupyter Notebook}.
+\]
+原书推荐用 conda 创建名为 \code{d2l} 的隔离环境，再安装 CPU 或 GPU 版 PyTorch。
+有 NVIDIA GPU 且已配置 CUDA 时，同一模型的前向与反向可在加速器上求值；
+前几章用 CPU 即可完成。每次运行前激活该环境，使解释器与包版本一致。

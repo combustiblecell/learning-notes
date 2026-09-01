@@ -1,0 +1,484 @@
+\chapter{自然语言处理：预训练}
+
+词是离散符号。预训练把词或词元映到向量，使共现与上下文进入内积。
+先写 word2vec 与 GloVe，再写子词与 BERT 的掩蔽语言建模、下一句预测。
+
+\section{词嵌入（word2vec）}
+
+词向量 $\bm{v}\in\mathbb{R}^{d}$ 是词的特征。词嵌入是映射 $w\mapsto\bm{v}_w$。
+
+\subsection{为何独热向量是一个糟糕的选择}
+
+词表 $\mathcal{V}$ 上的独热 $\bm{e}_w$ 两两正交，余弦
+\[
+\frac{\bm{x}^{\mathsf T}\bm{y}}{\|\bm{x}\|\|\bm{y}\|}\in[-1,1]
+\]
+对任何不同词都是 $0$，无法表达相似。
+
+\subsection{自监督的word2vec}
+
+跳元（skip-gram）用中心词预测上下文；连续词袋（CBOW）用上下文预测中心词。
+二者都用语料中的共现，不另需标签。
+
+\subsection{跳元模型（Skip-Gram）}
+
+由 “loves” 生成两侧词的联合，并假定条件独立：
+\begin{align*}
+&P(\text{the},\text{man},\text{his},\text{son}\mid\text{loves})
+\\
+&\approx
+P(\text{the}\mid\text{loves})\,P(\text{man}\mid\text{loves})
+\,P(\text{his}\mid\text{loves})\,P(\text{son}\mid\text{loves}).
+\end{align*}
+一般地，中心词向量 $\bm{v}_c$、上下文向量 $\bm{u}_o$，
+\[
+P(w_o\mid w_c)
+=
+\frac{\exp(\bm{u}_o^{\mathsf T}\bm{v}_c)}{\sum_{i\in\mathcal{V}}\exp(\bm{u}_i^{\mathsf T}\bm{v}_c)}.
+\]
+长度为 $T$、窗口 $m$ 的语料似然
+\[
+\prod_{t=1}^{T}
+\prod_{\substack{-m\leq j\leq m\\ j\neq 0}}
+P\bigl(w^{(t+j)}\mid w^{(t)}\bigr).
+\]
+
+\subsubsection{训练}
+
+最小化
+\[
+-\sum_{t=1}^{T}
+\sum_{\substack{-m\leq j\leq m\\ j\neq 0}}
+\log P\bigl(w^{(t+j)}\mid w^{(t)}\bigr).
+\]
+对数条件概率
+\[
+\log P(w_o\mid w_c)
+=
+\bm{u}_o^{\mathsf T}\bm{v}_c
+-\log\sum_{i\in\mathcal{V}}\exp(\bm{u}_i^{\mathsf T}\bm{v}_c).
+\]
+对 $\bm{v}_c$ 的梯度
+\begin{align*}
+\frac{\partial\log P(w_o\mid w_c)}{\partial\bm{v}_c}
+&=
+\bm{u}_o
+-\sum_{j\in\mathcal{V}}P(w_j\mid w_c)\,\bm{u}_j.
+\end{align*}
+每步与 $|\mathcal{V}|$ 成正比。
+
+\subsection{连续词袋（CBOW）模型}
+
+\[
+P(\text{loves}\mid\text{the},\text{man},\text{his},\text{son}).
+\]
+上下文平均 $\bar{\bm{v}}_o=\frac1{2m}(\bm{v}_{o_1}+\cdots+\bm{v}_{o_{2m}})$，
+\begin{align*}
+P(w_c\mid\mathcal{W}_o)
+&=
+\frac{\exp(\bm{u}_c^{\mathsf T}\bar{\bm{v}}_o)}
+{\sum_{i\in\mathcal{V}}\exp(\bm{u}_i^{\mathsf T}\bar{\bm{v}}_o)}.
+\end{align*}
+序列似然
+\[
+\prod_{t=1}^{T}
+P\bigl(w^{(t)}\mid w^{(t-m)},\ldots,w^{(t-1)},w^{(t+1)},\ldots,w^{(t+m)}\bigr).
+\]
+
+\subsubsection{训练}
+
+\[
+-\sum_{t=1}^{T}
+\log P\bigl(w^{(t)}\mid w^{(t-m)},\ldots,w^{(t+m)}\bigr).
+\]
+\[
+\log P(w_c\mid\mathcal{W}_o)
+=
+\bm{u}_c^{\mathsf T}\bar{\bm{v}}_o
+-\log\sum_{i\in\mathcal{V}}\exp(\bm{u}_i^{\mathsf T}\bar{\bm{v}}_o).
+\]
+\[
+\frac{\partial\log P(w_c\mid\mathcal{W}_o)}{\partial\bm{v}_{o_i}}
+=
+\frac1{2m}
+\Biggl(
+\bm{u}_c-\sum_{j\in\mathcal{V}}P(w_j\mid\mathcal{W}_o)\,\bm{u}_j
+\Biggr).
+\]
+
+\subsection{小结}
+
+跳元：$P(w_o\mid w_c)\propto\exp(\bm{u}_o^{\mathsf T}\bm{v}_c)$。
+CBOW：$P(w_c\mid\mathcal{W}_o)\propto\exp(\bm{u}_c^{\mathsf T}\bar{\bm{v}}_o)$。
+Softmax 分母扫过整个 $\mathcal{V}$。
+
+\subsection{练习}
+
+核验：梯度对 $|\mathcal{V}|$ 的复杂度，以及 $\bm{u}^{\mathsf T}\bm{v}$ 与余弦的关系。
+
+\section{近似训练}
+
+精确 Softmax 每步求和 $|\mathcal{V}|$ 项。负采样与层序 Softmax 把代价降到常数或对数。
+
+\subsection{负采样}
+
+把“中心–上下文是否共现”当成二分类
+\[
+P(D=1\mid w_c,w_o)=\sigma(\bm{u}_o^{\mathsf T}\bm{v}_c),\qquad
+\sigma(x)=\frac1{1+\exp(-x)}.
+\]
+正对似然再乘 $K$ 个噪声词的负例
+\begin{align*}
+P(w^{(t+j)}\mid w^{(t)})
+&=
+P(D=1\mid w^{(t)},w^{(t+j)})
+\prod_{k=1}^{K}
+P(D=0\mid w^{(t)},w_k).
+\end{align*}
+损失
+\begin{align*}
+-\log P(w^{(t+j)}\mid w^{(t)})
+&=
+-\log\sigma(\bm{u}_{i_{t+j}}^{\mathsf T}\bm{v}_{i_t})
+-\sum_{k=1}^{K}
+\log\sigma(-\bm{u}_{h_k}^{\mathsf T}\bm{v}_{i_t}).
+\end{align*}
+每步与 $K$ 线性，与 $|\mathcal{V}|$ 无关。
+
+\subsection{层序Softmax}
+
+词表做成二叉树。从根到叶 $w_o$ 的路径长度为 $L(w_o)$，
+\begin{align*}
+P(w_o\mid w_c)
+&=
+\prod_{j=1}^{L(w_o)-1}
+\sigma\Bigl(
+[\![n(w_o,j+1)=\mathrm{leftChild}(n(w_o,j))]\!]
+\,\bm{u}_{n(w_o,j)}^{\mathsf T}\bm{v}_c
+\Bigr).
+\end{align*}
+路径上向左与向右对应 $+\bm{u}^{\mathsf T}\bm{v}$ 与 $-\bm{u}^{\mathsf T}\bm{v}$。
+对任意 $w_c$ 有 $\sum_{w\in\mathcal{V}}P(w\mid w_c)=1$。
+代价为 $O(\log|\mathcal{V}|)$。
+
+\subsection{小结}
+
+负采样用 $1+K$ 次 $\sigma(\bm{u}^{\mathsf T}\bm{v})$；
+层序 Softmax 用根到叶的 $O(\log|\mathcal{V}|)$ 次。
+
+\subsection{练习}
+
+核验：$\sum_w P(w\mid w_c)=1$ 在二叉树上是否成立，以及噪声分布 $P(w)$ 如何取。
+
+\section{用于预训练词嵌入的数据集}
+
+把 PTB 文本变成跳元 $+$ 负采样所需的小批量。
+
+\subsection{读取数据集}
+
+一行一句、空格分词。频次低于阈值的词并入未知词元。
+
+\subsection{下采样}
+
+词 $w_i$ 被丢弃的概率
+\[
+P(w_i)=\max\Bigl(1-\sqrt{\frac{t}{f(w_i)}},0\Bigr),
+\]
+$f$ 为相对频率，$t$ 为阈值。高频词更常被丢掉。
+
+\subsection{中心词和上下文词的提取}
+
+对每个中心位置均匀抽窗口半径 $1$ 到 $m$，距离不超过该半径的词为上下文。
+
+\subsection{负采样}
+
+噪声 $w$ 的抽样概率正比于 $f(w)^{0.75}$。每对正例抽 $K$ 个噪声词。
+
+\subsection{小批量加载训练实例}
+
+第 $i$ 个样本有 $n_i$ 个上下文与 $m_i$ 个噪声。
+拼接到长度 $\max_i(n_i+m_i)$ 并补零；掩码标出非填充；标签区分正负例。
+
+\subsection{整合代码}
+
+迭代器一次产出中心词、上下文加噪声、掩码与标签。
+
+\subsection{小结}
+
+下采样降高频；批量用掩码对齐变长的正负例。
+
+\subsection{练习}
+
+核验：关闭下采样对每个 epoch 词元数与墙钟时间的影响。
+
+\section{预训练word2vec}
+
+在 PTB 上用负采样训练跳元。
+
+\subsection{跳元模型}
+
+两个嵌入：中心与上下文（含噪声）。
+
+\subsubsection{嵌入层}
+
+权重 $\bm{E}\in\mathbb{R}^{|\mathcal{V}|\times d}$。索引 $i$ 取第 $i$ 行。
+批量索引形状 $(B,L)$ 时输出 $(B,L,d)$。
+
+\subsubsection{定义前向传播}
+
+中心 $(B,1,d)$ 与上下文–噪声 $(B,\mathrm{max\_len},d)$ 做批量点积，
+得 $(B,1,\mathrm{max\_len})$，每个元素是 $\bm{v}_c^{\mathsf T}\bm{u}$。
+
+\subsection{训练}
+
+损失只在非填充位置上平均。
+
+\subsubsection{二元交叉熵损失}
+
+对每个正负位置用
+$-\bigl[y\log\sigma(s)+(1-y)\log(1-\sigma(s))\bigr]$，
+再按掩码平均，与负采样公式一致。
+
+\subsubsection{初始化模型参数}
+
+两张嵌入表，行数为 $|\mathcal{V}|$，例如 $d=100$。
+
+\subsubsection{定义训练阶段代码}
+
+每个批量：前向点积、掩码交叉熵、反传更新两张表。
+
+\subsection{应用词嵌入}
+
+查询词 $\bm{v}$，在词表中取余弦最大的 $k$ 个 $\bm{v}'$。
+
+\subsection{小结}
+
+跳元前向是 $\bm{v}_c^{\mathsf T}\bm{u}$；训练是掩码二元交叉熵。
+下游用余弦找近邻。
+
+\subsection{练习}
+
+核验：同一中心词在不同轮次重抽上下文与噪声，对更新方差的影响。
+
+\section{全局向量的词嵌入（GloVe）}
+
+用全局共现计数 $x_{ij}$ 解释跳元，再用平方损失拟合 $\log x_{ij}$。
+
+\subsection{带全局语料统计的跳元模型}
+
+\[
+q_{ij}
+=
+\frac{\exp(\bm{u}_j^{\mathsf T}\bm{v}_i)}{\sum_{k\in\mathcal{V}}\exp(\bm{u}_k^{\mathsf T}\bm{v}_i)},
+\]
+共现加权交叉熵
+\[
+-\sum_{i\in\mathcal{V}}\sum_{j\in\mathcal{V}}x_{ij}\log q_{ij}
+=
+-\sum_{i\in\mathcal{V}}x_i\sum_{j\in\mathcal{V}}p_{ij}\log q_{ij},
+\]
+其中 $x_i=\sum_j x_{ij}$，$p_{ij}=x_{ij}/x_i$。
+
+\subsection{GloVe模型}
+
+\[
+\sum_{i\in\mathcal{V}}\sum_{j\in\mathcal{V}}
+h(x_{ij})
+\bigl(\bm{u}_j^{\mathsf T}\bm{v}_i+b_i+c_j-\log x_{ij}\bigr)^2.
+\]
+$h$ 对大计数截断，避免极高频对支配损失。中心向量与上下文向量在此目标下地位对称。
+
+\subsection{从条件概率比值理解GloVe模型}
+
+希望
+\[
+f(\bm{u}_j,\bm{u}_k,\bm{v}_i)\approx\frac{p_{ij}}{p_{ik}}.
+\]
+取指数内积比
+\[
+\frac{\exp(\bm{u}_j^{\mathsf T}\bm{v}_i)}{\exp(\bm{u}_k^{\mathsf T}\bm{v}_i)}
+\approx
+\frac{p_{ij}}{p_{ik}},
+\]
+从而
+\[
+\bm{u}_j^{\mathsf T}\bm{v}_i+b_i+c_j\approx\log x_{ij}.
+\]
+
+\subsection{小结}
+
+GloVe 用加权平方损失拟合 $\log x_{ij}$，而不是对整个 $\mathcal{V}$ 做 Softmax。
+比值 $p_{ij}/p_{ik}$ 由内积差解释。
+
+\subsection{练习}
+
+核验：用窗口内距离重加权 $p_{ij}$ 后目标如何变，以及 $b_i$ 与 $c_i$ 是否可对换。
+
+\section{子词嵌入}
+
+变形、复合词共享字符片段。把词向量写成子词向量之和。
+
+\subsection{fastText模型}
+
+词 $w$ 的字符 $n$-gram 集合 $\mathcal{G}_w$（含词本身），
+\[
+\bm{v}_w=\sum_{g\in\mathcal{G}_w}\bm{z}_g.
+\]
+跳元仍用 $\bm{u}_o^{\mathsf T}\bm{v}_c$，但 $\bm{v}_c$ 可加性分解。未见词只要子词在词表中即可表示。
+
+\subsection{字节对编码（Byte Pair Encoding）}
+
+从单字符开始，反复合并当前语料中最频的相邻符号对，得到可变长子词，词表大小预先固定。
+不跨词边界合并。
+
+\subsection{小结}
+
+fastText：$\bm{v}_w=\sum_{g\in\mathcal{G}_w}\bm{z}_g$。
+BPE 贪心合并最频对，得到固定词表上的可变长子词。
+
+\subsection{练习}
+
+核验：从 $n$ 个初始符号得到词表大小 $m$ 需要多少次合并。
+
+\section{词的相似性和类比任务}
+
+大语料上预训练的向量可直接用于近邻与类比。
+
+\subsection{加载预训练词向量}
+
+GloVe 有 $50/100/300$ 维；fastText 有 $300$ 维英文向量。
+词表含四十万词加未知词元。
+
+\subsection{应用预训练词向量}
+
+相似度用余弦；$k$ 近邻在词表上穷举。
+
+\subsubsection{词相似度}
+
+对查询 $w$，返回 $\arg\max_{w'\neq w}\cos(\bm{v}_w,\bm{v}_{w'})$ 的前 $k$ 个。
+
+\subsubsection{词类比}
+
+$a:b::c:d$ 中求
+\[
+d=\operatorname*{argmin}_{w}\bigl\|\bm{v}_w-(\bm{v}_c+\bm{v}_b-\bm{v}_a)\bigr\|
+\]
+（或最大余弦）。例如性别与首都–国家。
+
+\subsection{小结}
+
+近邻是 $\cos(\bm{v},\bm{v}')$；类比是 $\bm{v}_c+\bm{v}_b-\bm{v}_a$ 的最近邻。
+
+\subsection{练习}
+
+核验：词表很大时如何用近似近邻代替全表扫描。
+
+\section{来自Transformers的双向编码器表示（BERT）}
+
+word2vec/GloVe 的 $\bm{v}_w$ 与上下文无关。BERT 用双向 Transformer 编码器，使表示依赖整句。
+
+\subsection{从上下文无关到上下文敏感}
+
+上下文无关：$f(x)$ 只摄入词元 $x$。
+多义词在不同句中应不同；$f(x,\text{上下文})$ 才能区分。
+
+\subsection{从特定于任务到不可知任务}
+
+ELMo 双向但下游仍要定制结构；GPT 任务无关但从左到右。
+微调时 GPT 更新全部解码器参数，ELMo 常冻结。
+
+\subsection{BERT：把两个最好的结合起来}
+
+双向编码 $+$ 下游只加一个浅输出层，并微调全部编码器参数。
+
+\subsection{输入表示}
+
+单句：$\langle\mathrm{cls}\rangle+\,\text{词元}+\,\langle\mathrm{sep}\rangle$。
+句对：$\langle\mathrm{cls}\rangle+A+\langle\mathrm{sep}\rangle+B+\langle\mathrm{sep}\rangle$。
+输入嵌入为词元嵌入、片段嵌入与位置嵌入之和。
+
+\subsection{预训练任务}
+
+编码器输出每个词元（含特殊词元）的向量，供两个自监督头使用。
+
+\subsubsection{掩蔽语言模型（Masked Language Modeling）}
+
+随机选 $15\%$ 词元做预测。对被选词元：以 $80\%$ 换成 $\langle\mathrm{mask}\rangle$，
+$10\%$ 换成随机词，$10\%$ 保持原词，再用双向上下文预测原词。
+避免微调阶段从未见过 $\langle\mathrm{mask}\rangle$ 导致的不一致。
+
+\subsubsection{下一句预测（Next Sentence Prediction）}
+
+句对一半为真实邻句（正），一半第二句随机（负）。
+$\langle\mathrm{cls}\rangle$ 的表示经单隐层 MLP 做二分类。
+
+\subsection{整合代码}
+
+总损失为 MLM 与 NSP 损失的和。前向返回编码、MLM logits 与 NSP logits。
+
+\subsection{小结}
+
+BERT 输入是三类嵌入之和。预训练
+\[
+\ell=\ell_{\mathrm{MLM}}+\ell_{\mathrm{NSP}},
+\]
+MLM 给双向上下文，NSP 给句对关系。
+
+\subsection{练习}
+
+核验：MLM 相对从左到右 LM 需要更多还是更少步才能收敛，以及 GELU 与 ReLU 的差别。
+
+\section{用于预训练BERT的数据集}
+
+在 WikiText-2 上生成 MLM 与 NSP 样本。保留标点、大小写与数字。
+
+\subsection{为预训练任务定义辅助函数}
+
+从段落造句对，再对 BERT 序列做掩蔽。
+
+\subsubsection{生成下一句预测任务的数据}
+
+以 $1/2$ 概率取下句为真邻句，否则从语料随机抽一句。截断使总长不超过 $\mathrm{max\_len}$。
+
+\subsubsection{生成遮蔽语言模型任务的数据}
+
+在非特殊词元中抽约 $15\%$ 位置；按 $80/10/10$ 替换；返回改写后的词元、预测位置与原词标签。
+
+\subsection{将文本转换为预训练数据集}
+
+填充到固定长，附片段下标、有效长度掩码、MLM 标签与 NSP 标签。
+一条样本对应一对句子上的两个任务。
+
+\subsection{小结}
+
+WikiText-2 样本是填充后的
+$(\text{词元},\text{片段},\text{MLM 位置与标签},\text{NSP 标签})$。
+
+\subsection{练习}
+
+核验：不用句号切句、不过滤稀有词元时词表有多大。
+
+\section{预训练BERT}
+
+用上一节样本训练小型 BERT，再用编码器表示文本。
+
+\subsection{预训练BERT}
+
+原论文 $\mathrm{BERT_{BASE}}$：$12$ 层、$768$ 隐、$12$ 头，约 $1.1\times 10^8$ 参数；
+$\mathrm{BERT_{LARGE}}$：$24$ 层、$1024$、$16$ 头，约 $3.4\times 10^8$。
+演示用 $2$ 层、$128$ 隐、$2$ 头。
+批量损失为该批量 MLM 与 NSP 损失之和。
+
+\subsection{用BERT表示文本}
+
+单句或句对加上特殊词元后编码。
+$\langle\mathrm{cls}\rangle$ 位是整段表示；同一词元（如 crane）在不同句中的向量不同。
+
+\subsection{小结}
+
+预训练后 $f_{\mathrm{BERT}}(x,\text{上下文})$ 随上下文变。
+$\langle\mathrm{cls}\rangle$ 与各词元向量都可作下游输入。
+
+\subsection{练习}
+
+核验：为何实验中 MLM 损失高于 NSP，以及 $\mathrm{max\_len}=512$ 配大模型时显存是否溢出。

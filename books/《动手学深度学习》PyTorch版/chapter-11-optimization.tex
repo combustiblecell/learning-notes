@@ -1,0 +1,838 @@
+\chapter{优化算法}
+
+训练把经验风险写成可微标量 $f(\bm{x})$，再用迭代
+$\bm{x}\leftarrow\bm{x}-\eta\,\widehat{\nabla f}(\bm{x})$ 更新参数。
+深度学习要的是泛化，优化只直接压训练误差；二者目标不同。
+下面先写凸性与梯度下降，再写随机、动量与自适应方法。
+
+\section{优化和深度学习}
+
+记训练目标为 $f(\bm{x})$。最大化等价于最小化 $-f$。
+优化求 $f$ 的数值极小；深度学习还要求该极小对应的模型在未见数据上风险低。
+
+\subsection{优化的目标}
+
+经验风险与风险分别为
+\[
+R_{\mathrm{emp}}(\bm{x})
+=
+\frac{1}{n}\sum_{i=1}^{n}\ell\bigl(f_{\bm{x}}(\bm{z}^{(i)}),y^{(i)}\bigr),
+\qquad
+R(\bm{x})
+=
+\mathbb{E}_{(\bm{z},y)}[\ell(f_{\bm{x}}(\bm{z}),y)].
+\]
+优化算法直接减小 $R_{\mathrm{emp}}$；泛化要求 $R$ 小。
+过拟合时 $R_{\mathrm{emp}}\ll R$，故仅压训练误差不够。
+
+\subsection{深度学习中的优化挑战}
+
+多数深度目标无解析解，只能用数值迭代。
+梯度为零的点可以是局部极小、鞍点，或因梯度消失而停滞。
+
+\subsubsection{局部最小值}
+
+在 $[-1,2]$ 上
+\[
+f(x)=x\cos(\pi x)
+\]
+有多个局部极小。梯度下降停在哪一个，取决于初值与步长。
+
+\subsubsection{鞍点}
+
+$f(x)=x^3$ 在 $x=0$ 处 $f'(0)=f''(0)=0$，但不是极小。
+$f(x,y)=x^2-y^2$ 在 $(0,0)$ 是鞍点：沿 $x$ 极小、沿 $y$ 极大。
+Hessian 的特征值全正为局部极小，全负为局部极大，有正有负则为鞍点。
+
+\subsubsection{梯度消失}
+
+若 $f(x)=\tanh(x)$，则
+\[
+f'(x)=1-\tanh^2(x),\qquad f'(4)\approx 0.0013.
+\]
+从 $x=4$ 出发，步长 $\eta f'(x)$ 接近零，迭代长时间几乎不动。
+
+\subsection{小结}
+
+优化压 $R_{\mathrm{emp}}$，不自动压 $R$。
+局部极小、鞍点与 $f'\approx 0$ 都会使
+$x\leftarrow x-\eta f'(x)$ 停滞。
+
+\subsection{练习}
+
+核验：隐藏层宽度为 $d$ 时局部极小的置换对称、对称随机矩阵特征值分布是否关于零对称。
+
+\section{凸性}
+
+若算法在凸问题上失败，非凸上更难指望。
+深度目标整体非凸，但局部常近似凸。
+
+\subsection{定义}
+
+先固定凸集，再固定凸函数。
+
+\subsubsection{凸集}
+
+集合 $\mathcal{X}$ 凸，当且仅当对任意 $a,b\in\mathcal{X}$ 与 $\lambda\in[0,1]$，
+\[
+\lambda a+(1-\lambda)b\in\mathcal{X}.
+\]
+
+\subsubsection{凸函数}
+
+$f$ 在凸集上凸，当且仅当
+\[
+\lambda f(x)+(1-\lambda)f(x')
+\geq
+f\bigl(\lambda x+(1-\lambda)x'\bigr).
+\]
+
+\subsubsection{詹森不等式}
+
+对 $\alpha_i\geq 0$、$\sum_i\alpha_i=1$，
+\begin{align*}
+\sum_i\alpha_i f(x_i)
+&\geq
+f\Bigl(\sum_i\alpha_i x_i\Bigr),
+\\
+\mathbb{E}_X[f(X)]
+&\geq
+f\bigl(\mathbb{E}_X[X]\bigr).
+\end{align*}
+取 $f=-\log$ 得
+\[
+\mathbb{E}_{Y\sim P(Y)}[-\log P(X\mid Y)]
+\geq
+-\log P(X).
+\]
+
+\subsection{性质}
+
+凸性把局部信息变成全局信息。
+
+\subsubsection{局部极小值是全局极小值}
+
+设 $x^{\ast}$ 局部极小而 $f(x')<f(x^{\ast})$。对充分小的 $\lambda\in(0,1)$，
+\begin{align*}
+f\bigl(\lambda x^{\ast}+(1-\lambda)x'\bigr)
+&\leq
+\lambda f(x^{\ast})+(1-\lambda)f(x')
+\\
+&<
+\lambda f(x^{\ast})+(1-\lambda)f(x^{\ast})
+=f(x^{\ast}),
+\end{align*}
+与局部极小矛盾。故凸函数的局部极小即全局极小。
+
+\subsubsection{凸函数的下水平集是凸的}
+
+下水平集
+\[
+\mathcal{S}_b:=\{x\in\mathcal{X}:f(x)\leq b\}
+\]
+对凸 $f$ 是凸的：若 $x,x'\in\mathcal{S}_b$，则
+\[
+f\bigl(\lambda x+(1-\lambda)x'\bigr)
+\leq
+\lambda f(x)+(1-\lambda)f(x')
+\leq b.
+\]
+
+\subsubsection{凸性和二阶导数}
+
+一维时，凸性蕴含
+\[
+\frac12 f(x+\epsilon)+\frac12 f(x-\epsilon)
+\geq f(x),
+\]
+从而
+\[
+f''(x)
+=
+\lim_{\epsilon\to 0}
+\frac{f(x+\epsilon)+f(x-\epsilon)-2f(x)}{\epsilon^2}
+\geq 0.
+\]
+若 $f'$ 单调，由中值定理
+\[
+f'(\alpha)=\frac{f(x)-f(a)}{x-a},\qquad
+f'(\beta)=\frac{f(b)-f(x)}{b-x},
+\]
+再令 $\lambda=(x-a)/(b-a)$ 得
+\[
+\lambda f(b)+(1-\lambda)f(a)
+\geq
+f\bigl((1-\lambda)a+\lambda b\bigr).
+\]
+高维时定义
+\[
+g(z)\stackrel{\mathrm{def}}{=}
+f\bigl(z\bm{x}+(1-z)\bm{y}\bigr),\qquad z\in[0,1].
+\]
+$f$ 凸当且仅当每个这样的 $g$ 凸，当且仅当 Hessian $\nabla^2 f$ 半正定。
+
+\subsection{约束}
+
+约束问题写成
+\begin{align*}
+\operatorname*{minimize}_{\bm{x}}&\quad f(\bm{x})
+\\
+\text{subject to}&\quad
+c_i(\bm{x})\leq 0,\quad i=1,\ldots,N.
+\end{align*}
+
+\subsubsection{拉格朗日函数}
+
+乘子 $\alpha_i\geq 0$，
+\[
+L(\bm{x},\alpha_1,\ldots,\alpha_n)
+=
+f(\bm{x})+\sum_{i=1}^{n}\alpha_i c_i(\bm{x}).
+\]
+
+\subsubsection{惩罚}
+
+把 $\alpha_i c_i(\bm{x})$ 加进目标，近似强制 $c_i(\bm{x})\leq 0$。
+权重衰减 $\frac{\lambda}{2}\|\bm{w}\|^2$ 对应约束 $\|\bm{w}\|^2-r^2\leq 0$。
+
+\subsubsection{投影}
+
+梯度裁剪
+\[
+\bm{g}\leftarrow \bm{g}\cdot\min\bigl(1,\theta/\|\bm{g}\|\bigr)
+\]
+把更新限制在半径 $\theta$ 的球上。一般投影为
+\[
+\operatorname{Proj}_{\mathcal{X}}(\bm{x})
+=
+\operatorname*{argmin}_{\bm{x}'\in\mathcal{X}}\|\bm{x}-\bm{x}'\|.
+\]
+
+\subsection{小结}
+
+凸函数满足
+$\lambda f(x)+(1-\lambda)f(x')\geq f(\lambda x+(1-\lambda)x')$，
+局部极小即全局极小，Hessian 半正定。
+约束经 $L$ 或惩罚进入目标，可行点由 $\operatorname{Proj}_{\mathcal{X}}$ 拉回。
+
+\subsection{练习}
+
+核验：$p$ 范数球的凸性、$\max(f,g)$ 保持凸而 $\min(f,g)$ 不必、Softmax 规范化的凸性。
+
+\section{梯度下降}
+
+全梯度下降很少直接用于深度模型，但它给出步长、曲率与预处理的原型。
+
+\subsection{一维梯度下降}
+
+泰勒展开
+\[
+f(x+\epsilon)=f(x)+\epsilon f'(x)+\mathcal{O}(\epsilon^2).
+\]
+取 $\epsilon=-\eta f'(x)$，
+\[
+f\bigl(x-\eta f'(x)\bigr)
+=
+f(x)-\eta f'(x)^2+\mathcal{O}\bigl(\eta^2 f'(x)^2\bigr).
+\]
+$\eta$ 充分小时 $f$ 下降，更新为
+\[
+x\leftarrow x-\eta f'(x).
+\]
+
+\subsubsection{学习率}
+
+$\eta$ 过小则每步 $\lvert\eta f'(x)\rvert$ 太小；$|\eta f'(x)|$ 过大则二阶余项不可忽略，$f$ 不必下降。
+
+\subsubsection{局部最小值}
+
+$f(x)=x\cos(cx)$ 有无穷多个局部极小。过大的 $\eta$ 可把迭代送进较差的谷。
+
+\subsection{多元梯度下降}
+
+\[
+\nabla f(\bm{x})
+=
+\biggl[
+\frac{\partial f(\bm{x})}{\partial x_1},\ldots,
+\frac{\partial f(\bm{x})}{\partial x_d}
+\biggr]^{\mathsf T},
+\]
+\[
+f(\bm{x}+\bm{\epsilon})
+=
+f(\bm{x})+\bm{\epsilon}^{\mathsf T}\nabla f(\bm{x})
++\mathcal{O}(\|\bm{\epsilon}\|^2),
+\]
+\[
+\bm{x}\leftarrow \bm{x}-\eta\nabla f(\bm{x}).
+\]
+
+\subsection{自适应方法}
+
+合适的 $\eta$ 难选。二阶方法用曲率自动定步，计算贵，但给出预处理的直觉。
+
+\subsubsection{牛顿法}
+
+\[
+f(\bm{x}+\bm{\epsilon})
+=
+f(\bm{x})+\bm{\epsilon}^{\mathsf T}\nabla f(\bm{x})
++\frac12\bm{\epsilon}^{\mathsf T}\nabla^2 f(\bm{x})\bm{\epsilon}
++\mathcal{O}(\|\bm{\epsilon}\|^3).
+\]
+令 $\bm{H}=\nabla^2 f(\bm{x})$，驻点条件
+\[
+\nabla f(\bm{x})+\bm{H}\bm{\epsilon}=0
+\qquad\Rightarrow\qquad
+\bm{\epsilon}=-\bm{H}^{-1}\nabla f(\bm{x}).
+\]
+
+\subsubsection{收敛性分析}
+
+一维牛顿误差 $e^{(k)}=x^{(k)}-x^{\ast}$ 满足
+\begin{align*}
+0&=f'\bigl(x^{(k)}-e^{(k)}\bigr)
+\\
+&=f'(x^{(k)})-e^{(k)}f''(x^{(k)})
++\frac12(e^{(k)})^2 f'''(\xi^{(k)}),
+\end{align*}
+从而
+\[
+\bigl\lvert e^{(k+1)}\bigr\rvert
+=
+\frac12(e^{(k)})^2
+\frac{\lvert f'''(\xi^{(k)})\rvert}{f''(x^{(k)})}
+\leq
+c\,(e^{(k)})^2.
+\]
+在凸且 $f''$ 有下界时为二次收敛。
+
+\subsubsection{预处理}
+
+对角近似
+\[
+\bm{x}
+\leftarrow
+\bm{x}-\eta\,\operatorname{diag}(\bm{H})^{-1}\nabla f(\bm{x})
+\]
+按坐标缩放步长，避免直接求 $\bm{H}^{-1}$。
+
+\subsubsection{梯度下降和线搜索}
+
+沿 $-\nabla f(\bm{x})$ 对 $\eta$ 做一维搜索，使
+$f(\bm{x}-\eta\nabla f(\bm{x}))$ 最小。
+每步需在全数据上求值，深度模型上通常不可行。
+
+\subsection{小结}
+
+更新 $\bm{x}\leftarrow\bm{x}-\eta\nabla f(\bm{x})$ 中 $\eta$ 过大发散、过小停滞。
+牛顿步 $-\bm{H}^{-1}\nabla f$ 在凸问题上快，非凸上 Hessian 不定时不能直接用。
+
+\subsection{练习}
+
+核验：不同 $\eta$ 下 $f$ 是否单调下降、线搜索是否需要导数、对角 Hessian 预处理对坐标尺度不均问题的作用。
+
+\section{随机梯度下降}
+
+全梯度每次用全部 $n$ 个样本；随机梯度每次用一个样本。
+
+\subsection{随机梯度更新}
+
+\[
+f(\bm{x})=\frac1n\sum_{i=1}^{n}f_i(\bm{x}),
+\qquad
+\nabla f(\bm{x})=\frac1n\sum_{i=1}^{n}\nabla f_i(\bm{x}).
+\]
+随机更新
+\[
+\bm{x}\leftarrow \bm{x}-\eta\nabla f_i(\bm{x})
+\]
+无偏：
+\[
+\mathbb{E}_i[\nabla f_i(\bm{x})]=\nabla f(\bm{x}).
+\]
+
+\subsection{动态学习率}
+
+\begin{align*}
+\eta(t)&=\eta_i
+&& t_i\leq t\leq t_{i+1}
+&&\text{分段常数},
+\\
+\eta(t)&=\eta_0 e^{-\lambda t}
+&&
+&&\text{指数衰减},
+\\
+\eta(t)&=\eta_0(\beta t+1)^{-\alpha}
+&&
+&&\text{多项式衰减}.
+\end{align*}
+
+\subsection{凸目标的收敛性分析}
+
+\[
+\bm{x}_{t+1}
+=
+\bm{x}_t-\eta_t\partial_{\bm{x}}f(\bm{\xi}_t,\bm{x}),
+\qquad
+R(\bm{x})=\mathbb{E}_{\bm{\xi}}[f(\bm{\xi},\bm{x})].
+\]
+展开距离
+\begin{align*}
+\|\bm{x}_{t+1}-\bm{x}^{\ast}\|^2
+&=
+\|\bm{x}_t-\bm{x}^{\ast}\|^2
++\eta_t^2\|\partial_{\bm{x}}f(\bm{\xi}_t,\bm{x})\|^2
+\\
+&\quad
+-2\eta_t\langle\bm{x}_t-\bm{x}^{\ast},\partial_{\bm{x}}f(\bm{\xi}_t,\bm{x})\rangle.
+\end{align*}
+若梯度有界 $\|\partial_{\bm{x}}f\|\leq L$，则
+$\eta_t^2\|\partial_{\bm{x}}f\|^2\leq\eta_t^2 L^2$。
+凸性给出
+\[
+f(\bm{\xi}_t,\bm{x}^{\ast})
+\geq
+f(\bm{\xi}_t,\bm{x}_t)
++\langle\bm{x}^{\ast}-\bm{x}_t,\partial_{\bm{x}}f(\bm{\xi}_t,\bm{x}_t)\rangle,
+\]
+于是
+\begin{align*}
+\|\bm{x}_t-\bm{x}^{\ast}\|^2
+-\|\bm{x}_{t+1}-\bm{x}^{\ast}\|^2
+&\geq
+2\eta_t\bigl(f(\bm{\xi}_t,\bm{x}_t)-f(\bm{\xi}_t,\bm{x}^{\ast})\bigr)
+-\eta_t^2 L^2.
+\end{align*}
+取期望并累加，加权平均
+\[
+\bar{\bm{x}}
+\stackrel{\mathrm{def}}{=}
+\frac{\sum_{t=1}^{T}\eta_t\bm{x}_t}{\sum_{t=1}^{T}\eta_t}
+\]
+满足
+\[
+\mathbb{E}[R(\bar{\bm{x}})]-R^{\ast}
+\leq
+\frac{r^2+L^2\sum_{t=1}^{T}\eta_t^2}{2\sum_{t=1}^{T}\eta_t}.
+\]
+
+\subsection{随机梯度和有限样本}
+
+有放回时，一轮中某样本被抽到的概率
+\[
+1-(1-1/n)^n\approx 1-e^{-1}\approx 0.63.
+\]
+恰好抽一次的概率约为 $e^{-1}\approx 0.37$。
+无放回遍历则每个样本每轮恰好一次。
+
+\subsection{小结}
+
+凸时 SGD 对广泛的 $\{\eta_t\}$ 收敛到最优；深度目标非凸，无同样保证。
+$n$ 大时全梯度每步代价高，故用 $\nabla f_i$。
+
+\subsection{练习}
+
+核验：$\eta_t$ 衰减过快或过慢时 $\|\bm{x}_t-\bm{x}^{\ast}\|$ 的轨迹，以及有放回与无放回采样对无偏性的影响。
+
+\section{小批量随机梯度下降}
+
+全梯度数据效率低，单样本计算效率低。小批量在二者之间。
+
+\subsection{向量化和缓存}
+
+一次处理 $|\mathcal{B}|$ 个样本，使矩阵乘与缓存命中摊薄解释器与内存延迟。
+多 GPU 时每卡至少一张图，有效批量随设备数放大。
+
+\subsection{小批量}
+
+单样本
+\[
+\bm{g}_t=\partial_{\bm{w}}f(\bm{x}_t,\bm{w}),
+\]
+小批量
+\[
+\bm{g}_t
+=
+\partial_{\bm{w}}
+\frac{1}{|\mathcal{B}_t|}
+\sum_{i\in\mathcal{B}_t}f(\bm{x}_i,\bm{w}).
+\]
+$\mathcal{B}_t$ 来自数据的随机排列，每轮每样本一次。
+
+\subsection{读取数据集}
+
+对已标准化的设计矩阵 $\bm{X}\in\mathbb{R}^{n\times d}$、响应 $\bm{y}$，
+迭代器输出 $(\bm{X}_{\mathcal{B}},\bm{y}_{\mathcal{B}})$，
+$|\mathcal{B}|$ 为批量。
+
+\subsection{从零开始实现}
+
+线性模型 $\hat{y}=\bm{w}^{\mathsf T}\bm{x}+b$，损失在批量上先平均再反传，
+故更新中 $\bm{g}_t$ 不再除 $|\mathcal{B}|$。
+$|\mathcal{B}|=n$ 退化为批量梯度下降。
+
+\subsection{简洁实现}
+
+框架优化器实现同一映射
+$\bm{w}\leftarrow\bm{w}-\eta\bm{g}_t$，状态为空。
+
+\subsection{小结}
+
+小批量梯度
+$\bm{g}_t=\partial_{\bm{w}}\frac{1}{|\mathcal{B}_t|}\sum_{i\in\mathcal{B}_t}f(\bm{x}_i,\bm{w})$
+同时利用向量化与噪声梯度。训练中降低 $\eta$ 有助于后期收敛。
+
+\subsection{练习}
+
+核验：$|\mathcal{B}|$ 与 $\eta$ 如何改变目标下降速度，以及数据被复制一倍时三种梯度估计的偏差。
+
+\section{动量法}
+
+噪声梯度上 $\eta$ 难选。动量用过去梯度的泄漏平均代替当前梯度。
+
+\subsection{基础}
+
+先写平均，再写更新。
+
+\subsubsection{泄漏平均值}
+
+\[
+\bm{g}_{t,t-1}
+=
+\partial_{\bm{w}}
+\frac{1}{|\mathcal{B}_t|}
+\sum_{i\in\mathcal{B}_t}f(\bm{x}_i,\bm{w}_{t-1}).
+\]
+\[
+\bm{v}_t=\beta\bm{v}_{t-1}+\bm{g}_{t,t-1}
+=
+\sum_{\tau=0}^{t-1}\beta^{\tau}\bm{g}_{t-\tau,t-\tau-1}.
+\]
+
+\subsubsection{条件不佳的问题}
+
+\[
+f(\bm{x})=0.1\,x_1^2+2\,x_2^2
+\]
+两个方向曲率相差 $20$ 倍，固定 $\eta$ 的梯度下降在窄谷中振荡。
+
+\subsubsection{动量法}
+
+\begin{align*}
+\bm{v}_t&\leftarrow\beta\bm{v}_{t-1}+\bm{g}_{t,t-1},
+\\
+\bm{x}_t&\leftarrow\bm{x}_{t-1}-\eta_t\bm{v}_t.
+\end{align*}
+
+\subsubsection{有效样本权重}
+
+$\sum_{\tau=0}^{\infty}\beta^{\tau}=1/(1-\beta)$，
+有效步长约为 $\eta/(1-\beta)$。
+$\beta=0.9$ 相当于约 $10$ 个梯度的加权平均。
+
+\subsection{实际实验}
+
+速度 $\bm{v}$ 与 $\bm{g}$ 同形，需额外状态。
+
+\subsubsection{从零开始实现}
+
+维护 $\bm{v}$，按上式更新。增大 $\beta$ 时应略降 $\eta$，以免有效步长过大。
+
+\subsubsection{简洁实现}
+
+框架求解器在同一 $(\beta,\eta)$ 下实现同一 $\bm{v},\bm{x}$ 递推。
+
+\subsection{理论分析}
+
+二次凸目标把动量写成线性递推。
+
+\subsubsection{二次凸函数}
+
+\[
+h(\bm{x})=\frac12\bm{x}^{\mathsf T}\bm{Q}\bm{x}+\bm{x}^{\mathsf T}\bm{c}+b.
+\]
+配平方后经 $\bm{Q}=\bm{U}\bm{\Lambda}\bm{U}^{\mathsf T}$ 变成
+\[
+h(\bm{z})=\frac12\bm{z}^{\mathsf T}\bm{\Lambda}\bm{z}+b'.
+\]
+无动量时
+\[
+\bm{z}_t=(\bm{I}-\bm{\Lambda})\bm{z}_{t-1}.
+\]
+有动量时
+\begin{align*}
+\bm{v}_t&=\beta\bm{v}_{t-1}+\bm{\Lambda}\bm{z}_{t-1},
+\\
+\bm{z}_t&=(\bm{I}-\eta\bm{\Lambda})\bm{z}_{t-1}-\eta\beta\bm{v}_{t-1}.
+\end{align*}
+
+\subsubsection{标量函数}
+
+无动量 $x_{t+1}=(1-\eta\lambda)x_t$。有动量
+\[
+\begin{bmatrix}v_{t+1}\\ x_{t+1}\end{bmatrix}
+=
+\begin{bmatrix}
+\beta & \lambda\\
+-\eta\beta & 1-\eta\lambda
+\end{bmatrix}
+\begin{bmatrix}v_t\\ x_t\end{bmatrix}
+=\bm{R}(\beta,\eta,\lambda)
+\begin{bmatrix}v_t\\ x_t\end{bmatrix}.
+\]
+谱半径 $\rho(\bm{R})<1$ 时该坐标收敛。
+
+\subsection{小结}
+
+动量用 $\bm{v}_t=\sum_{\tau}\beta^{\tau}\bm{g}_{t-\tau}$ 替代当前梯度，
+有效梯度个数为 $1/(1-\beta)$，并多存一个状态 $\bm{v}$。
+
+\subsection{练习}
+
+核验：$h(\bm{x})=\frac12\bm{x}^{\mathsf T}\bm{Q}\bm{x}+\bm{x}^{\mathsf T}\bm{c}+b$ 的最小点，以及 $\beta,\eta$ 对 $\rho(\bm{R})$ 的影响。
+
+\section{AdaGrad算法}
+
+稀疏特征上，全局递减的 $\eta$ 对常见坐标过慢、对罕见坐标过快。
+
+\subsection{稀疏特征和学习率}
+
+语言模型中罕见词的参数只在该词出现时更新。
+若 $\eta_t=\mathcal{O}(t^{-1/2})$ 已很小，罕见坐标尚未被充分观测。
+
+\subsection{预处理}
+
+二次型经坐标缩放后
+\[
+f(\bm{x})=\bar f(\bar{\bm{x}})
+=
+\frac12\bar{\bm{x}}^{\mathsf T}\bm{\Lambda}\bar{\bm{x}}
++\bar{\bm{c}}^{\mathsf T}\bar{\bm{x}}+b,
+\]
+条件数 $\kappa=\Lambda_1/\Lambda_d$。对角预处理
+\[
+\tilde{\bm{Q}}
+=
+\operatorname{diag}^{-1/2}(\bm{Q})\,\bm{Q}\,\operatorname{diag}^{-1/2}(\bm{Q})
+\]
+把各坐标曲率拉近。梯度
+\[
+\partial_{\bar{\bm{x}}}\bar f(\bar{\bm{x}})
+=
+\bm{\Lambda}(\bar{\bm{x}}-\bar{\bm{x}}_0)
+\]
+幅度随坐标变化，可用 $|\bm{g}|$ 代理曲率。
+
+\subsection{算法}
+
+\begin{align*}
+\bm{g}_t&=\partial_{\bm{w}}\ell\bigl(y_t,f(\bm{x}_t,\bm{w})\bigr),
+\\
+\bm{s}_t&=\bm{s}_{t-1}+\bm{g}_t^2,
+\\
+\bm{w}_t&=\bm{w}_{t-1}-\frac{\eta}{\sqrt{\bm{s}_t+\epsilon}}\cdot\bm{g}_t.
+\end{align*}
+平方与除法按坐标逐元素。测试函数仍用
+$f(\bm{x})=0.1\,x_1^2+2\,x_2^2$。
+
+\subsection{从零开始实现}
+
+状态 $\bm{s}$ 与 $\bm{w}$ 同形，按上式更新。因 $\sqrt{\bm{s}_t}$ 单调增，后期步长自动变小，故可用比 SGD 更大的初始 $\eta$。
+
+\subsection{简洁实现}
+
+框架 AdaGrad 实现同一 $(\bm{s},\bm{w})$ 递推。
+
+\subsection{小结}
+
+AdaGrad 用 $\bm{s}_t=\sum_{\tau=1}^{t}\bm{g}_{\tau}^2$ 按坐标缩小步长：
+大梯度坐标走得慢，稀疏坐标保持相对大的有效学习率。
+深度非凸上 $\bm{s}_t$ 可能累积过快。
+
+\subsection{练习}
+
+核验：正交变换下 $\|\bm{U}\bm{c}-\bm{U}\bm{\delta}\|_2=\|\bm{c}-\bm{\delta}\|_2$，
+以及旋转 $f(\bm{x})=0.1(x_1+x_2)^2+2(x_1-x_2)^2$ 后轨迹是否改变。
+
+\section{RMSProp算法}
+
+AdaGrad 的 $\bm{s}_t$ 无界累积，等价于 $\eta$ 按 $\mathcal{O}(t^{-1/2})$ 下降，非凸上往往过早停滞。
+
+\subsection{算法}
+
+\begin{align*}
+\bm{s}_t&\leftarrow\gamma\bm{s}_{t-1}+(1-\gamma)\bm{g}_t^2,
+\\
+\bm{x}_t&\leftarrow\bm{x}_{t-1}-\frac{\eta}{\sqrt{\bm{s}_t+\epsilon}}\odot\bm{g}_t.
+\end{align*}
+展开
+\[
+\bm{s}_t
+=(1-\gamma)\bigl(\bm{g}_t^2+\gamma\bm{g}_{t-1}^2+\gamma^2\bm{g}_{t-2}^2+\cdots\bigr).
+\]
+$\eta$ 由实验者单独调度；$\gamma$ 控制历史窗口，有效长度约 $1/(1-\gamma)$。
+
+\subsection{从零开始实现}
+
+同一二次函数上，AdaGrad 在 $\eta=0.4$ 后期几乎不动；RMSProp 因泄漏平均不让 $\bm{s}_t$ 无限增长。
+深度网络常用 $\eta=0.01$、$\gamma=0.9$。
+
+\subsection{简洁实现}
+
+框架 RMSProp 实现同一更新。
+
+\subsection{小结}
+
+RMSProp 用泄漏平均 $\bm{s}_t\leftarrow\gamma\bm{s}_{t-1}+(1-\gamma)\bm{g}_t^2$ 做按坐标预处理，并把全局 $\eta$ 从累积平方和中分离。
+
+\subsection{练习}
+
+核验：$\gamma=1$ 时 $\bm{s}_t$ 不再更新的后果，以及旋转二次面上的收敛。
+
+\section{Adadelta}
+
+Adadelta 进一步取消显式 $\eta$，用参数变化量校准更新幅度。
+
+\subsection{Adadelta算法}
+
+梯度二阶矩
+\[
+\bm{s}_t=\rho\bm{s}_{t-1}+(1-\rho)\bm{g}_t^2.
+\]
+重缩放梯度与参数更新
+\begin{align*}
+\bm{g}_t'
+&=
+\frac{\sqrt{\Delta\bm{x}_{t-1}+\epsilon}}{\sqrt{\bm{s}_t+\epsilon}}\odot\bm{g}_t,
+\\
+\bm{x}_t&=\bm{x}_{t-1}-\bm{g}_t',
+\\
+\Delta\bm{x}_t
+&=\rho\Delta\bm{x}_{t-1}+(1-\rho){\bm{g}_t'}^2.
+\end{align*}
+需两个状态 $\bm{s}_t$、$\Delta\bm{x}_t$。$\rho=0.9$ 对应约 $10$ 个半衰期。
+
+\subsection{代码实现}
+
+每坐标维护 $(\bm{s},\Delta\bm{x})$，按上式递推；框架 API 实现同一映射。
+
+\subsection{小结}
+
+Adadelta 用 $\sqrt{\Delta\bm{x}_{t-1}}/\sqrt{\bm{s}_t}$ 代替 $\eta$，仍用泄漏平均估计二阶统计。
+
+\subsection{练习}
+
+核验：能否不显式形成 $\bm{g}_t'$ 而得到同一 $\bm{x}_t$，以及与 AdaGrad、RMSProp 轨迹的差别。
+
+\section{Adam算法}
+
+Adam 把动量的一阶矩与 RMSProp 的二阶矩合在同一更新里，并做偏差校正。
+
+\subsection{算法}
+
+\begin{align*}
+\bm{v}_t&\leftarrow\beta_1\bm{v}_{t-1}+(1-\beta_1)\bm{g}_t,
+\\
+\bm{s}_t&\leftarrow\beta_2\bm{s}_{t-1}+(1-\beta_2)\bm{g}_t^2.
+\end{align*}
+因 $\bm{v}_0=\bm{s}_0=\bm{0}$，
+\[
+\hat{\bm{v}}_t=\frac{\bm{v}_t}{1-\beta_1^t},\qquad
+\hat{\bm{s}}_t=\frac{\bm{s}_t}{1-\beta_2^t}.
+\]
+\[
+\bm{g}_t'=\frac{\eta\hat{\bm{v}}_t}{\sqrt{\hat{\bm{s}}_t}+\epsilon},
+\qquad
+\bm{x}_t\leftarrow\bm{x}_{t-1}-\bm{g}_t'.
+\]
+
+\subsection{实现}
+
+状态为 $(\bm{v},\bm{s},t)$。常用 $\eta=0.01$，$\beta_1=0.9$，$\beta_2=0.999$。
+
+\subsection{Yogi}
+
+Adam 中 $\bm{s}_t$ 在梯度突变时可能被大正项拉动。把
+\[
+\bm{s}_t\leftarrow\bm{s}_{t-1}+(1-\beta_2)(\bm{g}_t^2-\bm{s}_{t-1})
+\]
+改成
+\[
+\bm{s}_t
+\leftarrow
+\bm{s}_{t-1}+(1-\beta_2)\bm{g}_t^2\odot\operatorname{sgn}(\bm{g}_t^2-\bm{s}_{t-1})
+\]
+使增量幅度受当前 $\bm{s}$ 限制。
+
+\subsection{小结}
+
+Adam 的更新是偏差校正后的
+$\bm{x}_t\leftarrow\bm{x}_{t-1}-\eta\hat{\bm{v}}_t/(\sqrt{\hat{\bm{s}}_t}+\epsilon)$。
+梯度尺度差异大时可用更大批量或 Yogi 的 $\bm{s}_t$。
+
+\subsection{练习}
+
+核验：去掉偏差校正后早期步长、以及何种 $\bm{g}_t$ 序列使 Adam 发散而 Yogi 收敛。
+
+\section{学习率调度器}
+
+更新规则确定方向，$\eta_t$ 确定步长。过大发散，过小停滞或次优；条件数大时更敏感。
+
+\subsection{一个简单的问题}
+
+在 Fashion-MNIST 上用固定 $\eta=0.3$ 训练修改后的 LeNet。
+训练精度可继续升而测试精度停滞，间隙对应过拟合。
+
+\subsection{学习率调度器}
+
+调度器是映射 $t\mapsto\eta_t$。例如
+\[
+\eta_t=\eta_0(t+1)^{-1/2}.
+\]
+比固定 $\eta$ 更平滑，过拟合间隙往往更小。
+
+\subsection{策略}
+
+常用多项式、分段常数、余弦与预热。
+
+\subsubsection{单因子调度器}
+
+乘法衰减
+\[
+\eta_{t+1}\leftarrow\eta_t\cdot\alpha,\qquad\alpha\in(0,1),
+\]
+并加下限
+\[
+\eta_{t+1}\leftarrow\max(\eta_{\min},\eta_t\cdot\alpha).
+\]
+
+\subsubsection{多因子调度器}
+
+在预定时刻 $s=\{5,10,20\}$ 上
+$\eta_{t+1}\leftarrow\eta_t\cdot\alpha$。
+直觉是：先用较大 $\eta$ 走到驻点附近，再减小 $\eta$ 降低参数噪声。
+
+\subsubsection{余弦调度器}
+
+\[
+\eta_t
+=
+\eta_T+\frac{\eta_0-\eta_T}{2}\bigl(1+\cos(\pi t/T)\bigr).
+\]
+
+\subsubsection{预热}
+
+先把 $\eta$ 从接近 $0$ 线性升到 $\eta_0$，再接入余弦或其他衰减，
+避免深度网络初期过大步长导致发散。
+
+\subsection{小结}
+
+$\eta_t$ 应随训练下降。余弦调度为
+$\eta_t=\eta_T+\frac{\eta_0-\eta_T}{2}(1+\cos(\pi t/T))$；
+预热限制初期 $\|\eta\bm{g}\|$。
+
+\subsection{练习}
+
+核验：固定 $\eta$ 能达到的最优训练误差、多项式指数如何改变收敛，以及预热长度对初期损失的影响。

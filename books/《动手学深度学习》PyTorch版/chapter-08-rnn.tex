@@ -1,0 +1,606 @@
+\chapter{循环神经网络}
+
+序列把观测写成按时间排列的随机变量。语言模型把联合分布因式分解为条件概率
+$P(x_1,\ldots,x_T)$，循环神经网络用共享参数的隐状态压缩历史，
+并通过时间反向传播计算梯度。正文保留原书标题，内容以公式为主。
+
+\section{序列模型}
+
+记观测序列为 $x_1,\ldots,x_T$。每个时间步的合法预测只能依赖已经发生的历史，
+而不能依赖未来。下面先固定条件分布，再写成可训练的特征--标签对。
+
+\subsection{统计工具}
+
+对任意 $t$，当前项的生成规律是条件分布
+\[
+x_t \sim P(x_t \mid x_{t-1},\ldots,x_1).
+\]
+联合分布由这些条件依次相乘得到。不同的条件独立性假设对应不同的模型类。
+
+\subsubsection{自回归模型}
+
+链规则给出精确分解
+\[
+P(x_1,\ldots,x_T)=\prod_{t=1}^{T}P(x_t \mid x_{t-1},\ldots,x_1).
+\]
+自回归模型直接估计右侧每个条件分布，输入是过去观测本身。
+隐变量自回归则另设 $h_t=f(x_t,h_{t-1})$，再用 $P(x_t \mid h_{t-1})$ 近似条件。
+
+\subsubsection{马尔可夫模型}
+
+若只依赖最近一项，则得到一阶马尔可夫模型
+\[
+P(x_1,\ldots,x_T)=\prod_{t=1}^{T}P(x_t \mid x_{t-1}),
+\qquad
+P(x_1 \mid x_0)=P(x_1).
+\]
+此时隔一步的条件可由全概率公式消去中间变量：
+\begin{align*}
+P(x_{t+1} \mid x_{t-1})
+&=
+\frac{\sum_{x_t}P(x_{t+1},x_t,x_{t-1})}{P(x_{t-1})}
+\\
+&=
+\sum_{x_t} P(x_{t+1} \mid x_t)\,P(x_t \mid x_{t-1}).
+\end{align*}
+更高阶只是把条件窗口从 $1$ 换成 $\tau$。
+
+\subsubsection{因果关系}
+
+时间向前时，用过去解释现在。若强行反过来因式分解，
+\[
+P(x_1,\ldots,x_T)=\prod_{t=T}^{1}P(x_t \mid x_{t+1},\ldots,x_T),
+\]
+则估计对象变成“由未来推断过去”。因果序列上正向条件通常比反向更容易稳定估计。
+
+\subsection{训练}
+
+用正弦加噪声生成 $x_t=\sin t+\epsilon_t$，$t=1,\ldots,1000$。
+嵌入窗口长度 $\tau$ 后，监督对为
+\[
+y_t=x_t,
+\qquad
+\bm{x}_t=(x_{t-\tau},\ldots,x_{t-1}).
+\]
+前 $\tau$ 项没有完整历史，故丢弃；训练只用前 $600$ 个对。
+于是回归映射是
+\[
+\hat{x}_t=f(\bm{x}_t).
+\]
+
+\subsection{预测}
+
+单步预测把真实历史送入 $f$。多步则把已有预测再送回去。以 $\tau=4$ 为例，
+\begin{align*}
+\hat{x}_{605}&=f(x_{601},x_{602},x_{603},x_{604}),
+\\
+\hat{x}_{606}&=f(x_{602},x_{603},x_{604},\hat{x}_{605}),
+\\
+\hat{x}_{607}&=f(x_{603},x_{604},\hat{x}_{605},\hat{x}_{606}).
+\end{align*}
+当输入窗口全部换成 $\hat{x}$ 后，误差沿时间累积，这就是 $k$ 步预测。
+
+\subsection{小结}
+
+序列模型的核心对象是
+\[
+P(x_1,\ldots,x_T)=\prod_{t=1}^{T}P(x_t \mid x_{t-1},\ldots,x_1),
+\]
+训练必须尊重时间顺序；$k$ 步预测把估计误差迭代送入同一映射 $f$。
+
+\subsection{练习}
+
+核验对象是窗口长度 $\tau$、噪声为零时正弦的最小充分历史，
+以及把已有 $\hat{x}$ 反馈后 $k$ 步误差如何放大。
+
+\section{文本预处理}
+
+文本是离散序列。预处理把它映成整数下标序列，供后面的语言模型计算
+$P(x_1,\ldots,x_T)$。
+
+\subsection{读取数据集}
+
+语料是字符串行的列表。清洗后每行是小写字母与空格组成的序列，
+标点与大小写差异被抹掉，得到原始字符流。
+
+\subsection{词元化}
+
+词元化是映射
+\[
+\operatorname{tokenize}:\ \text{字符串}
+\longrightarrow
+(z_1,\ldots,z_L),\qquad z_\ell\in\mathcal{Z},
+\]
+其中 $\mathcal{Z}$ 是词元集合，可取单词或字符。输出是词元列表的列表。
+
+\subsection{词表}
+
+词表是单射
+\[
+\operatorname{Vocab}:\ \mathcal{Z}\cup\{\texttt{<unk>}\}
+\longrightarrow
+\{0,1,\ldots,|\mathcal{V}|-1\}.
+\]
+先统计语料频率 $n(z)$，丢掉 $n(z)<m$ 的低频项，剩余按频次分配下标。
+未见或已删词元映到 $\texttt{<unk>}$。可选地加入填充 $\texttt{<pad>}$、
+开始 $\texttt{<bos>}$、结束 $\texttt{<eos>}$。
+
+\subsection{整合所有功能}
+
+把读入、词元化与查表合成
+\[
+\text{文本}
+\longmapsto
+(\operatorname{corpus},\operatorname{vocab}),
+\]
+其中 $\operatorname{corpus}=(x_1,\ldots,x_T)$ 且 $x_t\in\{0,\ldots,|\mathcal{V}|-1\}$。
+后续字符级语言模型把整本语料当作一条长序列，而不是按行切成多条。
+
+\subsection{小结}
+
+预处理的终点是整数序列 $(x_1,\ldots,x_T)$ 与词表 $\operatorname{Vocab}$，
+后面所有概率都定义在这套下标上。
+
+\subsection{练习}
+
+核验词元粒度（字符或词）以及最低频次 $m$ 如何改变 $|\mathcal{V}|$。
+
+\section{语言模型和数据集}
+
+语言模型的对象是词元序列的联合分布
+\[
+P(x_1,x_2,\ldots,x_T).
+\]
+估计该分布后，就能给任意句子打分，也能逐项生成后续词元。
+
+\subsection{学习语言模型}
+
+链规则仍然成立：
+\[
+P(x_1,x_2,\ldots,x_T)
+=
+\prod_{t=1}^{T}P(x_t \mid x_1,\ldots,x_{t-1}).
+\]
+例如
+\begin{align*}
+&P(\text{deep},\text{learning},\text{is},\text{fun})
+\\
+&\quad=
+P(\text{deep})\,
+P(\text{learning}\mid\text{deep})\,
+P(\text{is}\mid\text{deep},\text{learning})
+\\
+&\qquad\cdot
+P(\text{fun}\mid\text{deep},\text{learning},\text{is}).
+\end{align*}
+计数估计是
+\[
+\hat{P}(\text{learning}\mid\text{deep})
+=
+\frac{n(\text{deep, learning})}{n(\text{deep})}.
+\]
+低频组合用拉普拉斯平滑：
+\begin{align*}
+\hat{P}(x)
+&=
+\frac{n(x)+\epsilon_1/m}{n+\epsilon_1},
+\\
+\hat{P}(x'\mid x)
+&=
+\frac{n(x,x')+\epsilon_2\hat{P}(x')}{n(x)+\epsilon_2},
+\\
+\hat{P}(x''\mid x,x')
+&=
+\frac{n(x,x',x'')+\epsilon_3\hat{P}(x'')}{n(x,x')+\epsilon_3}.
+\end{align*}
+
+\subsection{\texorpdfstring{马尔可夫模型与$n$元语法}{马尔可夫模型与n元语法}}
+
+截断条件窗口得到 $n$ 元语法。对长度为 $4$ 的序列，
+\begin{align*}
+P(x_1,x_2,x_3,x_4)
+&=
+P(x_1)P(x_2)P(x_3)P(x_4),
+\\
+P(x_1,x_2,x_3,x_4)
+&=
+P(x_1)P(x_2\mid x_1)P(x_3\mid x_2)P(x_4\mid x_3),
+\\
+P(x_1,x_2,x_3,x_4)
+&=
+P(x_1)P(x_2\mid x_1)P(x_3\mid x_1,x_2)P(x_4\mid x_2,x_3).
+\end{align*}
+三式分别是一元、二元、三元语法。
+
+\subsection{自然语言统计}
+
+词频近似服从齐普夫定律。按降序排列后
+\[
+n_i \propto \frac{1}{i^{\alpha}},
+\qquad
+\log n_i = -\alpha\log i + c.
+\]
+该幂律不仅出现在一元语法，也出现在更高阶 $n$ 元计数上，
+因此长片段的经验频率会迅速变得极稀。
+
+\subsection{读取长序列数据}
+
+语料长度 $T$ 通常远大于一次能送入网络的步数 $n$。
+把长序列切成长度为 $n$ 的子序列，标签是整体左移一项后的序列，
+即用 $(x_t,\ldots,x_{t+n-1})$ 预测 $(x_{t+1},\ldots,x_{t+n})$。
+
+\subsubsection{随机采样}
+
+每个小批量在长序列上独立抽取起点。相邻两个批量的子序列在原文中不必相邻。
+长度为 $35$、步数 $5$ 时可切出
+\[
+\bigl\lfloor(35-1)/5\bigr\rfloor=6
+\]
+个特征--标签对；批量大小为 $2$ 时得到 $3$ 个批量。
+
+\subsubsection{顺序分区}
+
+相邻批量的第 $i$ 条子序列在原文中也相邻。
+隐状态可以跨批量延续；随机采样则每个批量必须重新初始化隐状态。
+两种读法都输出形状为 $(\text{批量大小},n)$ 的 $(\bm{X},\bm{Y})$。
+
+\subsection{小结}
+
+语言模型估计 $P(x_1,\ldots,x_T)$；$n$ 元语法用马尔可夫截断使计数可行，
+长序列则按随机采样或顺序分区切成固定长度窗口。
+
+\subsection{练习}
+
+核验四元语法在词表大小 $10^5$ 时要存储的计数规模，
+以及随机偏移是否让窗口起点在文档上接近均匀。
+
+\section{循环神经网络}
+
+用一个隐状态压缩全部历史，把变长条件改成固定形状的递推：
+\[
+P(x_t \mid x_{t-1},\ldots,x_1)\approx P(x_t \mid h_{t-1}),
+\qquad
+h_t=f(x_t,h_{t-1}).
+\]
+参数不随 $t$ 增加。
+
+\subsection{无隐状态的神经网络}
+
+把一个时间步的批量输入 $\bm{X}\in\mathbb{R}^{n\times d}$ 送入普通隐层
+\begin{align*}
+\bm{H}&=\phi(\bm{X}\bm{W}_{xh}+\bm{b}_h),
+\\
+\bm{O}&=\bm{H}\bm{W}_{hq}+\bm{b}_q.
+\end{align*}
+不同时间步的 $\bm{H}$ 互不传递，因此无法携带 $t$ 之前的信息。
+
+\subsection{有隐状态的循环神经网络}
+
+加入跨时间的循环项 $\bm{W}_{hh}$：
+\begin{align*}
+\bm{H}_t
+&=
+\phi(\bm{X}_t\bm{W}_{xh}+\bm{H}_{t-1}\bm{W}_{hh}+\bm{b}_h),
+\\
+\bm{O}_t
+&=
+\bm{H}_t\bm{W}_{hq}+\bm{b}_q.
+\end{align*}
+其中 $\bm{X}_t\in\mathbb{R}^{n\times d}$，$\bm{H}_t\in\mathbb{R}^{n\times h}$，
+$\bm{O}_t\in\mathbb{R}^{n\times q}$。同一套 $(\bm{W}_{xh},\bm{W}_{hh},\bm{W}_{hq})$
+在所有 $t$ 上共享。
+
+\subsection{基于循环神经网络的字符级语言模型}
+
+词元取字符。批量大小为 $1$ 时，序列如 ``machine'' 的每个字符先映成向量，
+再按时间送入上式。时刻 $t$ 的标签是下一个字符，输出 $\bm{O}_t$ 经 softmax
+得到 $P(x_{t+1}\mid h_t)$。训练目标仍是
+\[
+P(x_1,\ldots,x_T)=\prod_{t=1}^{T}P(x_t \mid h_{t-1}).
+\]
+
+\subsection{困惑度（Perplexity）}
+
+平均负对数似然
+\[
+\frac{1}{n}\sum_{t=1}^{n}-\log P(x_t \mid x_{t-1},\ldots,x_1)
+\]
+再指数化，得到困惑度
+\[
+\exp\Biggl(-\frac{1}{n}\sum_{t=1}^{n}\log P(x_t \mid x_{t-1},\ldots,x_1)\Biggr).
+\]
+它是模型在每个位置上有效分支数的几何平均：均匀乱猜约为 $|\mathcal{V}|$，
+完美预测为 $1$。
+
+\subsection{小结}
+
+循环计算
+\[
+\bm{H}_t=\phi(\bm{X}_t\bm{W}_{xh}+\bm{H}_{t-1}\bm{W}_{hh}+\bm{b}_h)
+\]
+使 $h_t$ 携带到当前为止的历史，并用困惑度衡量 $P(x_t\mid h_{t-1})$ 的质量。
+
+\subsection{练习}
+
+核验下一字符的输出维必须等于 $|\mathcal{V}|$，
+以及沿很长的 $t$ 反传时乘积 $\prod_j\partial h_j/\partial h_{j-1}$ 的尺度。
+
+\section{循环神经网络的从零开始实现}
+
+把上一节的映射在字符语料上展开：独热输入、共享循环核、裁剪后的梯度更新，
+以及用困惑度衡量的生成。
+
+\subsection{独热编码}
+
+词表大小为 $N$ 时，下标 $i$ 映到单位向量 $\bm{e}_i\in\{0,1\}^{N}$，
+$(\bm{e}_i)_j=[i=j]$。小批量时间步 $\bm{X}_t$ 的每一行都是某个 $\bm{e}_{x}$，
+因而 $\bm{X}_t\in\mathbb{R}^{n\times N}$，且 $\bm{X}_t\bm{W}_{xh}$ 选出第 $x$ 行。
+
+\subsection{初始化模型参数}
+
+隐藏宽度 $h$ 与词表大小 $N$ 决定
+\[
+\bm{W}_{xh}\in\mathbb{R}^{N\times h},\
+\bm{W}_{hh}\in\mathbb{R}^{h\times h},\
+\bm{W}_{hq}\in\mathbb{R}^{h\times N}
+\]
+及偏置。输入层与输出层共用同一词表，故两边维度都是 $N$。
+
+\subsection{循环神经网络模型}
+
+初始隐状态 $\bm{H}_0=\bm{0}\in\mathbb{R}^{n\times h}$。一个时间步是
+\begin{align*}
+\bm{H}_t
+&=
+\tanh(\bm{X}_t\bm{W}_{xh}+\bm{H}_{t-1}\bm{W}_{hh}+\bm{b}_h),
+\\
+\bm{O}_t
+&=
+\bm{H}_t\bm{W}_{hq}+\bm{b}_q.
+\end{align*}
+最外层按 $t=1,\ldots,n_{\text{steps}}$ 循环，把全部 $\bm{O}_t$ 拼成输出。
+
+\subsection{预测}
+
+给定前缀。预热期只更新 $h_t$ 不采样；之后每步取
+\[
+\hat{x}_{t+1}=\operatorname*{argmax}_{x}P(x \mid h_t)
+\]
+或按该分布抽样，再把 $\hat{x}_{t+1}$ 作为下一输入。
+
+\subsection{梯度裁剪}
+
+若 $f$ 是 $L$ 利普希茨的，则
+\[
+\bigl|f(\bm{x})-f(\bm{y})\bigr|\le L\|\bm{x}-\bm{y}\|.
+\]
+沿梯度走一步后
+\[
+\bigl|f(\bm{x})-f(\bm{x}-\eta\bm{g})\bigr|\le L\eta\|\bm{g}\|.
+\]
+阈值 $\theta$ 下的裁剪
+\[
+\bm{g}\leftarrow\min\Bigl(1,\frac{\theta}{\|\bm{g}\|}\Bigr)\bm{g}
+\]
+把更新幅度限制在 $\theta$ 以内，用来抑制爆炸，但不修复消失。
+
+\subsection{训练}
+
+一个迭代周期内：随机采样则每批量重置 $h$；顺序分区则延续 $h$ 但截断梯度。
+更新前执行上式裁剪，并用困惑度汇总不同长度序列的交叉熵。
+
+\subsection{小结}
+
+从零实现把
+\[
+(\bm{e}_{x_t},h_{t-1})\mapsto(h_t,\bm{O}_t)
+\]
+写成可训练循环核，预热提供可用的 $h$，裁剪保证 $\|\bm{g}\|$ 有上界。
+
+\subsection{练习}
+
+核验独热与嵌入层第一层等价、去掉裁剪后 $\|\bm{g}\|$ 是否发散，
+以及用 $P(x)^\alpha$ 抽样如何改变生成分布。
+
+\section{循环神经网络的简洁实现}
+
+同一套映射改由框架中的循环层一次性求值，输出层仍需单独写出。
+
+\subsection{定义模型}
+
+循环层接收 $\bm{X}_{1:T}$ 与 $\bm{H}_0$，返回
+\[
+(\bm{H}_{1:T},\bm{H}_T)
+=
+\operatorname{RNN}(\bm{X}_{1:T},\bm{H}_0).
+\]
+这里的 $\bm{H}_{1:T}$ 还不是词表上的 logits；完整模型是
+\[
+\bm{O}_t=\bm{H}_t\bm{W}_{hq}+\bm{b}_q.
+\]
+多层时，上一层的 $\bm{H}_t^{(\ell-1)}$ 作为下一层输入。
+
+\subsection{训练与预测}
+
+随机初始化时前缀续写接近均匀乱猜。训练目标、裁剪与困惑度与从零实现相同，
+只是 $\operatorname{RNN}$ 的逐步递推由编译后的算子完成。
+
+\subsection{小结}
+
+简洁实现不改变
+\[
+\bm{H}_t=\phi(\bm{X}_t\bm{W}_{xh}+\bm{H}_{t-1}\bm{W}_{hh}+\bm{b}_h),
+\]
+只把该递包装成层；词表上的 $\bm{O}_t$ 仍由单独的线性映射给出。
+
+\subsection{练习}
+
+核验增加隐藏层数是否仍收敛，以及用同一循环核拟合序列节中的自回归窗口 $f$。
+
+\section{通过时间反向传播}
+
+损失对共享参数 $w_h$ 的梯度必须沿 $h_T\to h_{T-1}\to\cdots\to h_1$ 反传，
+这称为通过时间反向传播（BPTT）。
+
+\subsection{循环神经网络的梯度分析}
+
+一步映射与逐步损失为
+\begin{align*}
+h_t&=f(x_t,h_{t-1},w_h),
+\\
+o_t&=g(h_t,w_o),
+\end{align*}
+\[
+L=\frac{1}{T}\sum_{t=1}^{T}l(y_t,o_t).
+\]
+对 $w_h$ 求偏导：
+\begin{align*}
+\frac{\partial L}{\partial w_h}
+&=
+\frac{1}{T}\sum_{t=1}^{T}
+\frac{\partial l(y_t,o_t)}{\partial o_t}
+\frac{\partial g(h_t,w_o)}{\partial h_t}
+\frac{\partial h_t}{\partial w_h}.
+\end{align*}
+隐状态本身对参数的依赖是递推
+\[
+\frac{\partial h_t}{\partial w_h}
+=
+\frac{\partial f(x_t,h_{t-1},w_h)}{\partial w_h}
++
+\frac{\partial f(x_t,h_{t-1},w_h)}{\partial h_{t-1}}
+\frac{\partial h_{t-1}}{\partial w_h}.
+\]
+令
+\begin{align*}
+a_t&=\frac{\partial h_t}{\partial w_h},
+\quad
+b_t=\frac{\partial f(x_t,h_{t-1},w_h)}{\partial w_h},
+\\
+c_t&=\frac{\partial f(x_t,h_{t-1},w_h)}{\partial h_{t-1}},
+\end{align*}
+则 $a_t=b_t+c_t a_{t-1}$，展开为
+\[
+a_t=b_t+\sum_{i=1}^{t-1}\Biggl(\prod_{j=i+1}^{t}c_j\Biggr)b_i.
+\]
+代回原变量，
+\begin{align*}
+\frac{\partial h_t}{\partial w_h}
+&=
+\frac{\partial f(x_t,h_{t-1},w_h)}{\partial w_h}
+\\
+&\quad+
+\sum_{i=1}^{t-1}
+\Biggl(
+\prod_{j=i+1}^{t}
+\frac{\partial f(x_j,h_{j-1},w_h)}{\partial h_{j-1}}
+\Biggr)
+\frac{\partial f(x_i,h_{i-1},w_h)}{\partial w_h}.
+\end{align*}
+乘积项决定梯度爆炸或消失。
+
+\subsubsection{完全计算}
+
+把上式中 $i=1$ 到 $t-1$ 的和全部保留，得到精确 BPTT。
+计算量随 $t$ 增长，且 $\prod c_j$ 对初值极度敏感，实践中几乎不用。
+
+\subsubsection{截断时间步}
+
+在 $\tau$ 步后切断求和，即把 $\partial h_{t-\tau}/\partial w_h$ 视为常数。
+这给出真实梯度的近似，使模型更关注短程依赖，并对应实现里对隐状态的分离。
+
+\subsubsection{随机截断}
+
+用伯努利变量 $\xi_t$ 随机决定是否把梯度传向 $t-1$：
+\[
+z_t
+=
+\frac{\partial f(x_t,h_{t-1},w_h)}{\partial w_h}
++
+\xi_t
+\frac{\partial f(x_t,h_{t-1},w_h)}{\partial h_{t-1}}
+\frac{\partial h_{t-1}}{\partial w_h}.
+\]
+$\mathbb{E}[z_t]$ 可与完全梯度一致，但方差更大。
+
+\subsubsection{比较策略}
+
+随机截断把序列切成不等长片段；规则截断切成等长窗口；完全反传保留整条链。
+规则截断在偏差、方差与计算之间最常用。
+
+\subsection{通过时间反向传播的细节}
+
+去掉激活后的线性循环为
+\begin{align*}
+\bm{h}_t&=\bm{W}_{hx}\bm{x}_t+\bm{W}_{hh}\bm{h}_{t-1},
+\\
+\bm{o}_t&=\bm{W}_{qh}\bm{h}_t,
+\end{align*}
+\[
+L=\frac{1}{T}\sum_{t=1}^{T}l(\bm{o}_t,y_t).
+\]
+输出梯度
+\[
+\frac{\partial L}{\partial\bm{o}_t}
+=
+\frac{\partial l(\bm{o}_t,y_t)}{T\cdot\partial\bm{o}_t}
+\in\mathbb{R}^{q}.
+\]
+输出权重
+\[
+\frac{\partial L}{\partial\bm{W}_{qh}}
+=
+\sum_{t=1}^{T}
+\frac{\partial L}{\partial\bm{o}_t}\bm{h}_t^{\top}.
+\]
+终端隐状态
+\[
+\frac{\partial L}{\partial\bm{h}_T}
+=
+\bm{W}_{qh}^{\top}\frac{\partial L}{\partial\bm{o}_T}.
+\]
+对 $t<T$ 反向递推
+\begin{align*}
+\frac{\partial L}{\partial\bm{h}_t}
+&=
+\bm{W}_{hh}^{\top}\frac{\partial L}{\partial\bm{h}_{t+1}}
++
+\bm{W}_{qh}^{\top}\frac{\partial L}{\partial\bm{o}_t}.
+\end{align*}
+展开后
+\[
+\frac{\partial L}{\partial\bm{h}_t}
+=
+\sum_{i=t}^{T}
+\bigl(\bm{W}_{hh}^{\top}\bigr)^{T-i}
+\bm{W}_{qh}^{\top}
+\frac{\partial L}{\partial\bm{o}_{T+t-i}}.
+\]
+于是
+\begin{align*}
+\frac{\partial L}{\partial\bm{W}_{hx}}
+&=
+\sum_{t=1}^{T}
+\frac{\partial L}{\partial\bm{h}_t}\bm{x}_t^{\top},
+\\
+\frac{\partial L}{\partial\bm{W}_{hh}}
+&=
+\sum_{t=1}^{T}
+\frac{\partial L}{\partial\bm{h}_t}\bm{h}_{t-1}^{\top}.
+\end{align*}
+$\bm{W}_{hh}^{\top}$ 的高次幂使特征值 $|\lambda|>1$ 时爆炸、$|\lambda|<1$ 时消失。
+
+\subsection{小结}
+
+BPTT 的核心是
+\[
+\frac{\partial h_t}{\partial w_h}
+=
+b_t+\sum_{i<t}\Biggl(\prod_{j=i+1}^{t}c_j\Biggr)b_i,
+\]
+截断把乘积长度限制在 $\tau$；$\bm{W}_{hh}$ 的谱半径决定梯度尺度。
+
+\subsection{练习}
+
+核验对称矩阵 $\bm{M}$ 满足 $\bm{M}^{k}$ 的特征值为 $\lambda_i^{k}$，
+以及 $\bm{W}_{hh}^{T-t}$ 与主导特征向量对齐如何对应爆炸方向。

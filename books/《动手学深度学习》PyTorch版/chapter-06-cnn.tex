@@ -1,0 +1,379 @@
+\chapter{卷积神经网络}
+
+全连接层把图像展平后不再区分空间邻近。卷积用平移不变与局部性约束核，
+使同一组权重在所有位置复用。下面从全连接出发得到互相关，再加入填充、步幅、通道与汇聚，最后组成 LeNet。
+
+\section{从全连接层到卷积}
+
+表格数据中特征无预定空间结构，多层感知机合适。
+对高维图像，若像素数为 $10^{6}$、隐单元为 $10^{3}$，单层参数已达
+\[
+10^{6}\times 10^{3}=10^{9}.
+\]
+需要把平移不变性与局部性写进映射，以减少自由参数。
+
+\subsection{不变性}
+
+检测物体的响应不应随物体平移而改变。
+同一滤波器在所有空间位置上扫描，等价于要求隐藏表示随输入平移而平移。
+
+\subsection{多层感知机的限制}
+
+把图像 $\bm{X}\in\mathbb{R}^{n_h\times n_w}$ 与四维核 $\mathsf{W}$ 的全连接写成
+\begin{align*}
+[\bm{H}]_{i,j}
+&=
+[\bm{U}]_{i,j}
++
+\sum_{k}\sum_{l}
+[\mathsf{W}]_{i,j,k,l}\,[\bm{X}]_{k,l}\\
+&=
+[\bm{U}]_{i,j}
++
+\sum_{a}\sum_{b}
+[\mathsf{V}]_{i,j,a,b}\,[\bm{X}]_{i+a,j+b}.
+\end{align*}
+第二式只是把求和指标改成相对位移 $(a,b)$，尚未减少参数。
+
+\subsubsection{平移不变性}
+
+令核与偏置都不依赖输出位置 $(i,j)$，即 $[\mathsf{V}]_{i,j,a,b}=[\bm{V}]_{a,b}$、$[\bm{U}]_{i,j}=u$，则
+\[
+[\bm{H}]_{i,j}
+=
+u
++
+\sum_{a}\sum_{b}
+[\bm{V}]_{a,b}\,[\bm{X}]_{i+a,j+b}.
+\]
+同一 $\bm{V}$ 在所有位置复用。
+
+\subsubsection{局部性}
+
+再限制位移只在窗口 $|a|,|b|\le\Delta$ 内，
+\[
+[\bm{H}]_{i,j}
+=
+u
++
+\sum_{a=-\Delta}^{\Delta}\sum_{b=-\Delta}^{\Delta}
+[\bm{V}]_{a,b}\,[\bm{X}]_{i+a,j+b}.
+\]
+远处像素不进入该处隐藏表示。$\Delta=0$ 时退化为逐像素通道混合。
+
+\subsection{卷积}
+
+连续卷积为
+\[
+(f*g)(\bm{x})
+=
+\int f(\bm{z})\,g(\bm{x}-\bm{z})\,\mathrm{d}\bm{z}.
+\]
+一维、二维离散形式为
+\begin{align*}
+(f*g)(i)
+&=
+\sum_{a}f(a)\,g(i-a),\\
+(f*g)(i,j)
+&=
+\sum_{a}\sum_{b}f(a,b)\,g(i-a,j-b).
+\end{align*}
+与上一小节的互相关相比，卷积在核上多了翻转 $(a,b)\mapsto(-a,-b)$。
+
+\subsection{“沃尔多在哪里”回顾}
+
+用滤波器 $\bm{V}$ 在图上滑动窗口并加权，得到目标出现的响应图。
+学习 $\bm{V}$ 使响应在目标位置取大值。
+
+\subsubsection{通道}
+
+输入 $\mathsf{X}$ 与输出 $\mathsf{H}$ 可有通道。四维核 $\mathsf{V}$ 把输入通道 $c$ 混到输出通道 $d$：
+\[
+[\mathsf{H}]_{i,j,d}
+=
+\sum_{a=-\Delta}^{\Delta}\sum_{b=-\Delta}^{\Delta}\sum_{c}
+[\mathsf{V}]_{a,b,c,d}\,[\mathsf{X}]_{i+a,j+b,c}.
+\]
+
+\subsection{小结}
+
+平移不变给出与位置无关的 $\bm{V}$，局部性把求和限制在 $\Delta$ 窗口；多通道时用 $\mathsf{V}$ 混合通道。
+
+\subsection{练习}
+
+当 $\Delta=0$ 时核验上式是否在每个空间位置上退化为通道上的全连接；
+并说明二维离散卷积 $f*g=g*f$ 由核翻转后的交换性得出。
+
+\section{图像卷积}
+
+上节给出原理；本节把二维互相关写成可学习层，并用于边缘检测。
+
+\subsection{互相关运算}
+
+输入 $\bm{X}\in\mathbb{R}^{n_h\times n_w}$、核 $\bm{K}\in\mathbb{R}^{k_h\times k_w}$ 的互相关（cross-correlation）为
+\[
+[\bm{Y}]_{ij}
+=
+\sum_{a=0}^{k_h-1}\sum_{b=0}^{k_w-1}
+[\bm{X}]_{i+a,j+b}\,[\bm{K}]_{ab}.
+\]
+对 $3\times 3$ 输入与 $2\times 2$ 核，四个输出为
+\begin{align*}
+0\cdot 0+1\cdot 1+3\cdot 2+4\cdot 3&=19,\\
+1\cdot 0+2\cdot 1+4\cdot 2+5\cdot 3&=25,\\
+3\cdot 0+4\cdot 1+6\cdot 2+7\cdot 3&=37,\\
+4\cdot 0+5\cdot 1+7\cdot 2+8\cdot 3&=43.
+\end{align*}
+无填充、步幅为 $1$ 时输出形状
+\[
+(n_h-k_h+1)\times(n_w-k_w+1).
+\]
+
+\subsection{卷积层}
+
+卷积层在互相关之后加标量偏置：
+\[
+\bm{Y}=\bm{X}\star\bm{K}+b.
+\]
+可训练参数是 $\bm{K}$ 与 $b$。
+高宽为 $h,w$ 的核称为 $h\times w$ 卷积核，对应层称为 $h\times w$ 卷积层。
+
+\subsection{图像中目标的边缘检测}
+
+核 $\bm{K}=[1,-1]$ 在水平相邻像素上计算差分。
+相邻相等时输出 $0$，否则非零：由白到黑得 $1$，由黑到白得 $-1$。
+该 $\bm{K}$ 检测垂直边缘；转置输入后垂直边缘响应消失，因其不匹配水平结构。
+
+\subsection{学习卷积核}
+
+给定配对 $(\bm{X},\bm{Y})$，学习
+\[
+\min_{\bm{K}}
+\bigl\|\bm{X}\star\bm{K}-\bm{Y}\bigr\|_{F}^{2}.
+\]
+梯度更新 $\bm{K}$ 若干步后，所得核接近手工差分核 $[1,-1]$。
+
+\subsection{互相关和卷积}
+
+严格卷积要求核翻转后再做互相关。
+若层执行互相关并学到 $\bm{K}$，则执行严格卷积时学到翻转后的 $\bm{K}'$。
+二者前向差一个核翻转；核从数据学习时，可表示的函数类相同，输出不受本质影响。
+
+\subsection{特征映射和感受野}
+
+卷积输出称为特征映射（feature map）。
+某元素 $x$ 的感受野（receptive field）是前向中能影响 $x$ 的所有先前元素。
+$2\times 2$ 核下，输出中对应 $19$ 的元素感受野为输入的四个覆盖像素。
+叠层后感受野增长，可超过原始输入尺寸（若计入填充）。
+
+\subsection{小结}
+
+二维卷积层的核心是 $\bm{Y}=\bm{X}\star\bm{K}+b$；核可手工设计或由 $\|\bm{X}\star\bm{K}-\bm{Y}\|_{F}^{2}$ 学习。
+
+\subsection{练习}
+
+核验把 $\bm{X}$、$\bm{K}$ 适当展开后 $\star$ 可写成一次矩阵乘法，
+以及对角边缘图像上 $\bm{K}$ 与 $\bm{K}^{\mathsf T}$ 的响应如何改变。
+
+\section{填充和步幅}
+
+无填充时输出为 $(n_h-k_h+1)\times(n_w-k_w+1)$，连续卷积会快速缩小空间尺寸。
+填充（padding）与步幅（stride）是另外两个控制输出形状的量。
+
+\subsection{填充}
+
+在输入四周补 $p_h$ 行、$p_w$ 列（通常上下分摊 $p_h$、左右分摊 $p_w$）后，输出形状为
+\[
+(n_h-k_h+p_h+1)\times(n_w-k_w+p_w+1).
+\]
+当 $k_h$ 为奇数且 $p_h=k_h-1$（步幅 $1$）时，
+\[
+n_h-k_h+(k_h-1)+1=n_h,
+\]
+高宽保持不变。$3\times 3$ 核常用每边填充 $1$。
+
+\subsection{步幅}
+
+窗口每次在高、宽上分别滑动 $s_h$、$s_w$。输出形状为
+\[
+\biggl\lfloor
+\frac{n_h-k_h+p_h+s_h}{s_h}
+\biggr\rfloor
+\times
+\biggl\lfloor
+\frac{n_w-k_w+p_w+s_w}{s_w}
+\biggr\rfloor.
+\]
+$s_h=s_w=2$ 时空间尺寸大约减半。步幅大于 $1$ 减少后续层的位置数，从而减少计算。
+
+\subsection{小结}
+
+填充增大输出高宽，常用于保持与输入相同；步幅按上式减小高宽。二者共同决定输出维。
+
+\subsection{练习}
+
+把给定的 $(n_h,n_w,k,p,s)$ 代入上式，核验是否与层输出形状一致；并解释音频上 $s=2$ 对应时间轴下采样。
+
+\section{多输入多输出通道}
+
+彩色输入形状为 $c_i\times h\times w$，通道维长度为 $c_i$（例如 RGB 中 $c_i=3$）。
+输入、核与输出都升为至少三维张量。
+
+\subsection{多输入通道}
+
+输入通道数为 $c_i$ 时，核也必须有 $c_i$ 个二维切片，形状 $c_i\times k_h\times k_w$。
+对各通道做二维互相关再求和：
+\[
+\bm{Y}
+=
+\sum_{c=1}^{c_i}
+\bm{X}^{(c)}\star\bm{K}^{(c)}.
+\]
+$\bm{Y}$ 仍是单通道二维图。$c_i=1$ 时退化为上一节。
+
+\subsection{多输出通道}
+
+设输出通道数为 $c_o$。每个输出通道配备一套形状为 $c_i\times k_h\times k_w$ 的核，
+总核形状为
+\[
+c_o\times c_i\times k_h\times k_w.
+\]
+第 $d$ 个输出通道为
+\[
+\bm{Y}^{(d)}
+=
+\sum_{c=1}^{c_i}
+\bm{X}^{(c)}\star\bm{K}^{(d,c)},
+\qquad
+d=1,\ldots,c_o.
+\]
+加深网络时通常减小空间分辨率、增大 $c_o$，使每处位置携带更多特征。
+
+\subsection{\texorpdfstring{$1\times 1$卷积层}{1x1卷积层}}
+
+$k_h=k_w=1$ 时窗口内无空间邻域交互，计算只发生在通道上。
+在每个空间位置 $(i,j)$，
+\[
+[\bm{Y}]_{i,j,:}
+=
+\bm{W}\,[\bm{X}]_{i,j,:},
+\qquad
+\bm{W}\in\mathbb{R}^{c_o\times c_i},
+\]
+即逐像素的全连接。高宽不变，$1\times 1$ 卷积用来改通道数并控制复杂度。
+
+\subsection{小结}
+
+多通道把互相关推广为对 $c_i$ 求和、对 $c_o$ 并列；$1\times 1$ 卷积是每像素上的 $\bm{W}\bm{x}$。
+
+\subsection{练习}
+
+核验无非线性时两个核串联可否写成一次卷积，以及前向乘法次数
+$c_o\,c_i\,k_h\,k_w\,n_h'\,n_w'$ 随 $c_i,c_o$ 加倍如何变化。
+
+\section{汇聚层}
+
+需要逐渐降低空间分辨率、增大感受野，使顶层对整图敏感。
+汇聚（pooling）在窗口上聚合，并减轻卷积响应对精确位置的敏感。
+
+\subsection{最大汇聚层和平均汇聚层}
+
+窗口 $\mathcal{W}_{ij}$ 上，
+\begin{align*}
+[\bm{H}]_{ij}^{\mathrm{max}}
+&=
+\max_{(a,b)\in\mathcal{W}_{ij}}[\bm{X}]_{ab},\\
+[\bm{H}]_{ij}^{\mathrm{avg}}
+&=
+\frac{1}{|\mathcal{W}_{ij}|}\sum_{(a,b)\in\mathcal{W}_{ij}}[\bm{X}]_{ab}.
+\end{align*}
+对与卷积示例相同的 $2\times 2$ 窗口，最大汇聚给出
+\begin{align*}
+\max(0,1,3,4)&=4,\\
+\max(1,2,4,5)&=5,\\
+\max(3,4,6,7)&=7,\\
+\max(4,5,7,8)&=8.
+\end{align*}
+
+\subsection{填充和步幅}
+
+汇聚的输出形状与卷积相同，窗口 $k_h\times k_w$ 扮演核的角色：
+\[
+\biggl\lfloor
+\frac{n_h-k_h+p_h+s_h}{s_h}
+\biggr\rfloor
+\times
+\biggl\lfloor
+\frac{n_w-k_w+p_w+s_w}{s_w}
+\biggr\rfloor.
+\]
+默认步幅常取与窗口相等，例如 $3\times 3$ 窗口默认 $s_h=s_w=3$。
+窗口、填充、步幅均可取矩形且高宽不同。
+
+\subsection{多个通道}
+
+汇聚在每个输入通道上独立进行，不做通道间求和，因此
+\[
+c_o=c_i.
+\]
+通道维连结后的输入，汇聚后通道数保持不变。
+
+\subsection{小结}
+
+最大汇聚取窗口 $\max$，平均汇聚取均值；填充与步幅改变形状，通道数不变。
+
+\subsection{练习}
+
+把平均汇聚写成元素全为 $1/(p_h p_w)$ 的卷积核；并比较最大、平均与 $\operatorname{softmax}$ 加权聚合在窗口上的不同。
+
+\section{卷积神经网络（LeNet）}
+
+不再把 $28\times 28$ 图像展成 $\mathbb{R}^{784}$，而在空间上保留二维结构。
+卷积替代全连接可大幅减少参数。LeNet 是早期完整卷积网络。
+
+\subsection{LeNet}
+
+LeNet-5 分为卷积编码器与全连接块。
+每个卷积单元是 $5\times 5$ 卷积、sigmoid 与 $2\times 2$ 平均汇聚（步幅 $2$）：
+\begin{align*}
+\mathsf{C}_1
+&=
+\sigma(\mathsf{X}\star\mathsf{K}_1+\bm{b}_1)
+\in\mathbb{R}^{6\times 24\times 24},\\
+\mathsf{S}_2
+&=
+\operatorname{AvgPool}_{2\times 2}(\mathsf{C}_1)
+\in\mathbb{R}^{6\times 12\times 12},\\
+\mathsf{C}_3
+&=
+\sigma(\mathsf{S}_2\star\mathsf{K}_3+\bm{b}_3)
+\in\mathbb{R}^{16\times 8\times 8},\\
+\mathsf{S}_4
+&=
+\operatorname{AvgPool}_{2\times 2}(\mathsf{C}_3)
+\in\mathbb{R}^{16\times 4\times 4}.
+\end{align*}
+展平后 $\bm{z}\in\mathbb{R}^{256}$，再
+\[
+\bm{h}_5=\sigma(\bm{W}_5\bm{z}+\bm{b}_5)\in\mathbb{R}^{120},
+\quad
+\bm{h}_6=\sigma(\bm{W}_6\bm{h}_5+\bm{b}_6)\in\mathbb{R}^{84},
+\quad
+\bm{o}=\bm{W}_o\bm{h}_6+\bm{b}_o\in\mathbb{R}^{10}.
+\]
+池化使空间维数每次约减为 $1/4$，同时通道由 $6$ 增至 $16$。
+
+\subsection{模型训练}
+
+训练映射与多层感知机相同：小批量上计算损失、反向、更新 $\bm{\theta}$。
+每个参数参与的乘法次数多于同等参数量的全连接网，故常用 GPU。
+批量 $\bm{X}$ 与 $\bm{\theta}$ 须满足 $\operatorname{loc}(\bm{X})=\operatorname{loc}(\bm{\theta})$。
+
+\subsection{小结}
+
+LeNet 把 $\sigma\circ(\,\cdot\,\star\bm{K})$ 与平均汇聚叠成编码器，再接全连接得到 $\bm{o}\in\mathbb{R}^{10}$。
+
+\subsection{练习}
+
+核验把平均汇聚换成最大汇聚、把 $\sigma$ 换成 $\operatorname{ReLU}$、或改变 $k$ 与 $c_o$ 时，
+各层形状是否仍由填充--步幅公式给出。

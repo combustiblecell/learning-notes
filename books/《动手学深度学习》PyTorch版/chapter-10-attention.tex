@@ -1,0 +1,461 @@
+\chapter{注意力机制}
+
+注意力把查询与键的相似度变成权，再对值加权求和。
+从 Nadaraya--Watson 核回归出发，经过加性与缩放点积评分、多头与自注意力，
+得到完全基于注意力的 Transformer：线性投射给出 $\bm{Q},\bm{K},\bm{V}$，
+再计算 $\operatorname{softmax}(\bm{Q}\bm{K}^{\top}/\sqrt{d})$。
+
+\section{注意力提示}
+
+注意力是有限资源。神经网络若只有汇聚或全连接，选择不依赖当前任务；
+加入查询后，权可以随任务改变。
+
+\subsection{生物学中的注意力提示}
+
+非自主性提示由刺激的突出性驱动，例如场景中唯一的红色物体会抓住注视。
+自主性提示由当前目标驱动，例如要读论文时目光转向纸张。
+二者共同决定焦点。
+
+\subsection{查询、键和值}
+
+查询 $\bm{q}$ 对应自主提示。键 $\bm{k}_i$ 对应非自主提示，值 $\bm{v}_i$ 对应感官输入。
+注意力汇聚是
+\[
+f(\bm{q},(\bm{k}_1,\bm{v}_1),\ldots,(\bm{k}_m,\bm{v}_m))
+=
+\sum_{i=1}^{m}\alpha(\bm{q},\bm{k}_i)\bm{v}_i.
+\]
+没有查询时，权与任务无关，退化为平均或最大汇聚。
+
+\subsection{注意力的可视化}
+
+权矩阵的条目是 $\alpha(\bm{q}_i,\bm{k}_j)$。对角情形下
+\[
+\alpha(\bm{q}_i,\bm{k}_j)=[i=j],
+\]
+即只把与查询相同的键所对应的值取出。后续各节都用同一张权矩阵观察汇聚偏向。
+
+\subsection{小结}
+
+注意力与汇聚的差别在于查询：权 $\alpha(\bm{q},\bm{k}_i)$ 由查询--键交互决定，
+再对成对的值加权。
+
+\subsection{练习}
+
+核验翻译解码中查询、键、值分别对应哪些向量，
+以及行归一化后的随机矩阵是否构成合法注意力权。
+
+\section{注意力汇聚：Nadaraya-Watson 核回归}
+
+Nadaraya--Watson 核回归是完整的注意力实例：查询是自变量 $x$，
+键是训练输入 $x_i$，值是训练输出 $y_i$。
+
+\subsection{生成数据集}
+
+\[
+y_i=2\sin(x_i)+x_i^{0.8}+\epsilon,
+\]
+$\epsilon$ 为噪声。回归目标是估计 $f(x)=\mathbb{E}[y\mid x]$。
+
+\subsection{平均汇聚}
+
+忽略查询，对全部值取平均
+\[
+f(x)=\frac{1}{n}\sum_{i=1}^{n}y_i.
+\]
+这是与 $x$ 无关的常数估计。
+
+\subsection{非参数注意力汇聚}
+
+核 $K$ 把查询与键的距离变成权：
+\[
+f(x)=\sum_{i=1}^{n}\frac{K(x-x_i)}{\sum_{j=1}^{n}K(x-x_j)}y_i
+=
+\sum_{i=1}^{n}\alpha(x,x_i)y_i.
+\]
+高斯核
+\[
+K(u)=\frac{1}{\sqrt{2\pi}}\exp\Bigl(-\frac{u^{2}}{2}\Bigr)
+\]
+给出
+\begin{align*}
+f(x)
+&=
+\sum_{i=1}^{n}
+\frac{\exp\bigl(-\tfrac{1}{2}(x-x_i)^{2}\bigr)}
+{\sum_{j=1}^{n}\exp\bigl(-\tfrac{1}{2}(x-x_j)^{2}\bigr)}
+y_i
+\\
+&=
+\sum_{i=1}^{n}
+\operatorname{softmax}\bigl(-\tfrac{1}{2}(x-x_i)^{2}\bigr)y_i.
+\end{align*}
+
+\subsection{带参数注意力汇聚}
+
+引入可学习带宽 $w$，距离改成 $(x-x_i)w$：
+\begin{align*}
+f(x)
+&=
+\sum_{i=1}^{n}
+\operatorname{softmax}\bigl(-\tfrac{1}{2}((x-x_i)w)^{2}\bigr)y_i.
+\end{align*}
+$|w|$ 越大，权越集中在最近的键上。
+
+\subsubsection{批量矩阵乘法}
+
+形状 $(n,a,b)$ 与 $(n,b,c)$ 的批量乘满足
+\[
+(\mathsf{X}\mathsf{Y})_{n}=\bm{X}_{n}\bm{Y}_{n}\in\mathbb{R}^{a\times c}.
+\]
+注意力里常用它一次算完整批查询对全部键的评分。
+
+\subsubsection{定义模型}
+
+把训练对 $\{(x_i,y_i)\}$ 作为键--值，查询为 $x$。
+评分向量经 softmax 后与值向量做批量乘，实现上一段的 $f(x)$。
+
+\subsubsection{训练}
+
+平方损失加随机梯度更新 $w$。每个样本的查询不与自身键配对，以免平凡自匹配。
+学得的 $|w|$ 较大时，权热图在邻近区域更尖锐，拟合曲线也更不平滑。
+
+\subsection{小结}
+
+Nadaraya--Watson 把回归写成
+\[
+f(x)=\sum_{i}\alpha(x,x_i)y_i,
+\]
+非参数核与带参数核只差评分函数是否含 $w$。
+
+\subsection{练习}
+
+核验增大 $n$ 是否改进非参数估计，以及 $w$ 如何改变 $\alpha(x,x_i)$ 的尖锐程度。
+
+\section{注意力评分函数}
+
+一般地，
+\begin{align*}
+f(\bm{q},(\bm{k}_1,\bm{v}_1),\ldots,(\bm{k}_m,\bm{v}_m))
+&=
+\sum_{i=1}^{m}\alpha(\bm{q},\bm{k}_i)\bm{v}_i\in\mathbb{R}^{v},
+\\
+\alpha(\bm{q},\bm{k}_i)
+&=
+\operatorname{softmax}(a(\bm{q},\bm{k}_i))
+=
+\frac{\exp\bigl(a(\bm{q},\bm{k}_i)\bigr)}
+{\sum_{j=1}^{m}\exp\bigl(a(\bm{q},\bm{k}_j)\bigr)}.
+\end{align*}
+不同的评分 $a$ 给出不同的汇聚。
+
+\subsection{掩蔽softmax操作}
+
+填充位置不应进入汇聚。有效长度之外的评分置为 $-\infty$，再做 softmax，
+于是对应权为 $0$，加权和只落在合法键上。
+
+\subsection{加性注意力}
+
+查询与键维数可以不同。令
+\[
+a(\bm{q},\bm{k})=\bm{w}_{v}^{\top}\tanh(\bm{W}_{q}\bm{q}+\bm{W}_{k}\bm{k})\in\mathbb{R}.
+\]
+这是一层隐层宽度为 $h$ 的加性评分，适用于编码器--解码器中两边维数不一致的情形。
+
+\subsection{缩放点积注意力}
+
+当 $\bm{q},\bm{k}\in\mathbb{R}^{d}$ 时，
+\[
+a(\bm{q},\bm{k})=\frac{\bm{q}^{\top}\bm{k}}{\sqrt{d}}.
+\]
+$\sqrt{d}$ 抵消点积方差随 $d$ 线性增长，避免 softmax 进入饱和。批量形式为
+\[
+\operatorname{softmax}\Bigl(\frac{\bm{Q}\bm{K}^{\top}}{\sqrt{d}}\Bigr)\bm{V}
+\in\mathbb{R}^{n\times v},
+\]
+其中 $\bm{Q}\in\mathbb{R}^{n\times d}$，$\bm{K}\in\mathbb{R}^{m\times d}$，
+$\bm{V}\in\mathbb{R}^{m\times v}$。
+
+\subsection{小结}
+
+汇聚总是值的加权平均；维数不同用加性评分，维数相同时缩放点积
+$\bm{q}^{\top}\bm{k}/\sqrt{d}$ 更省计算。
+
+\subsection{练习}
+
+核验改键之后加性与点积权是否仍重合，以及同维时求和评分与点积的几何差异。
+
+\section{Bahdanau 注意力}
+
+seq2seq 里每个解码步都使用同一个 $\bm{c}$。Bahdanau 注意力让上下文随解码状态变化，
+在源隐状态上做加性汇聚。
+
+\subsection{模型}
+
+解码时刻 $t'$ 的上下文为
+\[
+\bm{c}_{t'}
+=
+\sum_{t=1}^{T}\alpha(\bm{s}_{t'-1},\bm{h}_t)\bm{h}_t,
+\]
+其中 $\alpha$ 由加性评分给出，查询是上一解码状态 $\bm{s}_{t'-1}$，
+键和值都是编码器隐状态 $\bm{h}_t$。随后
+\[
+\bm{s}_{t'}=g(y_{t'-1},\bm{c}_{t'},\bm{s}_{t'-1}).
+\]
+
+\subsection{定义注意力解码器}
+
+解码器状态由三部分初始化：全部时间步的顶层 $\bm{h}_{1:T}$（作键和值）、
+编码器各层最终隐状态（作 $\bm{s}_0$）、源有效长度（供掩蔽 softmax）。
+每步用当前 $\bm{s}_{t'-1}$ 作查询，把注意力输出与输入嵌入拼接后送入循环单元。
+
+\subsection{训练}
+
+编码器仍是循环网络，解码器换成上一小节。训练目标与 BLEU 与 seq2seq 相同。
+学成后，每个查询在源位置上的权 $\alpha(\bm{s}_{t'-1},\bm{h}_t)$ 随 $t'$ 改变，
+即不同输出词对齐到不同的输入片段。
+
+\subsection{小结}
+
+Bahdanau 把固定 $\bm{c}$ 换成
+\[
+\bm{c}_{t'}=\sum_{t}\alpha(\bm{s}_{t'-1},\bm{h}_t)\bm{h}_t,
+\]
+查询来自解码器，键值来自编码器，评分取加性注意力。
+
+\subsection{练习}
+
+核验把 GRU 换成 LSTM、把加性评分换成缩放点积后，对齐权与训练代价如何变化。
+
+\section{多头注意力}
+
+同一组 $(\bm{q},\bm{k},\bm{v})$ 经 $h$ 组不同线性投射，得到 $h$ 种汇聚，再拼起来。
+
+\subsection{模型}
+
+第 $i$ 头
+\[
+\bm{h}_i
+=
+f(\bm{W}_{i}^{(q)}\bm{q},\bm{W}_{i}^{(k)}\bm{k},\bm{W}_{i}^{(v)}\bm{v})
+\in\mathbb{R}^{p_{v}},
+\]
+$f$ 为注意力汇聚。输出再经
+\[
+\bm{W}_{o}
+\begin{bmatrix}
+\bm{h}_1\\
+\vdots\\
+\bm{h}_{h}
+\end{bmatrix}
+\in\mathbb{R}^{p_{o}}.
+\]
+各头落在不同子空间，可分别捕获短程与长程依赖。
+
+\subsection{实现}
+
+每个头用缩放点积注意力。取 $p_q=p_k=p_v=p_o/h$，并把各头的投射输出宽度设为
+$p_q h=p_o$，即可把 $h$ 个头排在批量维上一次算完。
+$p_o$ 对应隐藏宽度。映射在数学上仍是上一小节，只是张量轴被重排以便并行。
+
+\subsection{小结}
+
+多头把 $h$ 组
+$(\bm{W}_{i}^{(q)},\bm{W}_{i}^{(k)},\bm{W}_{i}^{(v)})$
+的汇聚拼起来再乘 $\bm{W}_{o}$，用同一查询--键--值的不同子空间表示。
+
+\subsection{练习}
+
+核验各头权矩阵是否学到不同对齐，以及去掉某头对预测的影响如何度量该头的重要性。
+
+\section{自注意力和位置编码}
+
+若查询、键、值来自同一组输入，就得到自注意力。它本身置换等变，必须另加位置编码才能感知次序。
+
+\subsection{自注意力}
+
+对 $\bm{x}_1,\ldots,\bm{x}_n\in\mathbb{R}^{d}$，
+\[
+\bm{y}_i
+=
+f\bigl(\bm{x}_i,(\bm{x}_1,\bm{x}_1),\ldots,(\bm{x}_n,\bm{x}_n)\bigr)
+\in\mathbb{R}^{d},
+\]
+即第 $i$ 个查询关注整组键--值。用线性投射写出矩阵形式：
+\begin{align*}
+\bm{Q}&=\bm{X}\bm{W}_{Q},
+\qquad
+\bm{K}=\bm{X}\bm{W}_{K},
+\qquad
+\bm{V}=\bm{X}\bm{W}_{V},
+\\
+\operatorname{Attention}(\bm{Q},\bm{K},\bm{V})
+&=
+\operatorname{softmax}\Bigl(\frac{\bm{Q}\bm{K}^{\top}}{\sqrt{d}}\Bigr)\bm{V}.
+\end{align*}
+
+\subsection{比较卷积神经网络、循环神经网络和自注意力}
+
+把长 $n$、宽 $d$ 的序列映到同形序列。卷积核宽 $k$ 时，计算复杂度 $\mathcal{O}(knd^{2})$，
+顺序操作 $\mathcal{O}(1)$，最长路径 $\mathcal{O}(n/k)$。
+循环网络复杂度 $\mathcal{O}(nd^{2})$，顺序操作 $\mathcal{O}(n)$，最长路径 $\mathcal{O}(n)$。
+自注意力复杂度 $\mathcal{O}(n^{2}d)$，顺序操作 $\mathcal{O}(1)$，最长路径 $\mathcal{O}(1)$。
+因此自注意力最利于并行与长程依赖，但序列很长时二次代价占优。
+
+\subsection{位置编码}
+
+绝对位置编码 $\bm{P}\in\mathbb{R}^{n\times d}$ 与输入相加：$\bm{X}\leftarrow\bm{X}+\bm{P}$，其中
+\begin{align*}
+p_{i,2j}
+&=
+\sin\Bigl(\frac{i}{10000^{2j/d}}\Bigr),
+\\
+p_{i,2j+1}
+&=
+\cos\Bigl(\frac{i}{10000^{2j/d}}\Bigr).
+\end{align*}
+
+\subsubsection{绝对位置信息}
+
+第 $j$ 维的角频率随 $j$ 下降，类似二进制中高比特翻转更慢。
+连续三角函数比比特编码更省空间，并使相邻位置的表示平滑变化。
+
+\subsubsection{相对位置信息}
+
+令 $\omega_j=10000^{-2j/d}$。位移 $\delta$ 对应二维旋转：
+\begin{align*}
+&
+\begin{bmatrix}
+\cos(\delta\omega_j)&\sin(\delta\omega_j)\\
+-\sin(\delta\omega_j)&\cos(\delta\omega_j)
+\end{bmatrix}
+\begin{bmatrix}
+p_{i,2j}\\
+p_{i,2j+1}
+\end{bmatrix}
+\\
+&\quad=
+\begin{bmatrix}
+p_{i+\delta,2j}\\
+p_{i+\delta,2j+1}
+\end{bmatrix}.
+\end{align*}
+因此相对位置可由绝对编码的线性变换得到。
+
+\subsection{小结}
+
+自注意力用同一 $\bm{X}$ 生成 $(\bm{Q},\bm{K},\bm{V})$；位置编码 $\bm{P}$ 把次序注入表示，
+否则模型对置换不变。
+
+\subsection{练习}
+
+核验只堆叠带位置编码的自注意力层可能出现的秩与长度外推问题，
+以及如何把 $\bm{P}$ 改成可学习矩阵。
+
+\section{Transformer}
+
+Transformer 是编码器--解码器，但子层只有多头注意力与位置前馈网络，不含卷积或循环。
+
+\subsection{模型}
+
+源序列与目标序列先做词嵌入，乘 $\sqrt{d}$ 后加上位置编码，再分别送入 $N$ 层编码器与解码器。
+编码器每层是多头自注意力加前馈；解码器每层是掩蔽自注意力、编码器--解码器注意力与前馈。
+子层都包在残差与层规范化中。注意力内部仍是
+\[
+\bm{Q}=\bm{X}\bm{W}_{Q},\
+\bm{K}=\bm{X}\bm{W}_{K},\
+\bm{V}=\bm{X}\bm{W}_{V},
+\quad
+\operatorname{softmax}\Bigl(\frac{\bm{Q}\bm{K}^{\top}}{\sqrt{d}}\Bigr)\bm{V}.
+\]
+
+\subsection{基于位置的前馈网络}
+
+同一两层感知机作用于每个位置：
+\[
+\operatorname{FFN}(\bm{x})
+=
+\phi(\bm{x}\bm{W}_1+\bm{b}_1)\bm{W}_2+\bm{b}_2,
+\]
+$\phi$ 取 ReLU。形状 $(n_{\text{batch}},n,d)$ 的张量只在最后一维上被映射到
+$n_{\text{ffn}}$ 再映回 $d$；位置之间不混合。相同输入给出相同输出。
+
+\subsection{残差连接和层规范化}
+
+层规范化沿特征维标准化。对 $\bm{x}\in\mathbb{R}^{d}$，
+\begin{align*}
+\mu&=\frac{1}{d}\sum_{i=1}^{d}x_i,
+\qquad
+\sigma^{2}=\frac{1}{d}\sum_{i=1}^{d}(x_i-\mu)^{2},
+\\
+\operatorname{LN}(\bm{x})
+&=
+\bm{\gamma}\odot\frac{\bm{x}-\mu}{\sqrt{\sigma^{2}+\epsilon}}+\bm{\beta}.
+\end{align*}
+与批量规范化不同，它不依赖批量大小，适合变长序列。子层包装为
+\[
+\operatorname{AddNorm}(\bm{x},\operatorname{Sublayer})
+=
+\operatorname{LN}\bigl(\bm{x}+\operatorname{Dropout}(\operatorname{Sublayer}(\bm{x}))\bigr).
+\]
+残差要求 $\operatorname{Sublayer}$ 输入输出同形状。
+
+\subsection{编码器}
+
+第 $\ell$ 个编码器块不改变形状：
+\begin{align*}
+\bm{X}
+&\leftarrow
+\operatorname{AddNorm}\bigl(\bm{X},\operatorname{MHAtt}(\bm{X},\bm{X},\bm{X})\bigr),
+\\
+\bm{X}
+&\leftarrow
+\operatorname{AddNorm}(\bm{X},\operatorname{FFN}).
+\end{align*}
+嵌入先乘 $\sqrt{d}$ 再加 $\bm{P}$，然后堆叠 $N$ 个上述块。
+自注意力的 $\bm{Q},\bm{K},\bm{V}$ 都来自同一层输入。
+
+\subsection{解码器}
+
+每个解码器块三步：
+\begin{align*}
+\bm{Y}
+&\leftarrow
+\operatorname{AddNorm}\bigl(\bm{Y},\operatorname{MaskedMHAtt}(\bm{Y},\bm{Y},\bm{Y})\bigr),
+\\
+\bm{Y}
+&\leftarrow
+\operatorname{AddNorm}\bigl(\bm{Y},\operatorname{MHAtt}(\bm{Y},\bm{X},\bm{X})\bigr),
+\\
+\bm{Y}
+&\leftarrow
+\operatorname{AddNorm}(\bm{Y},\operatorname{FFN}).
+\end{align*}
+第一项是掩蔽自注意力：时刻 $t'$ 只能看见 $y_{\le t'}$，以保持自回归。
+第二项是编码器--解码器注意力：查询来自解码器，键值来自编码器输出 $\bm{X}$。
+预测阶段词元逐个生成，训练阶段可用后续掩蔽一次算完全序列。
+
+\subsection{训练}
+
+编码器与解码器各 $N$ 层、$h$ 头，在英--法数据上最小化带掩码的交叉熵。
+编码器自注意力权形状为
+$(\text{层数},\text{头数},n_{\text{steps}},n_{\text{steps}})$，
+查询与键都来自源序列；解码器交叉注意力的键则来自源、查询来自目标。
+
+\subsection{小结}
+
+Transformer 用
+\[
+\operatorname{softmax}\Bigl(\frac{\bm{Q}\bm{K}^{\top}}{\sqrt{d}}\Bigr)\bm{V},
+\quad
+\operatorname{FFN},
+\quad
+\operatorname{LN}(\bm{x}+\operatorname{Sublayer}(\bm{x}))
+\]
+堆成编码器--解码器；位置编码提供次序，掩蔽自注意力保持自回归。
+
+\subsection{练习}
+
+核验加深 $N$ 对速度与 BLEU 的影响、长序列下 $n^{2}$ 注意力的代价，
+以及语言模型应使用编码器、掩蔽解码器或二者的组合。

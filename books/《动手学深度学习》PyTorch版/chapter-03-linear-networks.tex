@@ -1,0 +1,623 @@
+\chapter{线性神经网络}
+
+线性模型把输入 $\bm{x}$ 映成标量或类别分数，再用平方损失或交叉熵得到可微目标。
+训练在小批量上用梯度更新参数；分类时在线性输出后再接 $\mathrm{softmax}$。
+下面按原书顺序写出对象、损失、最优条件和实现所对应的映射。
+
+\section{线性回归}
+
+回归估计 $y\in\mathbb{R}$。给定特征 $\bm{x}\in\mathbb{R}^{d}$，模型输出一个实数预测 $\hat{y}$。
+
+\subsection{线性回归的基本元素}
+
+线性回归假设 $\hat{y}$ 对 $\bm{x}$ 仿射，噪声为加性高斯。训练集
+\[
+\mathcal{D}=\{(\bm{x}^{(i)},y^{(i)})\}_{i=1}^{n}
+\]
+用来确定权重 $\bm{w}$ 与偏置 $b$。
+
+\subsubsection{线性模型}
+
+房价例子把面积与房龄写成加权和
+\[
+\mathrm{price}=w_{\mathrm{area}}\cdot\mathrm{area}+w_{\mathrm{age}}\cdot\mathrm{age}+b.
+\]
+一般地，$d$ 个特征给出
+\[
+\hat{y}=w_1 x_1+\cdots+w_d x_d+b=\bm{w}^{\top}\bm{x}+b.
+\]
+把 $n$ 个样本排成 $\bm{X}\in\mathbb{R}^{n\times d}$ 后，向量形式为
+\[
+\hat{\bm{y}}=\bm{X}\bm{w}+b.
+\]
+
+\subsubsection{损失函数}
+
+第 $i$ 个样本的平方损失为
+\[
+l^{(i)}(\bm{w},b)=\frac{1}{2}\bigl(\hat{y}^{(i)}-y^{(i)}\bigr)^{2}.
+\]
+经验风险是样本平均
+\begin{align*}
+L(\bm{w},b)
+&=\frac{1}{n}\sum_{i=1}^{n}l^{(i)}(\bm{w},b)\\
+&=\frac{1}{n}\sum_{i=1}^{n}\frac{1}{2}\bigl(\bm{w}^{\top}\bm{x}^{(i)}+b-y^{(i)}\bigr)^{2}.
+\end{align*}
+参数估计定义为
+\[
+\bm{w}^{\ast},b^{\ast}=\operatorname*{argmin}_{\bm{w},b}\,L(\bm{w},b).
+\]
+
+\subsubsection{解析解}
+
+把偏置并入 $\bm{X}$ 的全 $1$ 列后，正规方程给出
+\[
+\bm{w}^{\ast}=(\bm{X}^{\top}\bm{X})^{-1}\bm{X}^{\top}\bm{y},
+\]
+成立条件是 $\bm{X}^{\top}\bm{X}$ 可逆，即特征线性无关且 $n$ 足够大。
+
+\subsubsection{随机梯度下降}
+
+小批量 $\mathcal{B}$ 上的更新为
+\[
+(\bm{w},b)
+\leftarrow
+(\bm{w},b)
+-
+\frac{\eta}{|\mathcal{B}|}
+\sum_{i\in\mathcal{B}}
+\partial_{(\bm{w},b)}l^{(i)}(\bm{w},b).
+\]
+平方损失的显式梯度是
+\begin{align*}
+\bm{w}
+&\leftarrow
+\bm{w}
+-
+\frac{\eta}{|\mathcal{B}|}
+\sum_{i\in\mathcal{B}}
+\bm{x}^{(i)}
+\bigl(\bm{w}^{\top}\bm{x}^{(i)}+b-y^{(i)}\bigr),\\
+b
+&\leftarrow
+b
+-
+\frac{\eta}{|\mathcal{B}|}
+\sum_{i\in\mathcal{B}}
+\bigl(\bm{w}^{\top}\bm{x}^{(i)}+b-y^{(i)}\bigr).
+\end{align*}
+
+\subsubsection{用模型进行预测}
+
+学得 $(\hat{\bm{w}},\hat{b})$ 后，新样本的预测是仿射映射
+\[
+\hat{y}=\hat{\bm{w}}^{\top}\bm{x}+\hat{b}.
+\]
+
+\subsection{矢量化加速}
+
+对 $\bm{a},\bm{b}\in\mathbb{R}^{m}$，逐元素求和应写成一次向量加法
+\[
+\bm{c}=\bm{a}+\bm{b},\qquad c_{i}=a_{i}+b_{i},
+\]
+而不是 $m$ 次标量循环。小批量上的 $\bm{X}\bm{w}$ 同样一次完成，复杂度由线性代数库承担。
+
+\subsection{正态分布与平方损失}
+
+高斯密度为
+\[
+p(x)=\frac{1}{\sqrt{2\pi\sigma^{2}}}
+\exp\Bigl(-\frac{1}{2\sigma^{2}}(x-\mu)^{2}\Bigr).
+\]
+观测模型
+\[
+y=\bm{w}^{\top}\bm{x}+b+\epsilon
+\]
+在 $\epsilon\sim\mathcal{N}(0,\sigma^{2})$ 下给出
+\[
+P(y\mid\bm{x})
+=
+\frac{1}{\sqrt{2\pi\sigma^{2}}}
+\exp\Bigl(-\frac{1}{2\sigma^{2}}(y-\bm{w}^{\top}\bm{x}-b)^{2}\Bigr).
+\]
+独立样本的似然是
+\[
+P(\bm{y}\mid\bm{X})=\prod_{i=1}^{n}p(y^{(i)}\mid\bm{x}^{(i)}),
+\]
+负对数似然为
+\begin{align*}
+-\log P(\bm{y}\mid\bm{X})
+&=
+\sum_{i=1}^{n}\frac{1}{2}\log(2\pi\sigma^{2})\\
+&\qquad
++\frac{1}{2\sigma^{2}}\bigl(y^{(i)}-\bm{w}^{\top}\bm{x}^{(i)}-b\bigr)^{2}.
+\end{align*}
+$\sigma$ 固定时，极大似然与最小化 $L(\bm{w},b)$ 等价。
+
+\subsection{从线性回归到深度网络}
+
+同一仿射映射可看成只有一层计算单元的网络：输入给定，输出由 $\bm{w},b$ 计算。
+
+\subsubsection{神经网络图}
+
+输入层提供 $x_{1},\ldots,x_{d}$，输出层一个单元
+\[
+o_{1}=\bm{w}^{\top}\bm{x}+b.
+\]
+每个输入都连到该单元，参数个数为 $d+1$。
+
+\subsubsection{生物学}
+
+树突接收 $x_{i}$，突触权重为 $w_{i}$，胞体做加权和后再经激活
+\[
+o=\phi\bigl(\bm{w}^{\top}\bm{x}+b\bigr).
+\]
+线性回归对应 $\phi$ 为恒等映射。
+
+\subsection{小结}
+
+对象是仿射预测 $\hat{y}=\bm{w}^{\top}\bm{x}+b$，目标是 $L(\bm{w},b)$，
+高斯噪声下它等于负对数似然；可逆时用正规方程，否则用小批量梯度。
+
+\subsection{练习}
+
+核验 $\sum_{i}(x_{i}-b)^{2}$ 对 $b$ 的驻点、把 $b$ 并入 $\bm{X}$ 后正规方程是否仍成立，
+以及 $\bm{X}^{\top}\bm{X}$ 奇异时梯度法与解析解的关系。
+
+\section{线性回归的从零开始实现}
+
+实现对应四个映射：采样数据、按批读取、仿射预测、平方损失上的小批量更新。
+
+\subsection{生成数据集}
+
+真值为
+\[
+\bm{y}=\bm{X}\bm{w}+b+\bm{\epsilon},
+\]
+其中 $\bm{\epsilon}$ 的分量独立同分布。合成数据时 $\bm{w},b$ 已知，用来对照估计。
+
+\subsection{读取数据集}
+
+一次迭代取出小批量
+\[
+(\bm{X}_{\mathcal{B}},\bm{y}_{\mathcal{B}}),\qquad
+|\mathcal{B}|=B.
+\]
+遍历前打乱下标，使各批近似无偏。
+
+\subsection{初始化模型参数}
+
+\[
+\bm{w}\sim\mathcal{N}(\bm{0},0.01^{2}\bm{I}),\qquad b=0,
+\]
+并对其后每次损失关于 $(\bm{w},b)$ 求梯度。
+
+\subsection{定义模型}
+
+前向是矩阵--向量积加偏置广播
+\[
+\hat{\bm{y}}=\bm{X}\bm{w}+b.
+\]
+
+\subsection{定义损失函数}
+
+批量平方损失与上一节一致，实现时把 $\bm{y}$ 的形状对齐到 $\hat{\bm{y}}$：
+\[
+l=\frac{1}{2}\|\hat{\bm{y}}-\bm{y}\|_{2}^{2}
+\quad\text{（再按约定取平均或求和）}.
+\]
+
+\subsection{定义优化算法}
+
+一步小批量梯度下降
+\[
+\bm{\theta}
+\leftarrow
+\bm{\theta}
+-
+\frac{\eta}{|\mathcal{B}|}\nabla_{\bm{\theta}}
+\sum_{i\in\mathcal{B}}l^{(i)},
+\qquad
+\bm{\theta}=(\bm{w},b).
+\]
+用 $|\mathcal{B}|$ 规范化后，步长不随批量大小线性膨胀。
+
+\subsection{训练}
+
+每个周期对全部小批量执行
+\begin{align*}
+\hat{\bm{y}}&\leftarrow \bm{X}_{\mathcal{B}}\bm{w}+b,\\
+g&\leftarrow
+\partial_{(\bm{w},b)}\frac{1}{|\mathcal{B}|}\sum_{i\in\mathcal{B}}l^{(i)},\\
+(\bm{w},b)&\leftarrow(\bm{w},b)-\eta g.
+\end{align*}
+
+\subsection{小结}
+
+从零实现把训练写成张量上的 $\hat{\bm{y}}=\bm{X}\bm{w}+b$ 与
+$(\bm{w},b)\leftarrow(\bm{w},b)-\eta g$，不引入层对象。
+
+\subsection{练习}
+
+核验 $\bm{w}=\bm{0}$ 时梯度是否仍指向残差方向、
+二阶导数在自动微分中的形状，以及 $n$ 不能整除 $|\mathcal{B}|$ 时最后一批的基数。
+
+\section{线性回归的简洁实现}
+
+同一映射改由层、损失类与优化器组合，前向与更新规则不变。
+
+\subsection{生成数据集}
+
+仍用 $\bm{y}=\bm{X}\bm{w}+b+\bm{\epsilon}$ 生成 $(\bm{X},\bm{y})$。
+
+\subsection{读取数据集}
+
+数据迭代器实现
+\[
+(\bm{X},\bm{y})
+\;\longmapsto\;
+\{(\bm{X}_{\mathcal{B}},\bm{y}_{\mathcal{B}})\}.
+\]
+训练模式下每个周期打乱样本次序。
+
+\subsection{定义模型}
+
+全连接层
+\[
+f(\bm{X})=\bm{X}\bm{W}+\bm{b},\qquad \bm{W}\in\mathbb{R}^{d\times 1}
+\]
+作为唯一计算层；顺序容器只含这一层。
+
+\subsection{初始化模型参数}
+
+\[
+W_{ij}\sim\mathcal{N}(0,0.01^{2}),\qquad b=0.
+\]
+
+\subsection{定义损失函数}
+
+均方误差是平方 $L_{2}$ 的样本平均
+\[
+L=\frac{1}{n}\sum_{i=1}^{n}\frac{1}{2}\bigl(\hat{y}^{(i)}-y^{(i)}\bigr)^{2}.
+\]
+
+\subsection{定义优化算法}
+
+优化器在参数集合上执行
+\[
+\bm{\theta}\leftarrow\bm{\theta}-\eta\nabla_{\bm{\theta}}L_{\mathcal{B}}.
+\]
+
+\subsection{训练}
+
+每个小批量依次：前向 $L_{\mathcal{B}}$、反向 $\nabla_{\bm{\theta}}L_{\mathcal{B}}$、参数更新。
+周期结束时用 $L$ 监控拟合。
+
+\subsection{小结}
+
+简洁实现把 $\bm{X}\mapsto\bm{X}\bm{W}+\bm{b}$、平方损失与小批量梯度封装成可组合对象，数学映射与从零实现相同。
+
+\subsection{练习}
+
+核验分段损失
+\[
+l(y,y')=
+\begin{cases}
+|y-y'|-\dfrac{\sigma}{2}, & |y-y'|>\sigma,\\[0.4em]
+\dfrac{1}{2\sigma}(y-y')^{2}, & \text{其它情况}
+\end{cases}
+\]
+在 $|y-y'|=\sigma$ 处的连续性与可导性。
+
+\section{softmax回归}
+
+分类不估计“多少”，而估计“哪一类”。线性层输出 $q$ 个分数，再用 $\mathrm{softmax}$ 变成单纯形上的概率。
+
+\subsection{分类问题}
+
+$q=3$ 时标签用独热向量
+\[
+y\in\{(1,0,0),\ (0,1,0),\ (0,0,1)\}.
+\]
+一般 $y\in\{1,\ldots,q\}$ 对应 $\bm{y}=\bm{e}_{y}\in\{0,1\}^{q}$。
+
+\subsection{网络架构}
+
+四个特征、三个类别时，线性分数为
+\begin{align*}
+o_{1}&=x_{1}w_{11}+x_{2}w_{12}+x_{3}w_{13}+x_{4}w_{14}+b_{1},\\
+o_{2}&=x_{1}w_{21}+x_{2}w_{22}+x_{3}w_{23}+x_{4}w_{24}+b_{2},\\
+o_{3}&=x_{1}w_{31}+x_{2}w_{32}+x_{3}w_{33}+x_{4}w_{34}+b_{3}.
+\end{align*}
+矩阵形式 $\bm{o}=\bm{W}\bm{x}+\bm{b}$，$\bm{W}\in\mathbb{R}^{q\times d}$。
+
+\subsection{全连接层的参数开销}
+
+$d$ 入 $q$ 出的全连接层参数个数为
+\[
+\#(\bm{W},\bm{b})=dq+q=\mathcal{O}(dq).
+\]
+
+\subsection{softmax运算}
+
+把分数映到概率单纯形
+\[
+\hat{\bm{y}}=\mathrm{softmax}(\bm{o}),
+\qquad
+\hat{y}_{j}=\frac{\exp(o_{j})}{\sum_{k}\exp(o_{k})}.
+\]
+指数严格递增，故
+\[
+\operatorname*{argmax}_{j}\hat{y}_{j}=\operatorname*{argmax}_{j}o_{j}.
+\]
+
+\subsection{小批量样本的矢量化}
+
+$\bm{X}\in\mathbb{R}^{n\times d}$ 时
+\begin{align*}
+\bm{O}&=\bm{X}\bm{W}+\bm{b},\\
+\hat{\bm{Y}}&=\mathrm{softmax}(\bm{O}),
+\end{align*}
+其中 $\mathrm{softmax}$ 沿类别轴作用。
+
+\subsection{损失函数}
+
+仍由最大似然导出：独立样本下最小化 $-\log P(\bm{Y}\mid\bm{X})$。
+
+\subsubsection{对数似然}
+
+\[
+P(\bm{Y}\mid\bm{X})=\prod_{i=1}^{n}P(\bm{y}^{(i)}\mid\bm{x}^{(i)}).
+\]
+负对数似然分解为交叉熵之和
+\begin{align*}
+-\log P(\bm{Y}\mid\bm{X})
+&=
+\sum_{i=1}^{n}-\log P(\bm{y}^{(i)}\mid\bm{x}^{(i)})
+=
+\sum_{i=1}^{n}l(\bm{y}^{(i)},\hat{\bm{y}}^{(i)}),
+\end{align*}
+其中
+\[
+l(\bm{y},\hat{\bm{y}})=-\sum_{j=1}^{q}y_{j}\log\hat{y}_{j}.
+\]
+独热标签时 $l=-\log\hat{y}_{y^{\ast}}$。
+
+\subsubsection{softmax及其导数}
+
+把 $\hat{y}_{j}$ 代入交叉熵：
+\begin{align*}
+l(\bm{y},\hat{\bm{y}})
+&=
+-\sum_{j=1}^{q}y_{j}\log\frac{\exp(o_{j})}{\sum_{k=1}^{q}\exp(o_{k})}\\
+&=
+\sum_{j=1}^{q}y_{j}\log\sum_{k=1}^{q}\exp(o_{k})
+-\sum_{j=1}^{q}y_{j}o_{j}\\
+&=
+\log\sum_{k=1}^{q}\exp(o_{k})
+-\sum_{j=1}^{q}y_{j}o_{j}.
+\end{align*}
+对分数求导得到
+\begin{align*}
+\partial_{o_{j}}l(\bm{y},\hat{\bm{y}})
+&=
+\frac{\exp(o_{j})}{\sum_{k=1}^{q}\exp(o_{k})}-y_{j}\\
+&=
+\mathrm{softmax}(\bm{o})_{j}-y_{j}.
+\end{align*}
+因此反向传播中，$\nabla_{\bm{o}}l=\hat{\bm{y}}-\bm{y}$。
+
+\subsubsection{交叉熵损失}
+
+若 $\bm{y}$ 本身已是分布而非独热，同一式
+\[
+l(\bm{y},\hat{\bm{y}})=-\sum_{j=1}^{q}y_{j}\log\hat{y}_{j}
+\]
+仍是交叉熵，等于在标签分布下对 $-\log\hat{y}_{j}$ 的期望。
+
+\subsection{信息论基础}
+
+交叉熵同时度量编码长度与似然。
+
+\subsubsection{熵}
+
+分布 $P$ 的熵
+\[
+H[P]=\sum_{j}-P(j)\log P(j)
+\]
+是按 $P$ 编码时的最小期望码长。
+
+\subsubsection{信息量}
+
+事件 $j$ 的自信息为
+\[
+I(j)=-\log P(j)=\log\frac{1}{P(j)}.
+\]
+$P(j)$ 越小，$I(j)$ 越大。熵是自信息的期望。
+
+\subsubsection{重新审视交叉熵}
+
+从 $P$ 到 $Q$ 的交叉熵
+\[
+H(P,Q)=\sum_{j}-P(j)\log Q(j)=H(P)+D_{\mathrm{KL}}(P\|Q)
+\]
+在 $Q=P$ 时取最小 $H(P)$。分类目标等价于极大似然，也等价于降低用 $\hat{\bm{y}}$ 编码真实标签所需的惊异。
+
+\subsection{模型预测和评估}
+
+预测类别
+\[
+\hat{y}=\operatorname*{argmax}_{j}\hat{y}_{j}.
+\]
+精度是正确个数与总数之比
+\[
+\mathrm{acc}=\frac{1}{n}\sum_{i=1}^{n}\mathbf{1}\{\hat{y}^{(i)}=y^{(i)}\}.
+\]
+精度不可导，训练仍最小化交叉熵。
+
+\subsection{小结}
+
+$\mathrm{softmax}$ 把 $\bm{o}$ 映到概率，$\nabla_{\bm{o}}l=\hat{\bm{y}}-\bm{y}$ 连接交叉熵与线性层；
+精度在单纯形顶点上评估 $\operatorname*{argmax}$。
+
+\subsection{练习}
+
+核验交叉熵对 $\bm{o}$ 的 Hessian 与 $\mathrm{softmax}(\bm{o})$ 的协方差是否一致，
+以及均匀分布 $(\tfrac{1}{3},\tfrac{1}{3},\tfrac{1}{3})$ 下二元码的冗余。
+
+\section{图像分类数据集}
+
+Fashion-MNIST 提供 $q=10$ 的服装灰度图，后续 softmax 实验都在该 $\mathcal{D}$ 上评估。
+
+\subsection{读取数据集}
+
+训练集 $n_{\mathrm{train}}=60000$，测试集 $n_{\mathrm{test}}=10000$，
+每类分别 $6000$ 与 $1000$ 张。单张图
+\[
+\bm{X}\in\mathbb{R}^{28\times 28},\qquad C=1,
+\]
+形状记为 $h\times w=28\times 28$。测试集不参与参数更新。
+
+\subsection{读取小批量}
+
+迭代器输出
+\[
+\mathsf{X}\in\mathbb{R}^{|\mathcal{B}|\times 1\times 28\times 28},\qquad
+\bm{y}\in\{1,\ldots,10\}^{|\mathcal{B}|}.
+\]
+训练时打乱，测试时按序。
+
+\subsection{整合所有组件}
+
+读取映射把 $(\text{批量大小},\text{可选边长})$ 映到训练与测试迭代器。
+可选边长把 $28\times 28$ 双线性映到指定 $(h',w')$。
+
+\subsection{小结}
+
+图像对象是 $h\times w$ 灰度阵，批量读取把它们变成可并行的 $(\mathsf{X},\bm{y})$。
+
+\subsection{练习}
+
+核验 $|\mathcal{B}|\to 1$ 时 I/O 相对计算的占比，以及迭代器是否成为训练的时间瓶颈。
+
+\section{softmax回归的从零开始实现}
+
+把 $28\times 28$ 展平为 $\mathbb{R}^{784}$，线性层输出 $10$ 维，再接 $\mathrm{softmax}$ 与交叉熵。
+
+\subsection{初始化模型参数}
+
+\[
+\bm{W}\in\mathbb{R}^{784\times 10},\qquad \bm{b}\in\mathbb{R}^{1\times 10},
+\]
+$W_{ij}\sim\mathcal{N}(0,\sigma^{2})$，$b_{j}=0$。展平是
+\[
+\mathbb{R}^{28\times 28}\longrightarrow\mathbb{R}^{784}.
+\]
+
+\subsection{定义softmax操作}
+
+对矩阵按行归一化
+\[
+\mathrm{softmax}(\bm{X})_{ij}=\frac{\exp(X_{ij})}{\sum_{k}\exp(X_{ik})}.
+\]
+
+\subsection{定义模型}
+
+\[
+\hat{\bm{Y}}=\mathrm{softmax}(\bm{X}\bm{W}+\bm{b}),
+\]
+其中 $\bm{X}$ 已展平为 $|\mathcal{B}|\times 784$。
+
+\subsection{定义损失函数}
+
+独热选取使
+\[
+l(\bm{y},\hat{\bm{Y}})=-\sum_{i=1}^{|\mathcal{B}|}\log\hat{Y}_{i,y^{(i)}}.
+\]
+
+\subsection{分类精度}
+
+\[
+\mathrm{acc}(\hat{\bm{Y}},\bm{y})
+=
+\frac{1}{|\mathcal{B}|}
+\sum_{i}
+\mathbf{1}\bigl\{\operatorname*{argmax}_{j}\hat{Y}_{ij}=y^{(i)}\bigr\}.
+\]
+
+\subsection{训练}
+
+与线性回归同一循环：前向 $\hat{\bm{Y}}$、交叉熵、反向、小批量更新。
+每个周期在测试集上报告 $\mathrm{acc}$。
+
+\subsection{预测}
+
+对新图取
+\[
+\hat{y}=\operatorname*{argmax}_{j}\mathrm{softmax}(\bm{x}^{\top}\bm{W}+\bm{b})_{j}.
+\]
+
+\subsection{小结}
+
+从零实现的核心是
+$\hat{\bm{Y}}=\mathrm{softmax}(\bm{X}\bm{W}+\bm{b})$ 与 $l=-\sum\log\hat{y}_{y}$，
+训练循环与线性回归同构。
+
+\subsection{练习}
+
+核验 $\exp(o_{j})$ 在 $o_{j}$ 很大时的溢出、$\log\hat{y}_{j}$ 在 $\hat{y}_{j}\to 0$ 时的定义域，
+以及 $\operatorname*{argmax}$ 是否总是决策最优。
+
+\section{softmax回归的简洁实现}
+
+同一分类映射改由全连接层加交叉熵实现；数值上把 $\mathrm{softmax}$ 与 $\log$ 合并。
+
+\subsection{初始化模型参数}
+
+顺序模型中一层 $\mathbb{R}^{784}\to\mathbb{R}^{10}$，
+\[
+W_{ij}\sim\mathcal{N}(0,0.01^{2}),\qquad b_{j}=0.
+\]
+
+\subsection{重新审视Softmax的实现}
+
+平移不变性给出数值稳定形式
+\begin{align*}
+\hat{y}_{j}
+&=
+\frac{\exp(o_{j}-\max_{k}o_{k})\exp(\max_{k}o_{k})}
+{\sum_{k}\exp(o_{k}-\max_{k}o_{k})\exp(\max_{k}o_{k})}\\
+&=
+\frac{\exp(o_{j}-\max_{k}o_{k})}{\sum_{k}\exp(o_{k}-\max_{k}o_{k})}.
+\end{align*}
+对数概率为
+\begin{align*}
+\log\hat{y}_{j}
+&=
+\log\frac{\exp(o_{j}-\max_{k}o_{k})}{\sum_{k}\exp(o_{k}-\max_{k}o_{k})}\\
+&=
+o_{j}-\max_{k}o_{k}
+-\log\sum_{k}\exp(o_{k}-\max_{k}o_{k}).
+\end{align*}
+交叉熵直接用 $\log\hat{y}_{y^{\ast}}$，避免先指数再取对数。
+
+\subsection{优化算法}
+
+小批量随机梯度
+\[
+\bm{\theta}\leftarrow\bm{\theta}-\eta\nabla_{\bm{\theta}}L_{\mathcal{B}},
+\qquad \eta=0.1.
+\]
+
+\subsection{训练}
+
+调用与从零实现相同的周期循环；框架在交叉熵内部完成稳定的 $\log\mathrm{softmax}$。
+
+\subsection{小结}
+
+简洁路径仍是 $\bm{O}=\bm{X}\bm{W}+\bm{b}$ 与交叉熵，差别在于用
+$\log\hat{y}_{j}=o_{j}-\max o-\mathrm{LSE}(\bm{o}-\max o)$ 保证数值稳定。
+
+\subsection{练习}
+
+核验增大周期后测试精度下降是否对应过拟合，以及 $|\mathcal{B}|,\eta$ 对 $\nabla L_{\mathcal{B}}$ 方差的影响。

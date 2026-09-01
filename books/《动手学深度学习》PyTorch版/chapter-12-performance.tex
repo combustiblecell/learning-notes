@@ -1,0 +1,335 @@
+\chapter{计算性能}
+
+前向与反向都是计算图上的算子序列。性能取决于图如何编译、设备如何重叠计算与通信、以及参数如何在多卡多机上同步。
+命令式便于写控制流，符号式便于整图优化。下面把二者写成同一套映射。
+
+\section{编译器和解释器}
+
+命令式编程按语句改状态。Python 解释执行，每步都经过前端。
+
+\subsection{符号式编程}
+
+先定义计算流程，再编译成可执行程序，最后喂入输入。
+记命令式求值为
+\[
+(a,b,c,d)
+\;\longmapsto\;
+e=a+b,\; f=c+d,\; g=e+f,
+\]
+符号式先构造图 $G$，再
+\[
+G\longmapsto P=\operatorname{compile}(G),\qquad
+P(a,b,c,d)=g.
+\]
+编译器可见全图，可消去中间量，甚至把常量折叠成 $P\equiv 10$。
+
+\subsection{混合式编程}
+
+PyTorch 默认动态图。TorchScript 把已追踪的命令式模型编译成静态图，
+开发仍用 Python，部署用 $P=\operatorname{script}(f)$。
+
+\subsection{Sequential的混合式编程}
+
+$L$ 层序列 $f=f_L\circ\cdots\circ f_1$。解释器对每层单独发指令；
+多 GPU 时单线程前端成为瓶颈。
+把 $\operatorname{Sequential}$ 脚本化后，整条复合映射一次下发。
+
+\subsubsection{通过混合式编程加速}
+
+同一输入 $\bm{x}$，比较 $f(\bm{x})$ 与 $\operatorname{script}(f)(\bm{x})$ 的墙钟时间。
+编译后减少 Python 往返，输出值不变。
+
+\subsubsection{序列化}
+
+\[
+(f,\bm{\theta})
+\;\longmapsto\;
+\operatorname{save}(P,\bm{\theta})
+\;\longmapsto\;
+\text{其他设备或语言上的 }P.
+\]
+序列化的是编译后的图与参数，不是 Python 源。
+
+\subsection{小结}
+
+命令式写 $f$；符号式把计算图 $G$ 编译成 $P$。
+混合式在 $f\mapsto P$ 后加速，且 $P(\bm{x})=f(\bm{x})$。
+
+\subsection{练习}
+
+核验：对已有模型做 $f\mapsto\operatorname{script}(f)$ 后，前向时延是否下降、数值是否一致。
+
+\section{异步计算}
+
+GPU 核函数默认异步：前端插入任务后立即返回，后端在设备上执行。
+
+\subsection{通过后端异步处理}
+
+前端发出 $\bm{C}=\bm{A}\bm{B}$ 后，Python 已继续；实际 GEMM 在队列中。
+同步 $S$ 强制等待队列清空。测时若不调用 $S$，测到的是入队时间而非计算时间。
+
+\subsection{障碍器与阻塞器}
+
+障碍 $S$ 使前端与指定设备上所有流对齐：
+\[
+\operatorname{sync}(\text{device}):
+\quad
+\text{等待该设备队列空}.
+\]
+把结果拷回 CPU 或打印标量也会隐式阻塞。
+
+\subsection{改进计算}
+
+设前端入队、后端计算、回传分别为 $t_1,t_2,t_3$。
+同步执行 $N$ 次总时间为 $N(t_1+t_2+t_3)$；
+异步且 $Nt_2$ 主导时约为 $t_1+N t_2+t_3$。
+队列过长会堆积中间张量，故常按小批量同步一次。
+
+\subsection{小结}
+
+前端与后端解耦：命令快速入队，计算并行执行。
+过度填充队列增加显存；每个小批量一次 $\operatorname{sync}$ 使两侧大致对齐。
+
+\subsection{练习}
+
+核验：同一矩阵乘在 CPU 上是否仍能观察到入队与完成之间的时间差。
+
+\section{自动并行}
+
+框架根据计算图上的依赖决定哪些算子可并行。
+无依赖的子图可同时占用不同设备。
+
+\subsection{基于GPU的并行计算}
+
+在 GPU1、GPU2 上各做 $10$ 次矩阵乘。
+两次 $\operatorname{sync}$ 串行测时约为两段之和；去掉中间同步后，
+墙钟时间接近 $\max(T_1,T_2)$，即自动重叠。
+
+\subsection{并行计算与通信}
+
+计算 $\bm{y}=f(\bm{x})$ 于 GPU，再 $\bm{y}\mapsto\mathrm{CPU}$。
+$\operatorname{copy}(\texttt{non\_blocking})$ 允许尚未完成的后续核与总线传输重叠。
+反传中先就绪的梯度可提前走 PCI-Express。
+
+\subsection{小结}
+
+计算图给出依赖；无依赖的计算与通信可并行。
+设备间搬移与算子执行重叠，才能吃满总线与计算单元。
+
+\subsection{练习}
+
+核验：无依赖的多个小算子是否被自动并行，以及 CPU–GPU 同时计算加拷贝的总时延。
+
+\section{硬件}
+
+算法决定统计效率；硬件决定一次 $\nabla f$ 要多久。
+延迟差几个数量级就会使可训练与不可训练对换。
+
+\subsection{计算机}
+
+一台训练机构成映射
+\[
+(\mathrm{CPU},\;\mathrm{RAM},\;\mathrm{GPU},\;\mathrm{PCIe},\;\mathrm{NIC},\;\text{存储})
+\;\longmapsto\;
+\text{每秒可完成的迭代}.
+\]
+CPU 跑调度与数据管道；参数与激活放 RAM/显存；PCIe 接加速卡。
+
+\subsection{内存}
+
+带宽与延迟同时约束。DDR 通道峰值约 $40$–$100\,\mathrm{GB/s}$，
+但先发地址再突发读；小块随机访问远低于峰值。
+深度学习应尽量连续、大批量访问。
+
+\subsection{存储器}
+
+持久存储同样由带宽与 IOPS 刻画，器件间差几个数量级。
+
+\subsubsection{硬盘驱动器}
+
+约 $7200\,\mathrm{RPM}$，最坏旋转等待约 $8\,\mathrm{ms}$，约 $10^2$ IOPS。
+顺序带宽远高于随机。
+
+\subsubsection{固态驱动器}
+
+$10^5$–$5\times 10^5$ 量级 IOPS，带宽 $1$–$3\,\mathrm{GB/s}$。
+按块擦写，随机小写远慢于读。
+
+\subsubsection{云存储}
+
+IOPS 与容量可配置。训练若大量小记录，延迟高时应提高 IOPS 配额。
+
+\subsection{CPU}
+
+核心执行指令，缓存降低访存延迟，向量单元做 SIMD。
+
+\subsubsection{微体系结构}
+
+前端取指、预测、解码；执行端口可同时发射多条独立微操作。
+整数端口与浮点端口不同，吞吐取决于指令能否并行。
+
+\subsubsection{矢量化}
+
+SIMD 在一个周期内对向量寄存器做同一运算。
+FMA 计算 $a\leftarrow a+b\cdot c$。寄存器可达 $512$ 位。
+
+\subsubsection{缓存}
+
+$4$ 核、$2\,\mathrm{GHz}$、每周期 $256$ 位 AVX 约需
+\[
+4\times 256\,\mathrm{bit}\times 2\times 10^9/\mathrm{s}=256\,\mathrm{GB/s},
+\]
+而内存接口只有数十 $\mathrm{GB/s}$。差额必须由 L1/L2/L3 命中补上。
+
+\subsection{GPU和其他加速卡}
+
+训练要存中间激活，常用 FP16/FP32；推断可 INT8 且不必存反传状态。
+GPU 以吞吐换取相对 CPU 高一个数量级的密集线性代数。
+
+\subsection{网络和总线}
+
+PCIe 单链路高带宽、微秒级延迟，通道数有限。
+NVLink 卡间带宽高于 PCIe；以太网跨机约 $10\,\mathrm{GB/s}$ 量级，比 NVLink 慢约一个数量级。
+
+\subsection{更多延迟}
+
+缓存命中约纳秒，内存约几十纳秒，PCIe/网络微秒到毫秒，磁盘毫秒。
+同一迭代里应避免把计算拆成大量高延迟小传输。
+
+\subsection{小结}
+
+量少次多的传输浪费延迟。向量化与对齐决定能否达到峰值。
+训练精度过低会下溢；算法应让热参数留在缓存带宽内。
+
+\subsection{练习}
+
+核验：对齐与非对齐访问、固定步幅访问的带宽，以及 FP16 累积是否溢出。
+
+\section{多GPU训练}
+
+$k$ 张 GPU 增加显存与算力。需把一次小批量上的 $\nabla f$ 拆开再聚合。
+
+\subsection{问题拆分}
+
+层并行按层切网络，模型并行按层内切参数，数据并行按样本切批量。
+前两者要编排激活与梯度的传递；数据并行只同步梯度，实现最直接。
+
+\subsection{数据并行性}
+
+$k$ 张卡各持一份完整 $\bm{\theta}$。一次迭代：
+\begin{align*}
+\mathcal{B}&=\mathcal{B}_1\cup\cdots\cup\mathcal{B}_k,
+\\
+\bm{g}^{(j)}&=\nabla_{\bm{\theta}}\frac{1}{|\mathcal{B}_j|}
+\sum_{i\in\mathcal{B}_j}\ell_i,
+\\
+\bm{g}&=\operatorname{allreduce}(\bm{g}^{(1)},\ldots,\bm{g}^{(k)}),
+\\
+\bm{\theta}&\leftarrow\bm{\theta}-\eta\bm{g}
+\quad\text{在每张卡上相同}.
+\end{align*}
+
+\subsection{简单网络}
+
+用修改后的 LeNet 作为 $f_{\bm{\theta}}$，以便显式写出参数拷贝与 $\operatorname{allreduce}$。
+
+\subsection{数据同步}
+
+$\operatorname{get\_params}$ 把 $\bm{\theta}$ 复制到设备 $j$ 并附加梯度缓冲。
+$\operatorname{allreduce}$ 实现
+\[
+\bm{g}\leftarrow\sum_{j=1}^{k}\bm{g}^{(j)},
+\]
+再广播回每张卡。
+
+\subsection{数据分发}
+
+\[
+(\bm{X},\bm{y})
+\;\longmapsto\;
+\bigl\{(\bm{X}^{(j)},\bm{y}^{(j)})\bigr\}_{j=1}^{k},
+\qquad
+\sum_j|\mathcal{B}_j|=|\mathcal{B}|.
+\]
+
+\subsection{训练}
+
+每个小批量：分发数据、各卡前向反向、$\operatorname{allreduce}$、本地更新。
+有效批量变为 $k|\mathcal{B}_j|$ 时，$\eta$ 通常需略增大。
+单卡精度评估可只在一张卡上进行。
+
+\subsection{小结}
+
+数据并行把 $\mathcal{B}$ 切到 $k$ 张卡，聚合梯度后再广播。
+更大有效批量需要相应调整 $\eta$。
+
+\subsection{练习}
+
+核验：批量从 $b$ 扩到 $kb$ 时精度与 $\eta$ 应如何同扩，以及分块 $\operatorname{allreduce}$ 的通信量。
+
+\section{多GPU的简洁实现}
+
+高级 API 把上一节的分发、反传与聚合收成同一训练循环。至少两张 GPU。
+
+\subsection{简单网络}
+
+用修改后的 ResNet-18：更小卷积核与步幅，去掉开头最大汇聚，以适应小图。
+
+\subsection{网络初始化}
+
+必须在目标设备上初始化 $\bm{\theta}$，再访问该设备上的参数，否则引用落在错误设备。
+
+\subsection{训练}
+
+循环执行：全设备初始化；把 $\mathcal{B}$ 切到各设备；并行求损失与梯度；聚合后更新；并行算精度。
+当计算时间明显长于同步时间，加速比接近线性。
+
+\subsection{小结}
+
+单卡可自动求 $f_{\bm{\theta}}(\bm{x})$。
+多卡时每设备先初始化，优化器自动 $\operatorname{allreduce}$ 梯度。
+
+\subsection{练习}
+
+核验：更多卡、更大 $b$ 与 $\eta$ 的组合，以及 CPU 与 GPU 算力不均时如何划分前后向。
+
+\section{参数服务器}
+
+从单机多卡到多机时，互连带宽从 NVLink、PCIe 降到以太网，同步算法必须适配拓扑。
+
+\subsection{数据并行训练}
+
+各 GPU 算 $\bm{g}_{ijk}$，先机内聚合，再跨机聚合，最后广播新 $\bm{\theta}$。
+聚合位置可以是某张 GPU、CPU，或按参数块分散到不同设备。
+
+\subsection{环同步（Ring Synchronization）}
+
+$k$ 张卡组成环，每步向邻居发送 $1/k$ 的梯度块并接收一块，共 $2(k-1)$ 步后每卡得到全和。
+在 NVLink 带宽远高于 PCIe 的机器上，环同步走 NVLink，避免单点经 PCIe 汇聚。
+
+\subsection{多机训练}
+
+每台机器：读不同批量、卡间切分、本地前向反向、机内聚合，再把梯度发给参数服务器（或对等节点），取回更新后的 $\bm{\theta}$。
+机器间时钟差要求显式同步，否则同步 SGD 会等待最慢的那台。
+
+\subsection{键值存储}
+
+参数服务器把切片 $i$ 上的梯度写成
+\[
+\bm{g}_{i}
+=
+\sum_{k\in\mathrm{workers}}
+\sum_{j\in\mathrm{GPUs}}
+\bm{g}_{ijk}.
+\]
+$\operatorname{push}$ 写入 $\bm{g}_{ijk}$，$\operatorname{pull}$ 读回聚合后的 $\bm{\theta}_i$。
+增加服务器个数提高聚合带宽；分层同步先机架内再机架间。
+
+\subsection{小结}
+
+同步时间由拓扑决定。环同步适合 NVLink 稠密连接；
+多机用参数服务器聚合 $\bm{g}_i=\sum_k\sum_j\bm{g}_{ijk}$，带宽不够就分层。
+
+\subsection{练习}
+
+核验：双向环能否减半延迟、计算尚未结束时异步发送对 $f$ 收敛的影响，以及单机失效时的容错。
