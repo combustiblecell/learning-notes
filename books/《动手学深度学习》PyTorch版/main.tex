@@ -13,7 +13,8 @@
   linkcolor=Primary,
   urlcolor=Accent,
   bookmarksopen=true,
-  bookmarksnumbered=true
+  bookmarksnumbered=true,
+  bookmarksdepth=1
 ]{hyperref}
 
 \definecolor{Primary}{HTML}{355C7D}
@@ -26,7 +27,7 @@
 \setlist[enumerate]{leftmargin=2.2em,itemsep=0.2em,topsep=0.3em}
 \renewcommand{\arraystretch}{1.25}
 \setcounter{secnumdepth}{3}
-\setcounter{tocdepth}{3}
+\setcounter{tocdepth}{1}
 
 \pagestyle{fancy}
 \fancyhf{}
@@ -67,7 +68,8 @@
 \addcontentsline{toc}{chapter}{试作说明}
 本 PDF 用于检验笔记的内容密度、排版和编译流程，仅提炼原书第二章“预备知识”。
 章内全部标题的名称、层级与顺序严格沿用 PyTorch 版原始目录。
-正文保留定义、成立条件、关键数学推导与结论，仅用极少量代码验证原理。
+印刷目录与侧栏书签只列出章和七个主要部分，正文仍保留全部原书标题。
+正文按连续叙述展开：定义、成立条件、关键数学推导与结论，仅用极少量代码验证原理。
 
 \hypertarget{contents}{}
 \tableofcontents
