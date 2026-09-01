@@ -4,7 +4,6 @@
 \usepackage{amsmath,amssymb,bm}
 \usepackage{booktabs,tabularx,array}
 \usepackage[dvipsnames]{xcolor}
-\usepackage[most]{tcolorbox}
 \usepackage{fancyhdr}
 \usepackage{enumitem}
 \usepackage{listings}
@@ -19,8 +18,6 @@
 
 \definecolor{Primary}{HTML}{355C7D}
 \definecolor{Accent}{HTML}{6C8EAD}
-\definecolor{SoftBlue}{HTML}{EDF4F8}
-\definecolor{SoftGold}{HTML}{FFF8E8}
 \definecolor{CodeBg}{HTML}{F6F7F8}
 
 \setlength{\parindent}{2em}
@@ -52,22 +49,6 @@
   keepspaces=true,
   showstringspaces=false,
   language=Python
-}
-
-\newtcolorbox{summarybox}[1][]{
-  colback=SoftBlue,
-  colframe=Primary,
-  fonttitle=\bfseries,
-  title={核心摘要},
-  #1
-}
-
-\newtcolorbox{principlebox}[1][]{
-  colback=SoftGold,
-  colframe=Goldenrod,
-  fonttitle=\bfseries,
-  title={数学原理},
-  #1
 }
 
 \newcommand{\code}[1]{\texttt{#1}}
