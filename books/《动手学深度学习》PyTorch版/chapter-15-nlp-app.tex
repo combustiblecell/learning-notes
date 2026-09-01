@@ -2,23 +2,28 @@
 
 预训练向量或 BERT 编码器提供 $w\mapsto\bm{v}$ 或序列 $\mapsto\mathsf{H}$。
 下游把可变长文本映到固定标签：情感、句对关系、词元标签或问答跨度。
+情感模型的 logit 经 softmax/sigmoid 后，正类分量是“评论为正面”的概率，取值 $[0,1]$。
 
 \section{情感分析及数据集}
 
 情感分析是文本分类：序列 $\bm{w}_{1:T}$ 映到极性 $y\in\{0,1\}$。
 数据为 IMDb 影评，正负标签。
+$y=1$ 表示正面，$y=0$ 表示负面；它们是类编号，还不是模型输出的概率。
 
 \subsection{读取数据集}
 
 每个样本是评论文本与 $y\in\{0,1\}$。
+文本稍后变成词元下标；$y$ 保持为极性标签。
 
 \subsection{预处理数据集}
 
 词元为词，低频过滤后建词表。长度直方图显示 $T$ 变化大；截断或填充到固定 $L=500$。
+$T$ 与 $L$ 是词元个数；直方图的纵轴是具有该长度的样本数。
 
 \subsection{创建数据迭代器}
 
 每个批量返回 $(\bm{X},\bm{y})$，$\bm{X}\in\mathbb{Z}^{B\times L}$ 为词元下标。
+$X_{bi}$ 是第 $b$ 条评论第 $i$ 个词在词表中的编号，不是嵌入分量；$y_b\in\{0,1\}$ 是极性。
 
 \subsection{整合代码}
 
@@ -29,10 +34,12 @@
 情感是
 $\{w_t\}_{t=1}^{T}\mapsto y\in\{0,1\}$。
 变长 $T$ 经截断填充变成固定 $L$。
+模型稍后输出的正类概率才是“这条评论为正面”的机会。
 
 \subsection{练习}
 
 核验：哪些预处理超参缩短每个 epoch，以及如何把另一评论语料映到同一迭代器接口。
+epoch 时间以秒计；标签仍须是 $\{0,1\}$ 极性。
 
 \section{情感分析：使用循环神经网络}
 
@@ -41,18 +48,26 @@ $\{w_t\}_{t=1}^{T}\mapsto y\in\{0,1\}$。
 \subsection{使用循环神经网络表示单个文本}
 
 嵌入 $\bm{e}_t=\bm{E}[w_t]$（GloVe）。
+$\bm{e}_t\in\mathbb{R}^{d}$ 是第 $t$ 个词的向量。
 双向 LSTM 最后一层的初始与最终时刻隐状态拼接为 $\bm{h}$，再
 \[
 \hat{\bm{y}}=\operatorname{softmax}(\bm{W}\bm{h}+\bm{b})\in\mathbb{R}^{2}.
 \]
+$\bm{W}\bm{h}+\bm{b}$ 是二维 logits：第一维对应负面，第二维对应正面（或相反约定）。
+softmax 后 $\hat y_1+\hat y_2=1$，且 $\hat y_k\in[0,1]$。
+正类那一个分量就是“该评论为正面”的概率，不是打分本身，也不是词向量坐标。
 
 \subsection{加载预训练的词向量}
 
 $\bm{E}$ 用 $100$ 维 GloVe 初始化，训练中不更新，使 $\bm{e}_t$ 固定。
+$100$ 是嵌入维数；冻结表示这些坐标不随 $\eta\bm{g}$ 移动。
 
 \subsection{训练和评估模型}
 
-最小化交叉熵。推理时把新句词元化、填充后取 $\hat y=\arg\max\hat{\bm{y}}$。
+最小化交叉熵。第 $i$ 个样本的损失是 $-\log\hat y_{y^{(i)}}$：
+真类概率越接近 $1$，损失越接近 $0$。
+推理时把新句词元化、填充后取 $\hat y=\arg\max\hat{\bm{y}}$。
+$\arg\max$ 选出概率更大的那一类；若需要“有多正面”，应读正类那一个概率值。
 
 \subsection{小结}
 
@@ -62,10 +77,12 @@ $\bm{E}$ 用 $100$ 维 GloVe 初始化，训练中不更新，使 $\bm{e}_t$ 固
 \hat{\bm{y}}=\operatorname{softmax}(\bm{W}\bm{h}+\bm{b}),
 \]
 其中 $\bm{e}_t$ 来自冻结 GloVe。
+$\hat{\bm{y}}$ 的正类分量是正面情感的概率，取值 $[0,1]$。
 
 \subsection{练习}
 
 核验：增大周期或改用 $300$ 维 GloVe 是否降低测试误差。
+测试误差是错分比例；嵌入维数 $300$ 不是类别数。
 
 \section{情感分析：使用卷积神经网络}
 
@@ -77,21 +94,25 @@ $\bm{E}$ 用 $100$ 维 GloVe 初始化，训练中不更新，使 $\bm{e}_t$ 固
 \[
 y_i=\sum_{j=0}^{k-1}x_{i+j}k_j.
 \]
-多通道时等价于把嵌入维当作二维卷积的通道。
+$x$ 是嵌入或通道值，$k_j$ 是核权重；$y_i$ 是位置 $i$ 上的局部打分（特征响应），
+还不是情感概率。多通道时等价于把嵌入维当作二维卷积的通道。
 
 \subsection{最大时间汇聚层}
 
 每个通道在时间维取 $\max$，得到与通道数相同的向量，允许各通道有效长度不同。
+$\max$ 取出的是该通道最强的局部响应，仍是特征，不是 $[0,1]$ 概率。
 
 \subsection{textCNN模型}
 
 输入形状视为宽 $n$、高 $1$、通道 $d$。
 若干不同宽度的一维核抽局部特征；各通道时间最大汇聚后拼接；全连接加 Dropout 得到两类。
+最后线性层输出二维 logits，softmax 后正类分量是正面概率。
 
 \subsubsection{定义模型}
 
 两套嵌入：一套可训练，一套固定 GloVe；通道上拼接后再卷积。
 例如核宽 $\{3,4,5\}$，每类 $100$ 个输出通道。
+$3,4,5$ 是窗口词数；$100$ 是通道数，不是 $100$ 类情感。
 
 \subsubsection{加载预训练词向量}
 
@@ -99,16 +120,19 @@ y_i=\sum_{j=0}^{k-1}x_{i+j}k_j.
 
 \subsubsection{训练和评估模型}
 
-交叉熵训练。推理同 RNN 节。
+交叉熵训练。推理同 RNN 节：
+logits $\to$ softmax $\to$ 正类概率为“评论正面”的机会，再 $\arg\max$ 得标签。
 
 \subsection{小结}
 
 一维卷积抽 $n$ 元，时间最大汇聚得
 $\bm{z}=\operatorname{concat}_c\max_t(\mathsf{Y}_{c,t})$，再线性分类。
+分类层给出情感 logits；softmax 后才是正/负类概率。
 
 \subsection{练习}
 
 核验：与双向 LSTM 在精度和吞吐上的差别，以及加上位置编码是否改变 $\hat y$。
+$\hat y$ 若指正类概率，应看 $[0,1]$ 上那个数是否变化；精度是正确率。
 
 \section{自然语言推断与数据集}
 
@@ -120,31 +144,38 @@ NLI 判断假设能否由前提推出。标签为蕴涵、矛盾、中性。
 \[
 y\in\{\text{蕴涵},\text{矛盾},\text{中性}\}.
 \]
+$y$ 是三个离散关系之一。模型将输出三维概率，第 $k$ 维是属于该关系的机会。
 
 \subsection{斯坦福自然语言推断（SNLI）数据集}
 
 约 $5\times 10^5$ 带标签英文句对。
+$5\times 10^5$ 是样本个数。
 
 \subsubsection{读取数据集}
 
 抽取 $(A,B,y)$。打印可见三类在训练与测试上大致均衡。
+均衡指三类频率都接近 $1/3$，这是数据里的经验比例。
 
 \subsubsection{定义用于加载数据集的类}
 
 长度统一为 $\mathrm{num\_steps}$：超长截断，不足填填充词元。
+$\mathrm{num\_steps}$ 是词元个数。
 下标 $i$ 返回一对前提、假设与标签。
 
 \subsubsection{整合代码}
 
 词表只由训练集构建。批量里有两个输入张量，分别是前提与假设。
+两个张量存的都是词元下标，不是关系概率。
 
 \subsection{小结}
 
 NLI 是句对分类 $y=f(A,B)$。SNLI 提供三类均衡的监督。
+$f$ 的 softmax 输出在单纯形上，三个分量是三种关系的概率。
 
 \subsection{练习}
 
 核验：用 NLI 模型给机器翻译候选打“是否蕴涵参考”的分数是否可行。
+若用蕴涵类概率作为分数，该分数在 $[0,1]$，表示“假设被前提蕴涵”的机会。
 
 \section{自然语言推断：使用注意力}
 
@@ -153,12 +184,14 @@ NLI 是句对分类 $y=f(A,B)$。SNLI 提供三类均衡的监督。
 \subsection{模型}
 
 前提词向量 $\bm{a}_1,\ldots,\bm{a}_m$，假设 $\bm{b}_1,\ldots,\bm{b}_n$。
+每个 $\bm{a}_i,\bm{b}_j\in\mathbb{R}^{d}$ 是词嵌入。
 
 \subsubsection{注意（Attending）}
 
 \[
 e_{ij}=f(\bm{a}_i)^{\mathsf T}f(\bm{b}_j).
 \]
+$e_{ij}$ 是词对打分（实数），表示前提第 $i$ 词与假设第 $j$ 词有多对齐，还不是概率。
 软对齐
 \begin{align*}
 \bm{\beta}_i
@@ -171,6 +204,9 @@ e_{ij}=f(\bm{a}_i)^{\mathsf T}f(\bm{b}_j).
 \sum_{i=1}^{m}
 \frac{\exp(e_{ij})}{\sum_{k=1}^{m}\exp(e_{kj})}\,\bm{a}_i.
 \end{align*}
+$\exp(e_{ij})/\sum_k\exp(e_{ik})$ 是对假设词的注意力权，在 $[0,1]$ 且对 $j$ 求和为 $1$：
+它是“解释 $\bm{a}_i$ 时应看假设哪几个词”的比例，不是 NLI 三类概率。
+$\bm{\beta}_i$ 是按这些权加权后的假设表示，与嵌入同维。
 $f$ 先把向量映到较低维再做内积，复杂度对 $m,n$ 是线性而非二次深层交互。
 
 \subsubsection{比较}
@@ -180,6 +216,7 @@ $f$ 先把向量映到较低维再做内积，复杂度对 $m,n$ 是线性而非
 \\
 \bm{v}_{B,j}&=g([\bm{b}_j,\bm{\alpha}_j]),\quad j=1,\ldots,n.
 \end{align*}
+$g$ 输出比较向量：描述“该词与其对齐上下文是否一致”，仍是特征，不是标签。
 
 \subsubsection{聚合}
 
@@ -187,43 +224,52 @@ $f$ 先把向量映到较低维再做内积，复杂度对 $m,n$ 是线性而非
 \bm{v}_A=\sum_{i=1}^{m}\bm{v}_{A,i},\qquad
 \bm{v}_B=\sum_{j=1}^{n}\bm{v}_{B,j},
 \]
+两个和把变长序列压成定长向量。
 \[
 \hat{\bm{y}}=h([\bm{v}_A,\bm{v}_B]).
 \]
-$h$ 输出三类 logits。
+$h$ 输出三类 logits。softmax 之后 $\hat y_k$ 才是关系 $k$ 的概率，和为 $1$。
 
 \subsubsection{整合代码}
 
 注意、比较、聚合联合训练，参数即 $f,g,h$ 中的 MLP。
+梯度更新仍是 $\eta$ 乘各权重的偏导。
 
 \subsection{训练和评估模型}
 
 在 SNLI 上优化交叉熵。
+损失 $-\log\hat y_y$ 使用的是真实关系那一类的预测概率。
 
 \subsubsection{读取数据集}
 
 批量 $256$，序列长 $50$。
+$256$ 是样本数，$50$ 是词元数。
 
 \subsubsection{创建模型}
 
 $f(\bm{a}_i)$ 与词向量 $100$ 维；$f,g$ 输出 $200$ 维。GloVe 初始化词表。
+$100$ 与 $200$ 是特征维，最终分类维数才是 $3$。
 
 \subsubsection{训练和评估模型}
 
 句对作为两个输入分到多卡。记录训练与测试准确率。
+准确率是预测关系等于真关系的比例，在 $[0,1]$。
 
 \subsubsection{使用模型}
 
 新的 $(A,B)$ 词元化后取 $\arg\max\hat{\bm{y}}$。
+若需要“有多像蕴涵”，应读蕴涵类那一个概率，而不是 argmax 的类编号本身。
 
 \subsection{小结}
 
 对齐 $e_{ij}=f(\bm{a}_i)^{\mathsf T}f(\bm{b}_j)$，
-比较 $g([\bm{a}_i,\bm{\beta}_i])$，聚合后 $h([\bm{v}_A,\bm{v}_B])$ 得三类。
+比较 $g([\bm{a}_i,\bm{\beta}_i])$，聚合后 $h([\bm{v}_A,\bm{v}_B])$ 得三类 logits。
+三类 softmax 概率才是蕴涵/矛盾/中性的机会。
 
 \subsection{练习}
 
 核验：该分解无法对高阶跨句交互建模时误差如何表现，以及如何改成输出 $[0,1]$ 相似度。
+相似度可以是蕴涵概率，或单独的 sigmoid 标量，二者都在 $[0,1]$ 但含义不同。
 
 \section{针对序列级和词元级应用微调BERT}
 
@@ -233,30 +279,40 @@ BERT 编码后只加浅层。序列级用 $\langle\mathrm{cls}\rangle$；词元�
 \subsection{单文本分类}
 
 输入一条序列。$\langle\mathrm{cls}\rangle$ 向量经线性层得 $K$ 类，如情感或语法可接受性。
+情感时 $K=2$：正类 logit 经 softmax 后是正面概率。
+语法可接受性时正类概率是“句子合法”的机会。
 
 \subsection{文本对分类或回归}
 
 句对打包进一条 BERT 序列，片段嵌入区分两句。
-分类：NLI 三类。回归：语义相似度分数，例如 $[0,5]$ 上的实数，损失用平方误差。
+分类：NLI 三类，softmax 给出三种关系概率。
+回归：语义相似度分数，例如 $[0,5]$ 上的实数，损失用平方误差。
+该实数与评分量表同量纲，不是概率；只有显式缩放到 $[0,1]$ 后才能当概率读。
 
 \subsection{文本标注}
 
 每个词元的 BERT 向量送到共享（或位置共享）的分类头，如词性。
+位置 $t$ 的 softmax 给出该词元各词性的概率。
 $\langle\mathrm{cls}\rangle$、$\langle\mathrm{sep}\rangle$ 通常不预测标签。
 
 \subsection{问答}
 
 段落与问题拼成句对。在段落词元上预测答案起点与终点的两个分类器，
 答案跨度为 $\arg\max_{s\leq e}P_{\mathrm{start}}(s)P_{\mathrm{end}}(e)$。
+$P_{\mathrm{start}}(s)$ 是“答案从位置 $s$ 开始”的概率，对段落位置求和为 $1$；
+$P_{\mathrm{end}}(e)$ 同理。乘积是“跨度为 $[s,e]$”的联合（在起点终点独立假设下）。
+$s,e$ 是词元下标，不是情感标签。
 
 \subsection{小结}
 
-序列级：$\hat{\bm{y}}=h(\bm{h}_{\langle\mathrm{cls}\rangle})$。
-词元级：$\hat y_t=h(\bm{h}_t)$。问答再加起点终点两个头。
+序列级：$\hat{\bm{y}}=h(\bm{h}_{\langle\mathrm{cls}\rangle})$，softmax 后是整句标签概率。
+词元级：$\hat y_t=h(\bm{h}_t)$，每个位置一组类概率。
+问答再加起点终点两个头，输出的是位置上的概率，不是框的像素坐标。
 
 \subsection{练习}
 
 核验：检索中如何用负采样与 BERT 打分，以及 BERT 作编码器时 MLM 头如何改回标准 LM。
+检索打分经 sigmoid 可变成“该对相关”的概率；LM 头则是下一个词的词表分布。
 
 \section{自然语言推断：微调BERT}
 
@@ -266,16 +322,20 @@ $\langle\mathrm{cls}\rangle$、$\langle\mathrm{sep}\rangle$ 通常不预测标�
 
 小模型便于演示；base 与原 BERT 基础规模相当。
 加载词表与预训练参数。
+参数是编码器权重；此时尚未接 NLI 分类头。
 
 \subsection{微调BERT的数据集}
 
 前提与假设打包为 BERT 输入，片段下标区分两句。
 超长时轮流删较长一句的末词元直到不超过 $\mathrm{max\_len}$。
+$\mathrm{max\_len}$ 是词元数上限；NSP 预训练里的“B 是否跟随 A”与这里的蕴涵标签不是同一件事。
 
 \subsection{微调BERT}
 
 $\langle\mathrm{cls}\rangle$ 表示经两层全连接得三类。
 编码器与嵌入参与微调；仅与预训练 MLM/NSP 头相关、且未接入该分类器的参数不更新。
+三类 logits 经 softmax 得到蕴涵、矛盾、中性的概率，和为 $1$。
+交叉熵使用真实关系对应的那一个概率。
 
 \subsection{小结}
 
@@ -285,8 +345,11 @@ $\langle\mathrm{cls}\rangle$ 表示经两层全连接得三类。
 \operatorname{MLP}\bigl(\bm{h}_{\langle\mathrm{cls}\rangle}(A,B)\bigr)
 \in\mathbb{R}^{3}.
 \]
-BERT 成为下游模型的子图，预训练任务头不再前向。
+$\hat{\bm{y}}$ 在 softmax 前是 logits，之后才是三类关系概率。
+BERT 成为下游模型的子图，预训练任务头不再前向：
+不再输出掩词概率或“B 跟随 A”的 NSP 概率，改输出 NLI 关系概率。
 
 \subsection{练习}
 
 核验：按两句长度比截断与轮流删末词元哪种更少切断前提或假设的关键词。
+被删的是词元下标位置，不影响三类概率的数学含义，只影响模型看见哪些词。

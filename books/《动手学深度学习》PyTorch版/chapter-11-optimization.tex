@@ -2,6 +2,8 @@
 
 训练把经验风险写成可微标量 $f(\bm{x})$，再用迭代
 $\bm{x}\leftarrow\bm{x}-\eta\,\widehat{\nabla f}(\bm{x})$ 更新参数。
+右边减去的 $\eta\,\widehat{\nabla f}(\bm{x})$ 与参数同形：第 $j$ 个分量是第 $j$ 个权重本步要移动的量，
+不是概率。$\eta$ 是步长（学习率），只控制这次移动有多远。
 深度学习要的是泛化，优化只直接压训练误差；二者目标不同。
 下面先写凸性与梯度下降，再写随机、动量与自适应方法。
 
@@ -22,6 +24,9 @@ R(\bm{x})
 =
 \mathbb{E}_{(\bm{z},y)}[\ell(f_{\bm{x}}(\bm{z}),y)].
 \]
+左边是把 $n$ 个训练样本上的损失取算术平均，得到一个与单条损失同量纲的标量，
+表示“当前参数在训练集上的平均误差”。右边是对真实数据分布求期望，
+表示“在未见样本上的平均误差”。
 优化算法直接减小 $R_{\mathrm{emp}}$；泛化要求 $R$ 小。
 过拟合时 $R_{\mathrm{emp}}\ll R$，故仅压训练误差不够。
 
@@ -36,13 +41,17 @@ R(\bm{x})
 \[
 f(x)=x\cos(\pi x)
 \]
-有多个局部极小。梯度下降停在哪一个，取决于初值与步长。
+对每个实数 $x$ 算出一个标量函数值。该函数有多个局部极小：
+在某个邻域内它比附近点都小，但不一定是全局最小。
+梯度下降停在哪一个，取决于初值与步长。
 
 \subsubsection{鞍点}
 
-$f(x)=x^3$ 在 $x=0$ 处 $f'(0)=f''(0)=0$，但不是极小。
+$f(x)=x^3$ 在 $x=0$ 处 $f'(0)=f''(0)=0$，但不是极小：
+$f'(0)=0$ 只说明此处切线水平，不是“已经到谷底”。
 $f(x,y)=x^2-y^2$ 在 $(0,0)$ 是鞍点：沿 $x$ 极小、沿 $y$ 极大。
 Hessian 的特征值全正为局部极小，全负为局部极大，有正有负则为鞍点。
+特征值本身是曲率，不是参数该移动的距离。
 
 \subsubsection{梯度消失}
 
@@ -50,17 +59,21 @@ Hessian 的特征值全正为局部极小，全负为局部极大，有正有负
 \[
 f'(x)=1-\tanh^2(x),\qquad f'(4)\approx 0.0013.
 \]
-从 $x=4$ 出发，步长 $\eta f'(x)$ 接近零，迭代长时间几乎不动。
+$f'(x)$ 是切线斜率：输入增加 $1$ 时输出大约增加这么多。
+$f'(4)\approx 0.0013$ 表示在 $x=4$ 处几乎平坦。
+从 $x=4$ 出发，参数改变量 $\eta f'(x)$ 接近零，迭代长时间几乎不动。
+这里 $\eta f'(x)$ 是本步 $x$ 要减去的数，仍不是概率。
 
 \subsection{小结}
 
-优化压 $R_{\mathrm{emp}}$，不自动压 $R$。
+优化压 $R_{\mathrm{emp}}$ 这个训练平均误差，不自动压真实风险 $R$。
 局部极小、鞍点与 $f'\approx 0$ 都会使
-$x\leftarrow x-\eta f'(x)$ 停滞。
+$x\leftarrow x-\eta f'(x)$ 停滞：被减去的那一项太小，参数几乎不移动。
 
 \subsection{练习}
 
 核验：隐藏层宽度为 $d$ 时局部极小的置换对称、对称随机矩阵特征值分布是否关于零对称。
+特征值是曲率符号与大小，不是学习率。
 
 \section{凸性}
 
@@ -77,6 +90,8 @@ $x\leftarrow x-\eta f'(x)$ 停滞。
 \[
 \lambda a+(1-\lambda)b\in\mathcal{X}.
 \]
+左边是两点之间的线段上的点：$\lambda$ 是混合比例，取值 $[0,1]$，不是概率模型里的类概率，
+只表示“离 $a$ 有多近”。凸性要求这条线段整段落在集合内。
 
 \subsubsection{凸函数}
 
@@ -86,6 +101,8 @@ $f$ 在凸集上凸，当且仅当
 \geq
 f\bigl(\lambda x+(1-\lambda)x'\bigr).
 \]
+左边是两端函数值的加权平均，右边是中点处的函数值。
+不等式表示弦在函数图像上方：中点的 $f$ 不会高于两端的平均。
 
 \subsubsection{詹森不等式}
 
@@ -99,12 +116,15 @@ f\Bigl(\sum_i\alpha_i x_i\Bigr),
 &\geq
 f\bigl(\mathbb{E}_X[X]\bigr).
 \end{align*}
+$\alpha_i$ 是凸组合系数，和为 $1$；左边是函数值的加权平均，右边是“先平均输入再算 $f$”。
 取 $f=-\log$ 得
 \[
 \mathbb{E}_{Y\sim P(Y)}[-\log P(X\mid Y)]
 \geq
 -\log P(X).
 \]
+左边是条件交叉熵（nats 或 bits，视对数底而定），右边是无条件码长；
+不等式表示：先对 $Y$ 平均再编码，不会比直接编码 $X$ 更短。
 
 \subsection{性质}
 
@@ -122,7 +142,8 @@ f\bigl(\lambda x^{\ast}+(1-\lambda)x'\bigr)
 \lambda f(x^{\ast})+(1-\lambda)f(x^{\ast})
 =f(x^{\ast}),
 \end{align*}
-与局部极小矛盾。故凸函数的局部极小即全局极小。
+与局部极小矛盾。故凸函数的局部极小即全局极小：
+在该点算得的 $f(x^{\ast})$ 就是全域最小的那个标量目标值。
 
 \subsubsection{凸函数的下水平集是凸的}
 
@@ -130,13 +151,15 @@ f\bigl(\lambda x^{\ast}+(1-\lambda)x'\bigr)
 \[
 \mathcal{S}_b:=\{x\in\mathcal{X}:f(x)\leq b\}
 \]
-对凸 $f$ 是凸的：若 $x,x'\in\mathcal{S}_b$，则
+是所有“函数值不超过阈值 $b$”的点；$b$ 与 $f$ 同量纲。
+对凸 $f$ 该集合是凸的：若 $x,x'\in\mathcal{S}_b$，则
 \[
 f\bigl(\lambda x+(1-\lambda)x'\bigr)
 \leq
 \lambda f(x)+(1-\lambda)f(x')
 \leq b.
 \]
+中点的函数值仍不超过 $b$，所以线段上的点仍在水平集里。
 
 \subsubsection{凸性和二阶导数}
 
@@ -145,7 +168,7 @@ f\bigl(\lambda x+(1-\lambda)x'\bigr)
 \frac12 f(x+\epsilon)+\frac12 f(x-\epsilon)
 \geq f(x),
 \]
-从而
+左右都是函数值：两端平均不低于中点。从而
 \[
 f''(x)
 =
@@ -153,12 +176,13 @@ f''(x)
 \frac{f(x+\epsilon)+f(x-\epsilon)-2f(x)}{\epsilon^2}
 \geq 0.
 \]
+$f''(x)$ 是曲率：正表示局部上凸（碗口朝上），不是步长。
 若 $f'$ 单调，由中值定理
 \[
 f'(\alpha)=\frac{f(x)-f(a)}{x-a},\qquad
 f'(\beta)=\frac{f(b)-f(x)}{b-x},
 \]
-再令 $\lambda=(x-a)/(b-a)$ 得
+这两个数都是割线斜率。再令 $\lambda=(x-a)/(b-a)$ 得
 \[
 \lambda f(b)+(1-\lambda)f(a)
 \geq
@@ -169,7 +193,10 @@ f\bigl((1-\lambda)a+\lambda b\bigr).
 g(z)\stackrel{\mathrm{def}}{=}
 f\bigl(z\bm{x}+(1-z)\bm{y}\bigr),\qquad z\in[0,1].
 \]
+对每个 $z$ 算出线段上那一点的函数值。
 $f$ 凸当且仅当每个这样的 $g$ 凸，当且仅当 Hessian $\nabla^2 f$ 半正定。
+Hessian 的条目 $\partial^2 f/\partial x_i\partial x_j$ 表示：
+第 $i$ 个梯度分量再对 $x_j$ 的敏感度，量纲是目标对参数的二阶变化率。
 
 \subsection{约束}
 
@@ -180,6 +207,8 @@ $f$ 凸当且仅当每个这样的 $g$ 凸，当且仅当 Hessian $\nabla^2 f$ �
 \text{subject to}&\quad
 c_i(\bm{x})\leq 0,\quad i=1,\ldots,N.
 \end{align*}
+$f(\bm{x})$ 是要压小的标量；$c_i(\bm{x})\leq 0$ 表示第 $i$ 条约束成立，
+$c_i$ 本身一般不是概率。
 
 \subsubsection{拉格朗日函数}
 
@@ -189,11 +218,14 @@ L(\bm{x},\alpha_1,\ldots,\alpha_n)
 =
 f(\bm{x})+\sum_{i=1}^{n}\alpha_i c_i(\bm{x}).
 \]
+$L$ 与 $f$ 同量纲：把每条约束违反量 $c_i$ 用非负权重 $\alpha_i$ 加进目标。
+$\alpha_i$ 越大，越不能容忍 $c_i>0$。
 
 \subsubsection{惩罚}
 
 把 $\alpha_i c_i(\bm{x})$ 加进目标，近似强制 $c_i(\bm{x})\leq 0$。
 权重衰减 $\frac{\lambda}{2}\|\bm{w}\|^2$ 对应约束 $\|\bm{w}\|^2-r^2\leq 0$。
+$\|\bm{w}\|^2$ 是参数欧氏长度的平方，表示权重整体有多大；$\lambda$ 是惩罚强度，不是学习率。
 
 \subsubsection{投影}
 
@@ -201,12 +233,15 @@ f(\bm{x})+\sum_{i=1}^{n}\alpha_i c_i(\bm{x}).
 \[
 \bm{g}\leftarrow \bm{g}\cdot\min\bigl(1,\theta/\|\bm{g}\|\bigr)
 \]
-把更新限制在半径 $\theta$ 的球上。一般投影为
+输入梯度 $\bm{g}$，输出与 $\bm{g}$ 同形。
+若 $\|\bm{g}\|>\theta$，则把长度缩到 $\theta$；各坐标仍表示“该参数方向上损失的斜率”，
+只是整体步被限制在半径 $\theta$ 的球上。一般投影为
 \[
 \operatorname{Proj}_{\mathcal{X}}(\bm{x})
 =
 \operatorname*{argmin}_{\bm{x}'\in\mathcal{X}}\|\bm{x}-\bm{x}'\|.
 \]
+输出是可行集里离 $\bm{x}$ 最近的点，距离与 $\bm{x}$ 同量纲。
 
 \subsection{小结}
 
@@ -229,24 +264,31 @@ $\lambda f(x)+(1-\lambda)f(x')\geq f(\lambda x+(1-\lambda)x')$，
 \[
 f(x+\epsilon)=f(x)+\epsilon f'(x)+\mathcal{O}(\epsilon^2).
 \]
+$f(x)$ 是当前位置的目标值；$\epsilon f'(x)$ 是沿扰动 $\epsilon$ 的一阶改变量。
 取 $\epsilon=-\eta f'(x)$，
 \[
 f\bigl(x-\eta f'(x)\bigr)
 =
 f(x)-\eta f'(x)^2+\mathcal{O}\bigl(\eta^2 f'(x)^2\bigr).
 \]
-$\eta$ 充分小时 $f$ 下降，更新为
+$\eta$ 充分小时 $f$ 下降。更新为
 \[
 x\leftarrow x-\eta f'(x).
 \]
+$\eta f'(x)$ 就是本步参数改变量：从 $x$ 里减去它。
+$f'(x)$ 是“$x$ 增加 $1$ 时 $f$ 大约增加多少”；乘上步长 $\eta$ 后，得到 $x$ 实际要移动的距离。
+$\eta$ 是步长，取值通常为正实数，不是 $[0,1]$ 上的概率。
 
 \subsubsection{学习率}
 
-$\eta$ 过小则每步 $\lvert\eta f'(x)\rvert$ 太小；$|\eta f'(x)|$ 过大则二阶余项不可忽略，$f$ 不必下降。
+$\eta$ 过小则每步改变量 $\lvert\eta f'(x)\rvert$ 太小，参数几乎不动；
+$|\eta f'(x)|$ 过大则二阶余项不可忽略，$f$ 不必下降。
+学习率只决定“沿负梯度走多远”，不表示某事件发生的机会。
 
 \subsubsection{局部最小值}
 
-$f(x)=x\cos(cx)$ 有无穷多个局部极小。过大的 $\eta$ 可把迭代送进较差的谷。
+$f(x)=x\cos(cx)$ 有无穷多个局部极小。过大的 $\eta$ 可把迭代送进较差的谷：
+每步移动距离 $|\eta f'(x)|$ 跨过了近处的小坑。
 
 \subsection{多元梯度下降}
 
@@ -258,15 +300,20 @@ $f(x)=x\cos(cx)$ 有无穷多个局部极小。过大的 $\eta$ 可把迭代送�
 \frac{\partial f(\bm{x})}{\partial x_d}
 \biggr]^{\mathsf T},
 \]
+第 $j$ 个分量 $\partial f/\partial x_j$ 表示：$x_j$ 增加 $1$ 个单位时，标量 $f$ 大约增加多少。
+整个向量与 $\bm{x}$ 同形。
 \[
 f(\bm{x}+\bm{\epsilon})
 =
 f(\bm{x})+\bm{\epsilon}^{\mathsf T}\nabla f(\bm{x})
 +\mathcal{O}(\|\bm{\epsilon}\|^2),
 \]
+内积 $\bm{\epsilon}^{\mathsf T}\nabla f(\bm{x})$ 是沿 $\bm{\epsilon}$ 走一步后 $f$ 的一阶改变量。
 \[
 \bm{x}\leftarrow \bm{x}-\eta\nabla f(\bm{x}).
 \]
+$\eta\nabla f(\bm{x})$ 与 $\bm{x}$ 逐坐标相减：第 $j$ 个权重本步移动 $-\eta\partial f/\partial x_j$，
+正梯度坐标减小该权重，负梯度坐标增大该权重。
 
 \subsection{自适应方法}
 
@@ -281,12 +328,14 @@ f(\bm{x})+\bm{\epsilon}^{\mathsf T}\nabla f(\bm{x})
 +\frac12\bm{\epsilon}^{\mathsf T}\nabla^2 f(\bm{x})\bm{\epsilon}
 +\mathcal{O}(\|\bm{\epsilon}\|^3).
 \]
+二次项用 Hessian 度量沿 $\bm{\epsilon}$ 的弯曲程度。
 令 $\bm{H}=\nabla^2 f(\bm{x})$，驻点条件
 \[
 \nabla f(\bm{x})+\bm{H}\bm{\epsilon}=0
 \qquad\Rightarrow\qquad
 \bm{\epsilon}=-\bm{H}^{-1}\nabla f(\bm{x}).
 \]
+$\bm{\epsilon}$ 是牛顿步：每个坐标仍是参数应移动的量，只是按曲率重新缩放过，不再是单纯的 $-\eta\nabla f$。
 
 \subsubsection{收敛性分析}
 
@@ -297,7 +346,7 @@ f(\bm{x})+\bm{\epsilon}^{\mathsf T}\nabla f(\bm{x})
 &=f'(x^{(k)})-e^{(k)}f''(x^{(k)})
 +\frac12(e^{(k)})^2 f'''(\xi^{(k)}),
 \end{align*}
-从而
+$e^{(k)}$ 是当前参数离最优点的差，与 $x$ 同量纲。从而
 \[
 \bigl\lvert e^{(k+1)}\bigr\rvert
 =
@@ -306,6 +355,7 @@ f(\bm{x})+\bm{\epsilon}^{\mathsf T}\nabla f(\bm{x})
 \leq
 c\,(e^{(k)})^2.
 \]
+右边是误差的平方量级，表示接近最优点后误差按平方收缩。
 在凸且 $f''$ 有下界时为二次收敛。
 
 \subsubsection{预处理}
@@ -316,17 +366,20 @@ c\,(e^{(k)})^2.
 \leftarrow
 \bm{x}-\eta\,\operatorname{diag}(\bm{H})^{-1}\nabla f(\bm{x})
 \]
-按坐标缩放步长，避免直接求 $\bm{H}^{-1}$。
+按坐标缩放步长：第 $j$ 个权重的改变量是 $-\eta(\partial f/\partial x_j)/H_{jj}$，
+曲率大的坐标步更短。避免直接求 $\bm{H}^{-1}$。
 
 \subsubsection{梯度下降和线搜索}
 
 沿 $-\nabla f(\bm{x})$ 对 $\eta$ 做一维搜索，使
 $f(\bm{x}-\eta\nabla f(\bm{x}))$ 最小。
+被选中的 $\eta$ 仍是步长：使这一步参数改变量 $\eta\nabla f$ 对应的目标下降最多。
 每步需在全数据上求值，深度模型上通常不可行。
 
 \subsection{小结}
 
-更新 $\bm{x}\leftarrow\bm{x}-\eta\nabla f(\bm{x})$ 中 $\eta$ 过大发散、过小停滞。
+更新 $\bm{x}\leftarrow\bm{x}-\eta\nabla f(\bm{x})$ 中，
+$\eta\nabla f$ 是本步每个权重的位移；$\eta$ 过大则位移过大而发散、过小则几乎不动。
 牛顿步 $-\bm{H}^{-1}\nabla f$ 在凸问题上快，非凸上 Hessian 不定时不能直接用。
 
 \subsection{练习}
@@ -344,14 +397,18 @@ f(\bm{x})=\frac1n\sum_{i=1}^{n}f_i(\bm{x}),
 \qquad
 \nabla f(\bm{x})=\frac1n\sum_{i=1}^{n}\nabla f_i(\bm{x}).
 \]
+$f_i$ 是第 $i$ 个样本上的损失；$f$ 是它们的平均，与单条损失同量纲。
+$\nabla f_i$ 与参数同形，第 $j$ 分量是该样本损失对第 $j$ 个权重的敏感度。
 随机更新
 \[
 \bm{x}\leftarrow \bm{x}-\eta\nabla f_i(\bm{x})
 \]
+同样把 $\eta\nabla f_i$ 当作本步参数改变量，只是梯度来自一个样本而非全平均。
 无偏：
 \[
 \mathbb{E}_i[\nabla f_i(\bm{x})]=\nabla f(\bm{x}).
 \]
+左边是随机梯度的期望，等于全梯度：平均意义上指的仍是同一组斜率。
 
 \subsection{动态学习率}
 
@@ -368,6 +425,8 @@ f(\bm{x})=\frac1n\sum_{i=1}^{n}f_i(\bm{x}),
 &&
 &&\text{多项式衰减}.
 \end{align*}
+$\eta(t)$ 始终是第 $t$ 步的步长，单位与“参数位移 / 梯度”一致，不是概率。
+分段常数在一段时间内保持同一位移尺度；指数与多项式让后期 $|\eta\nabla f_i|$ 变小，以便在最优点附近细调。
 
 \subsection{凸目标的收敛性分析}
 
@@ -378,6 +437,7 @@ f(\bm{x})=\frac1n\sum_{i=1}^{n}f_i(\bm{x}),
 \qquad
 R(\bm{x})=\mathbb{E}_{\bm{\xi}}[f(\bm{\xi},\bm{x})].
 \]
+$\eta_t\partial_{\bm{x}}f$ 仍是参数改变量；$R(\bm{x})$ 是随机损失的期望，表示总体平均误差。
 展开距离
 \begin{align*}
 \|\bm{x}_{t+1}-\bm{x}^{\ast}\|^2
@@ -388,6 +448,7 @@ R(\bm{x})=\mathbb{E}_{\bm{\xi}}[f(\bm{\xi},\bm{x})].
 &\quad
 -2\eta_t\langle\bm{x}_t-\bm{x}^{\ast},\partial_{\bm{x}}f(\bm{\xi}_t,\bm{x})\rangle.
 \end{align*}
+$\|\bm{x}_t-\bm{x}^{\ast}\|^2$ 是当前参数离最优点的平方欧氏距离，越大表示越远。
 若梯度有界 $\|\partial_{\bm{x}}f\|\leq L$，则
 $\eta_t^2\|\partial_{\bm{x}}f\|^2\leq\eta_t^2 L^2$。
 凸性给出
@@ -405,18 +466,20 @@ f(\bm{\xi}_t,\bm{x}_t)
 2\eta_t\bigl(f(\bm{\xi}_t,\bm{x}_t)-f(\bm{\xi}_t,\bm{x}^{\ast})\bigr)
 -\eta_t^2 L^2.
 \end{align*}
+左边是距离平方的减少量；右边第一项是本步目标下降与步长的乘积。
 取期望并累加，加权平均
 \[
 \bar{\bm{x}}
 \stackrel{\mathrm{def}}{=}
 \frac{\sum_{t=1}^{T}\eta_t\bm{x}_t}{\sum_{t=1}^{T}\eta_t}
 \]
-满足
+是用步长加权的参数平均，仍在参数空间里。满足
 \[
 \mathbb{E}[R(\bar{\bm{x}})]-R^{\ast}
 \leq
 \frac{r^2+L^2\sum_{t=1}^{T}\eta_t^2}{2\sum_{t=1}^{T}\eta_t}.
 \]
+左边是平均风险相对最优的超出量，与损失同量纲；右边给出该超出量的上界。
 
 \subsection{随机梯度和有限样本}
 
@@ -424,13 +487,14 @@ f(\bm{\xi}_t,\bm{x}_t)
 \[
 1-(1-1/n)^n\approx 1-e^{-1}\approx 0.63.
 \]
+这是 $[0,1]$ 上的概率：约 $63\%$ 的样本至少出现一次。
 恰好抽一次的概率约为 $e^{-1}\approx 0.37$。
 无放回遍历则每个样本每轮恰好一次。
 
 \subsection{小结}
 
 凸时 SGD 对广泛的 $\{\eta_t\}$ 收敛到最优；深度目标非凸，无同样保证。
-$n$ 大时全梯度每步代价高，故用 $\nabla f_i$。
+$n$ 大时全梯度每步代价高，故用 $\nabla f_i$；每次减去的仍是 $\eta\nabla f_i$ 这份参数位移。
 
 \subsection{练习}
 
@@ -443,6 +507,7 @@ $n$ 大时全梯度每步代价高，故用 $\nabla f_i$。
 \subsection{向量化和缓存}
 
 一次处理 $|\mathcal{B}|$ 个样本，使矩阵乘与缓存命中摊薄解释器与内存延迟。
+$|\mathcal{B}|$ 是正整数，表示本步用了几条样本，不是学习率。
 多 GPU 时每卡至少一张图，有效批量随设备数放大。
 
 \subsection{小批量}
@@ -451,6 +516,7 @@ $n$ 大时全梯度每步代价高，故用 $\nabla f_i$。
 \[
 \bm{g}_t=\partial_{\bm{w}}f(\bm{x}_t,\bm{w}),
 \]
+与 $\bm{w}$ 同形，第 $j$ 分量是该样本损失对 $w_j$ 的斜率。
 小批量
 \[
 \bm{g}_t
@@ -459,30 +525,37 @@ $n$ 大时全梯度每步代价高，故用 $\nabla f_i$。
 \frac{1}{|\mathcal{B}_t|}
 \sum_{i\in\mathcal{B}_t}f(\bm{x}_i,\bm{w}).
 \]
+先把批量内损失取平均得到一个标量，再对 $\bm{w}$ 求导：
+$\bm{g}_t$ 是平均损失的梯度，各坐标含义与全梯度相同，只是用 $|\mathcal{B}_t|$ 条样本估计。
 $\mathcal{B}_t$ 来自数据的随机排列，每轮每样本一次。
 
 \subsection{读取数据集}
 
 对已标准化的设计矩阵 $\bm{X}\in\mathbb{R}^{n\times d}$、响应 $\bm{y}$，
 迭代器输出 $(\bm{X}_{\mathcal{B}},\bm{y}_{\mathcal{B}})$，
-$|\mathcal{B}|$ 为批量。
+$X_{ij}$ 仍是第 $i$ 个样本第 $j$ 个特征；$y_i$ 是对应目标值。
+$|\mathcal{B}|$ 为批量大小。
 
 \subsection{从零开始实现}
 
-线性模型 $\hat{y}=\bm{w}^{\mathsf T}\bm{x}+b$，损失在批量上先平均再反传，
-故更新中 $\bm{g}_t$ 不再除 $|\mathcal{B}|$。
+线性模型 $\hat{y}=\bm{w}^{\mathsf T}\bm{x}+b$，
+$\hat{y}$ 是与 $y$ 同量纲的点预测，不是类别概率。
+损失在批量上先平均再反传，故更新中 $\bm{g}_t$ 不再除 $|\mathcal{B}|$。
+更新 $\bm{w}\leftarrow\bm{w}-\eta\bm{g}_t$ 里，$\eta\bm{g}_t$ 的每一维是该权重本步移动多少。
 $|\mathcal{B}|=n$ 退化为批量梯度下降。
 
 \subsection{简洁实现}
 
 框架优化器实现同一映射
 $\bm{w}\leftarrow\bm{w}-\eta\bm{g}_t$，状态为空。
+$\eta$ 仍只是步长。
 
 \subsection{小结}
 
 小批量梯度
 $\bm{g}_t=\partial_{\bm{w}}\frac{1}{|\mathcal{B}_t|}\sum_{i\in\mathcal{B}_t}f(\bm{x}_i,\bm{w})$
-同时利用向量化与噪声梯度。训练中降低 $\eta$ 有助于后期收敛。
+同时利用向量化与噪声梯度。
+训练中降低 $\eta$ 是缩小每步参数位移，有助于后期收敛。
 
 \subsection{练习}
 
@@ -505,18 +578,23 @@ $\bm{g}_t=\partial_{\bm{w}}\frac{1}{|\mathcal{B}_t|}\sum_{i\in\mathcal{B}_t}f(\b
 \frac{1}{|\mathcal{B}_t|}
 \sum_{i\in\mathcal{B}_t}f(\bm{x}_i,\bm{w}_{t-1}).
 \]
+这是当前批量上的梯度，与参数同形。
 \[
 \bm{v}_t=\beta\bm{v}_{t-1}+\bm{g}_{t,t-1}
 =
 \sum_{\tau=0}^{t-1}\beta^{\tau}\bm{g}_{t-\tau,t-\tau-1}.
 \]
+$\bm{v}_t$ 是动量缓冲：过去梯度的指数加权和（速度），与 $\bm{g}$ 同形。
+第 $j$ 个分量是第 $j$ 个权重对应的“惯性”：近期该方向上斜率的泄漏平均，不是学习率，也不是概率。
+$\beta\in[0,1)$ 是衰减系数，越大则越看重更早的梯度。
 
 \subsubsection{条件不佳的问题}
 
 \[
 f(\bm{x})=0.1\,x_1^2+2\,x_2^2
 \]
-两个方向曲率相差 $20$ 倍，固定 $\eta$ 的梯度下降在窄谷中振荡。
+对 $(x_1,x_2)$ 算出一个非负标量，两个方向曲率相差 $20$ 倍。
+固定 $\eta$ 的梯度下降在窄谷中振荡：$\eta\partial f/\partial x_2$ 过大而 $\eta\partial f/\partial x_1$ 过小。
 
 \subsubsection{动量法}
 
@@ -525,12 +603,14 @@ f(\bm{x})=0.1\,x_1^2+2\,x_2^2
 \\
 \bm{x}_t&\leftarrow\bm{x}_{t-1}-\eta_t\bm{v}_t.
 \end{align*}
+先把当前梯度并入速度 $\bm{v}_t$，再让参数减去 $\eta_t\bm{v}_t$。
+$\eta_t\bm{v}_t$ 才是本步每个权重的位移；$\bm{v}_t$ 本身是速度缓冲，不是参数。
 
 \subsubsection{有效样本权重}
 
 $\sum_{\tau=0}^{\infty}\beta^{\tau}=1/(1-\beta)$，
-有效步长约为 $\eta/(1-\beta)$。
-$\beta=0.9$ 相当于约 $10$ 个梯度的加权平均。
+有效步长约为 $\eta/(1-\beta)$：$\beta=0.9$ 时位移大约相当于把 $\eta$ 放大 $10$ 倍。
+$\beta=0.9$ 相当于约 $10$ 个梯度的加权平均。这仍是步长尺度，不是概率。
 
 \subsection{实际实验}
 
@@ -538,7 +618,7 @@ $\beta=0.9$ 相当于约 $10$ 个梯度的加权平均。
 
 \subsubsection{从零开始实现}
 
-维护 $\bm{v}$，按上式更新。增大 $\beta$ 时应略降 $\eta$，以免有效步长过大。
+维护 $\bm{v}$，按上式更新。增大 $\beta$ 时应略降 $\eta$，以免有效位移 $\eta/(1-\beta)$ 过大。
 
 \subsubsection{简洁实现}
 
@@ -553,20 +633,21 @@ $\beta=0.9$ 相当于约 $10$ 个梯度的加权平均。
 \[
 h(\bm{x})=\frac12\bm{x}^{\mathsf T}\bm{Q}\bm{x}+\bm{x}^{\mathsf T}\bm{c}+b.
 \]
-配平方后经 $\bm{Q}=\bm{U}\bm{\Lambda}\bm{U}^{\mathsf T}$ 变成
+$h(\bm{x})$ 是一个标量二次目标。配平方后经 $\bm{Q}=\bm{U}\bm{\Lambda}\bm{U}^{\mathsf T}$ 变成
 \[
 h(\bm{z})=\frac12\bm{z}^{\mathsf T}\bm{\Lambda}\bm{z}+b'.
 \]
-无动量时
+对角元 $\Lambda_{ii}$ 是该坐标的曲率。无动量时
 \[
 \bm{z}_t=(\bm{I}-\bm{\Lambda})\bm{z}_{t-1}.
 \]
-有动量时
+每步把第 $i$ 坐标乘以 $1-\eta\lambda_i$，即沿该方向收缩。有动量时
 \begin{align*}
 \bm{v}_t&=\beta\bm{v}_{t-1}+\bm{\Lambda}\bm{z}_{t-1},
 \\
 \bm{z}_t&=(\bm{I}-\eta\bm{\Lambda})\bm{z}_{t-1}-\eta\beta\bm{v}_{t-1}.
 \end{align*}
+$\bm{v}_t$ 仍是速度；$\eta\beta\bm{v}_{t-1}$ 是惯性贡献的额外位移。
 
 \subsubsection{标量函数}
 
@@ -582,11 +663,13 @@ h(\bm{z})=\frac12\bm{z}^{\mathsf T}\bm{\Lambda}\bm{z}+b'.
 =\bm{R}(\beta,\eta,\lambda)
 \begin{bmatrix}v_t\\ x_t\end{bmatrix}.
 \]
-谱半径 $\rho(\bm{R})<1$ 时该坐标收敛。
+$v_t$ 是该坐标的速度，$x_t$ 是参数本身。
+谱半径 $\rho(\bm{R})<1$ 时该坐标收敛：$\rho$ 是无量纲的收缩因子，小于 $1$ 表示误差会缩小。
 
 \subsection{小结}
 
-动量用 $\bm{v}_t=\sum_{\tau}\beta^{\tau}\bm{g}_{t-\tau}$ 替代当前梯度，
+动量用速度 $\bm{v}_t=\sum_{\tau}\beta^{\tau}\bm{g}_{t-\tau}$ 替代当前梯度：
+它是过去梯度的指数平均，再经 $\eta\bm{v}_t$ 变成每个权重的位移。
 有效梯度个数为 $1/(1-\beta)$，并多存一个状态 $\bm{v}$。
 
 \subsection{练习}
@@ -601,6 +684,7 @@ h(\bm{z})=\frac12\bm{z}^{\mathsf T}\bm{\Lambda}\bm{z}+b'.
 
 语言模型中罕见词的参数只在该词出现时更新。
 若 $\eta_t=\mathcal{O}(t^{-1/2})$ 已很小，罕见坐标尚未被充分观测。
+这里变小的是步长，不是该词出现的概率。
 
 \subsection{预处理}
 
@@ -611,7 +695,8 @@ f(\bm{x})=\bar f(\bar{\bm{x}})
 \frac12\bar{\bm{x}}^{\mathsf T}\bm{\Lambda}\bar{\bm{x}}
 +\bar{\bm{c}}^{\mathsf T}\bar{\bm{x}}+b,
 \]
-条件数 $\kappa=\Lambda_1/\Lambda_d$。对角预处理
+条件数 $\kappa=\Lambda_1/\Lambda_d$ 是最大与最小曲率之比，无量纲，越大表示各坐标尺度越不均。
+对角预处理
 \[
 \tilde{\bm{Q}}
 =
@@ -623,7 +708,7 @@ f(\bm{x})=\bar f(\bar{\bm{x}})
 =
 \bm{\Lambda}(\bar{\bm{x}}-\bar{\bm{x}}_0)
 \]
-幅度随坐标变化，可用 $|\bm{g}|$ 代理曲率。
+幅度随坐标变化，可用 $|\bm{g}|$ 代理曲率：$|\bm{g}_j|$ 大表示该权重方向更陡。
 
 \subsection{算法}
 
@@ -634,12 +719,17 @@ f(\bm{x})=\bar f(\bar{\bm{x}})
 \\
 \bm{w}_t&=\bm{w}_{t-1}-\frac{\eta}{\sqrt{\bm{s}_t+\epsilon}}\cdot\bm{g}_t.
 \end{align*}
-平方与除法按坐标逐元素。测试函数仍用
+$\bm{g}_t$ 是当前梯度；$\bm{s}_t$ 与参数同形，第 $j$ 个分量是迄今 $\partial\ell/\partial w_j$ 的平方和，
+表示该坐标历史斜率有多大（非中心二阶累积），不是方差概率。
+平方与除法按坐标逐元素。
+第 $j$ 个权重的改变量是 $-\eta g_{t,j}/\sqrt{s_{t,j}+\epsilon}$：
+历史梯度大的坐标步更短。$\eta$ 仍是全局步长。
+测试函数仍用
 $f(\bm{x})=0.1\,x_1^2+2\,x_2^2$。
 
 \subsection{从零开始实现}
 
-状态 $\bm{s}$ 与 $\bm{w}$ 同形，按上式更新。因 $\sqrt{\bm{s}_t}$ 单调增，后期步长自动变小，故可用比 SGD 更大的初始 $\eta$。
+状态 $\bm{s}$ 与 $\bm{w}$ 同形，按上式更新。因 $\sqrt{\bm{s}_t}$ 单调增，后期每步位移自动变小，故可用比 SGD 更大的初始 $\eta$。
 
 \subsection{简洁实现}
 
@@ -649,7 +739,7 @@ $f(\bm{x})=0.1\,x_1^2+2\,x_2^2$。
 
 AdaGrad 用 $\bm{s}_t=\sum_{\tau=1}^{t}\bm{g}_{\tau}^2$ 按坐标缩小步长：
 大梯度坐标走得慢，稀疏坐标保持相对大的有效学习率。
-深度非凸上 $\bm{s}_t$ 可能累积过快。
+深度非凸上 $\bm{s}_t$ 可能累积过快，使后期 $\eta/\sqrt{\bm{s}_t}$ 过早接近零。
 
 \subsection{练习}
 
@@ -667,17 +757,20 @@ AdaGrad 的 $\bm{s}_t$ 无界累积，等价于 $\eta$ 按 $\mathcal{O}(t^{-1/2}
 \\
 \bm{x}_t&\leftarrow\bm{x}_{t-1}-\frac{\eta}{\sqrt{\bm{s}_t+\epsilon}}\odot\bm{g}_t.
 \end{align*}
+$\bm{s}_t$ 是梯度平方的指数移动平均（未中心化的二阶矩），与参数同形。
+第 $j$ 分量估计“该权重的梯度最近有多剧烈”，用来按坐标缩放步长。
 展开
 \[
 \bm{s}_t
 =(1-\gamma)\bigl(\bm{g}_t^2+\gamma\bm{g}_{t-1}^2+\gamma^2\bm{g}_{t-2}^2+\cdots\bigr).
 \]
-$\eta$ 由实验者单独调度；$\gamma$ 控制历史窗口，有效长度约 $1/(1-\gamma)$。
+$\eta$ 由实验者单独调度，仍是步长；$\gamma$ 控制历史窗口，有效长度约 $1/(1-\gamma)$。
+本步第 $j$ 个权重的位移是 $-\eta g_{t,j}/\sqrt{s_{t,j}+\epsilon}$。
 
 \subsection{从零开始实现}
 
 同一二次函数上，AdaGrad 在 $\eta=0.4$ 后期几乎不动；RMSProp 因泄漏平均不让 $\bm{s}_t$ 无限增长。
-深度网络常用 $\eta=0.01$、$\gamma=0.9$。
+深度网络常用 $\eta=0.01$、$\gamma=0.9$。这里 $0.01$ 是步长，$0.9$ 是二阶矩的衰减系数。
 
 \subsection{简洁实现}
 
@@ -686,6 +779,7 @@ $\eta$ 由实验者单独调度；$\gamma$ 控制历史窗口，有效长度约 
 \subsection{小结}
 
 RMSProp 用泄漏平均 $\bm{s}_t\leftarrow\gamma\bm{s}_{t-1}+(1-\gamma)\bm{g}_t^2$ 做按坐标预处理，并把全局 $\eta$ 从累积平方和中分离。
+$\bm{s}_t$ 是梯度的未中心化二阶矩，不是分类概率。
 
 \subsection{练习}
 
@@ -701,6 +795,7 @@ Adadelta 进一步取消显式 $\eta$，用参数变化量校准更新幅度。
 \[
 \bm{s}_t=\rho\bm{s}_{t-1}+(1-\rho)\bm{g}_t^2.
 \]
+$\bm{s}_t$ 仍是各坐标梯度平方的泄漏平均。
 重缩放梯度与参数更新
 \begin{align*}
 \bm{g}_t'
@@ -712,6 +807,8 @@ Adadelta 进一步取消显式 $\eta$，用参数变化量校准更新幅度。
 \Delta\bm{x}_t
 &=\rho\Delta\bm{x}_{t-1}+(1-\rho){\bm{g}_t'}^2.
 \end{align*}
+$\bm{g}_t'$ 与参数同形，就是本步每个权重的位移（不再乘单独的 $\eta$）。
+$\Delta\bm{x}_t$ 是过去参数改变量平方的泄漏平均，用来让位移与近期实际走动的尺度匹配。
 需两个状态 $\bm{s}_t$、$\Delta\bm{x}_t$。$\rho=0.9$ 对应约 $10$ 个半衰期。
 
 \subsection{代码实现}
@@ -720,7 +817,8 @@ Adadelta 进一步取消显式 $\eta$，用参数变化量校准更新幅度。
 
 \subsection{小结}
 
-Adadelta 用 $\sqrt{\Delta\bm{x}_{t-1}}/\sqrt{\bm{s}_t}$ 代替 $\eta$，仍用泄漏平均估计二阶统计。
+Adadelta 用 $\sqrt{\Delta\bm{x}_{t-1}}/\sqrt{\bm{s}_t}$ 代替 $\eta$，
+分子是近期参数位移的均方根，分母是近期梯度的均方根；二者之比仍是步长尺度。
 
 \subsection{练习}
 
@@ -737,20 +835,26 @@ Adam 把动量的一阶矩与 RMSProp 的二阶矩合在同一更新里，并做
 \\
 \bm{s}_t&\leftarrow\beta_2\bm{s}_{t-1}+(1-\beta_2)\bm{g}_t^2.
 \end{align*}
-因 $\bm{v}_0=\bm{s}_0=\bm{0}$，
+$\bm{v}_t$ 是梯度的指数移动均值（一阶矩）：第 $j$ 分量估计 $\partial\ell/\partial w_j$ 最近的平均斜率。
+$\bm{s}_t$ 是梯度的未中心化方差（二阶矩）：第 $j$ 分量估计该斜率平方的平均水平，用来衡量该坐标梯度有多剧烈。
+二者都与参数同形，都不是概率。因 $\bm{v}_0=\bm{s}_0=\bm{0}$，
 \[
 \hat{\bm{v}}_t=\frac{\bm{v}_t}{1-\beta_1^t},\qquad
 \hat{\bm{s}}_t=\frac{\bm{s}_t}{1-\beta_2^t}.
 \]
+除以 $1-\beta^t$ 是偏差校正：早期 $\bm{v},\bm{s}$ 被零初始化拉低，校正后才是无偏的均值与未中心化方差估计。
 \[
 \bm{g}_t'=\frac{\eta\hat{\bm{v}}_t}{\sqrt{\hat{\bm{s}}_t}+\epsilon},
 \qquad
 \bm{x}_t\leftarrow\bm{x}_{t-1}-\bm{g}_t'.
 \]
+$\bm{g}_t'$ 是本步参数改变量：第 $j$ 个权重移动 $-\eta\hat v_{t,j}/(\sqrt{\hat s_{t,j}}+\epsilon)$。
+$\eta$ 是全局步长，不是概率；分母把位移按该坐标的梯度尺度归一。
 
 \subsection{实现}
 
 状态为 $(\bm{v},\bm{s},t)$。常用 $\eta=0.01$，$\beta_1=0.9$，$\beta_2=0.999$。
+$\beta_1$ 控制均值记忆长度，$\beta_2$ 控制二阶矩记忆长度；$t$ 只用于偏差校正的幂次。
 
 \subsection{Yogi}
 
@@ -764,12 +868,14 @@ Adam 中 $\bm{s}_t$ 在梯度突变时可能被大正项拉动。把
 \leftarrow
 \bm{s}_{t-1}+(1-\beta_2)\bm{g}_t^2\odot\operatorname{sgn}(\bm{g}_t^2-\bm{s}_{t-1})
 \]
-使增量幅度受当前 $\bm{s}$ 限制。
+使增量幅度受当前 $\bm{s}$ 限制：二阶矩仍表示“梯度有多剧烈”，但不再一次跳到过大。
 
 \subsection{小结}
 
 Adam 的更新是偏差校正后的
 $\bm{x}_t\leftarrow\bm{x}_{t-1}-\eta\hat{\bm{v}}_t/(\sqrt{\hat{\bm{s}}_t}+\epsilon)$。
+$\hat{\bm{v}}_t$ 是梯度均值，$\hat{\bm{s}}_t$ 是梯度未中心化方差，
+$\eta\hat{\bm{v}}_t/(\sqrt{\hat{\bm{s}}_t}+\epsilon)$ 才是每个权重本步移动的量。
 梯度尺度差异大时可用更大批量或 Yogi 的 $\bm{s}_t$。
 
 \subsection{练习}
@@ -779,11 +885,13 @@ $\bm{x}_t\leftarrow\bm{x}_{t-1}-\eta\hat{\bm{v}}_t/(\sqrt{\hat{\bm{s}}_t}+\epsil
 \section{学习率调度器}
 
 更新规则确定方向，$\eta_t$ 确定步长。过大发散，过小停滞或次优；条件数大时更敏感。
+$\eta_t$ 始终是“本步沿更新方向走多远”，不是分类或采样概率。
 
 \subsection{一个简单的问题}
 
 在 Fashion-MNIST 上用固定 $\eta=0.3$ 训练修改后的 LeNet。
-训练精度可继续升而测试精度停滞，间隙对应过拟合。
+$0.3$ 是每步参数位移的全局尺度。
+训练精度可继续升而测试精度停滞，间隙对应过拟合：训练误差这个数已经很小，测试误差那个数不再下降。
 
 \subsection{学习率调度器}
 
@@ -791,6 +899,7 @@ $\bm{x}_t\leftarrow\bm{x}_{t-1}-\eta\hat{\bm{v}}_t/(\sqrt{\hat{\bm{s}}_t}+\epsil
 \[
 \eta_t=\eta_0(t+1)^{-1/2}.
 \]
+$\eta_t$ 随 $t$ 减小，表示后期每步移动距离变短。
 比固定 $\eta$ 更平滑，过拟合间隙往往更小。
 
 \subsection{策略}
@@ -807,12 +916,14 @@ $\bm{x}_t\leftarrow\bm{x}_{t-1}-\eta\hat{\bm{v}}_t/(\sqrt{\hat{\bm{s}}_t}+\epsil
 \[
 \eta_{t+1}\leftarrow\max(\eta_{\min},\eta_t\cdot\alpha).
 \]
+$\alpha$ 是步长的折扣比例，例如 $0.1$ 表示下次步长变为现在的十分之一；
+$\eta_{\min}$ 是最小步长，防止位移完全停住。
 
 \subsubsection{多因子调度器}
 
 在预定时刻 $s=\{5,10,20\}$ 上
 $\eta_{t+1}\leftarrow\eta_t\cdot\alpha$。
-直觉是：先用较大 $\eta$ 走到驻点附近，再减小 $\eta$ 降低参数噪声。
+直觉是：先用较大 $\eta$ 走到驻点附近（每步位移较大），再减小 $\eta$ 降低参数噪声。
 
 \subsubsection{余弦调度器}
 
@@ -821,17 +932,19 @@ $\eta_{t+1}\leftarrow\eta_t\cdot\alpha$。
 =
 \eta_T+\frac{\eta_0-\eta_T}{2}\bigl(1+\cos(\pi t/T)\bigr).
 \]
+输入时刻 $t$ 与总长 $T$，输出仍是步长。
+$\cos$ 从 $1$ 降到 $-1$，使 $\eta_t$ 从 $\eta_0$ 平滑降到 $\eta_T$；两端都是位移尺度，不是角度概率。
 
 \subsubsection{预热}
 
 先把 $\eta$ 从接近 $0$ 线性升到 $\eta_0$，再接入余弦或其他衰减，
-避免深度网络初期过大步长导致发散。
+避免深度网络初期过大步长导致发散：初期 $|\eta\bm{g}|$ 被故意限制得很小。
 
 \subsection{小结}
 
-$\eta_t$ 应随训练下降。余弦调度为
+$\eta_t$ 应随训练下降，因为它是步长。余弦调度为
 $\eta_t=\eta_T+\frac{\eta_0-\eta_T}{2}(1+\cos(\pi t/T))$；
-预热限制初期 $\|\eta\bm{g}\|$。
+预热限制初期参数改变量 $\|\eta\bm{g}\|$。
 
 \subsection{练习}
 
