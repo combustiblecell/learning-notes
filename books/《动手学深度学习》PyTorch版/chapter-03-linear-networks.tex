@@ -3,10 +3,12 @@
 线性模型把输入 $\bm{x}$ 映成标量或类别分数，再用平方损失或交叉熵得到可微目标。
 训练在小批量上用梯度更新参数；分类时在线性输出后再接 $\mathrm{softmax}$。
 下面按原书顺序写出对象、损失、最优条件和实现所对应的映射。
+每一公式先写如何由输入算出输出，再写这个数在问题里表示什么。
 
 \section{线性回归}
 
 回归估计 $y\in\mathbb{R}$。给定特征 $\bm{x}\in\mathbb{R}^{d}$，模型输出一个实数预测 $\hat{y}$。
+$\hat{y}$ 与 $y$ 同量纲，是点预测，不是概率。
 
 \subsection{线性回归的基本元素}
 
@@ -15,6 +17,7 @@
 \mathcal{D}=\{(\bm{x}^{(i)},y^{(i)})\}_{i=1}^{n}
 \]
 用来确定权重 $\bm{w}$ 与偏置 $b$。
+$\bm{x}^{(i)}$ 是第 $i$ 个样本的 $d$ 个特征，$y^{(i)}$ 是该样本的真实目标值（例如房价，单位与预测相同）。
 
 \subsubsection{线性模型}
 
@@ -22,14 +25,17 @@
 \[
 \mathrm{price}=w_{\mathrm{area}}\cdot\mathrm{area}+w_{\mathrm{age}}\cdot\mathrm{age}+b.
 \]
+右边由两个特征各乘一个权重再加偏置得到，算出的 $\mathrm{price}$ 是与真实房价同单位的点预测，不是 $[0,1]$ 上的概率。
 一般地，$d$ 个特征给出
 \[
-\hat{y}=w_1 x_1+\cdots+w_d x_d+b=\bm{w}^{\top}\bm{x}+b.
+\hat{y}=w_1 x_1+\cdots+w_d x_d+b=\bm{w}^{\mathsf T}\bm{x}+b.
 \]
+$w_j$ 是特征 $x_j$ 的权重：该特征增加 $1$ 个单位时，点预测大约增加 $w_j$；$b$ 是无特征时的基线预测。
 把 $n$ 个样本排成 $\bm{X}\in\mathbb{R}^{n\times d}$ 后，向量形式为
 \[
 \hat{\bm{y}}=\bm{X}\bm{w}+b.
 \]
+$\hat{\bm{y}}\in\mathbb{R}^{n}$ 的第 $i$ 个分量是第 $i$ 个样本的点预测，仍与对应的 $y^{(i)}$ 同量纲。
 
 \subsubsection{损失函数}
 
@@ -37,24 +43,30 @@
 \[
 l^{(i)}(\bm{w},b)=\frac{1}{2}\bigl(\hat{y}^{(i)}-y^{(i)}\bigr)^{2}.
 \]
+先算残差 $\hat{y}^{(i)}-y^{(i)}$（预测减真值，与 $y$ 同量纲），再平方并乘 $1/2$。
+得到的是非负标量，表示该样本点预测偏离真值有多远；它不是概率，也不是正确率。
 经验风险是样本平均
 \begin{align*}
 L(\bm{w},b)
 &=\frac{1}{n}\sum_{i=1}^{n}l^{(i)}(\bm{w},b)\\
-&=\frac{1}{n}\sum_{i=1}^{n}\frac{1}{2}\bigl(\bm{w}^{\top}\bm{x}^{(i)}+b-y^{(i)}\bigr)^{2}.
+&=\frac{1}{n}\sum_{i=1}^{n}\frac{1}{2}\bigl(\bm{w}^{\mathsf T}\bm{x}^{(i)}+b-y^{(i)}\bigr)^{2}.
 \end{align*}
-参数估计定义为
+$L$ 是均方误差（差一个常数因子 $1/2$）：把 $n$ 个平方损失取算术平均，表示整批预测的典型平方偏离，
+仍不是 $[0,1]$ 上的概率。参数估计定义为
 \[
 \bm{w}^{\ast},b^{\ast}=\operatorname*{argmin}_{\bm{w},b}\,L(\bm{w},b).
 \]
+$(\bm{w}^{\ast},b^{\ast})$ 是使训练均方误差最小的权重与偏置，本身是参数，不是新样本上的 $\hat{y}$。
 
 \subsubsection{解析解}
 
 把偏置并入 $\bm{X}$ 的全 $1$ 列后，正规方程给出
 \[
-\bm{w}^{\ast}=(\bm{X}^{\top}\bm{X})^{-1}\bm{X}^{\top}\bm{y},
+\bm{w}^{\ast}=(\bm{X}^{\mathsf T}\bm{X})^{-1}\bm{X}^{\mathsf T}\bm{y},
 \]
-成立条件是 $\bm{X}^{\top}\bm{X}$ 可逆，即特征线性无关且 $n$ 足够大。
+成立条件是 $\bm{X}^{\mathsf T}\bm{X}$ 可逆，即特征线性无关且 $n$ 足够大。
+左边每个分量仍是一个权重：对应特征增加 $1$ 时点预测增加多少。
+右端由特征矩阵与标签算出，不经过迭代。
 
 \subsubsection{随机梯度下降}
 
@@ -68,6 +80,8 @@ L(\bm{w},b)
 \sum_{i\in\mathcal{B}}
 \partial_{(\bm{w},b)}l^{(i)}(\bm{w},b).
 \]
+$\partial l^{(i)}/\partial w_j$ 是 $w_j$ 增加 $1$ 个单位时该样本平方损失大约增加多少；
+对批量求平均再乘步长 $\eta$，沿其反方向改参数以减小 $L$。
 平方损失的显式梯度是
 \begin{align*}
 \bm{w}
@@ -77,22 +91,25 @@ L(\bm{w},b)
 \frac{\eta}{|\mathcal{B}|}
 \sum_{i\in\mathcal{B}}
 \bm{x}^{(i)}
-\bigl(\bm{w}^{\top}\bm{x}^{(i)}+b-y^{(i)}\bigr),\\
+\bigl(\bm{w}^{\mathsf T}\bm{x}^{(i)}+b-y^{(i)}\bigr),\\
 b
 &\leftarrow
 b
 -
 \frac{\eta}{|\mathcal{B}|}
 \sum_{i\in\mathcal{B}}
-\bigl(\bm{w}^{\top}\bm{x}^{(i)}+b-y^{(i)}\bigr).
+\bigl(\bm{w}^{\mathsf T}\bm{x}^{(i)}+b-y^{(i)}\bigr).
 \end{align*}
+括号里的残差 $\hat{y}^{(i)}-y^{(i)}$ 是点预测相对真值的有符号误差；
+乘上 $\bm{x}^{(i)}$ 后得到权重梯度，表示“残差大且特征大时，对应权重应改得更多”。
 
 \subsubsection{用模型进行预测}
 
 学得 $(\hat{\bm{w}},\hat{b})$ 后，新样本的预测是仿射映射
 \[
-\hat{y}=\hat{\bm{w}}^{\top}\bm{x}+\hat{b}.
+\hat{y}=\hat{\bm{w}}^{\mathsf T}\bm{x}+\hat{b}.
 \]
+输入是新特征向量，输出仍是与 $y$ 同量纲的点预测，不是类概率。
 
 \subsection{矢量化加速}
 
@@ -100,7 +117,8 @@ b
 \[
 \bm{c}=\bm{a}+\bm{b},\qquad c_{i}=a_{i}+b_{i},
 \]
-而不是 $m$ 次标量循环。小批量上的 $\bm{X}\bm{w}$ 同样一次完成，复杂度由线性代数库承担。
+而不是 $m$ 次标量循环。$c_i$ 就是第 $i$ 个位置两个输入之和，与 $a_i$ 同量纲。
+小批量上的 $\bm{X}\bm{w}$ 同样一次完成：第 $i$ 个输出仍是第 $i$ 个样本的点预测。
 
 \subsection{正态分布与平方损失}
 
@@ -109,60 +127,70 @@ b
 p(x)=\frac{1}{\sqrt{2\pi\sigma^{2}}}
 \exp\Bigl(-\frac{1}{2\sigma^{2}}(x-\mu)^{2}\Bigr).
 \]
+$p(x)$ 是密度，可以大于 $1$，不是概率；真正的概率是密度在区间上的积分。
+$\mu$ 是分布的中心，$\sigma$ 是起伏尺度，与 $x$ 同量纲。
 观测模型
 \[
-y=\bm{w}^{\top}\bm{x}+b+\epsilon
+y=\bm{w}^{\mathsf T}\bm{x}+b+\epsilon
 \]
 在 $\epsilon\sim\mathcal{N}(0,\sigma^{2})$ 下给出
 \[
 P(y\mid\bm{x})
 =
 \frac{1}{\sqrt{2\pi\sigma^{2}}}
-\exp\Bigl(-\frac{1}{2\sigma^{2}}(y-\bm{w}^{\top}\bm{x}-b)^{2}\Bigr).
+\exp\Bigl(-\frac{1}{2\sigma^{2}}(y-\bm{w}^{\mathsf T}\bm{x}-b)^{2}\Bigr).
 \]
+这里写成密度对 $y$ 的值：均值是点预测 $\bm{w}^{\mathsf T}\bm{x}+b$，残差越大则该密度越小。
 独立样本的似然是
 \[
 P(\bm{y}\mid\bm{X})=\prod_{i=1}^{n}p(y^{(i)}\mid\bm{x}^{(i)}),
 \]
+把各样本密度相乘，表示“整批观测同时出现”的联合密度（连续情形下仍不是 $[0,1]$ 概率）。
 负对数似然为
 \begin{align*}
 -\log P(\bm{y}\mid\bm{X})
 &=
 \sum_{i=1}^{n}\frac{1}{2}\log(2\pi\sigma^{2})\\
 &\qquad
-+\frac{1}{2\sigma^{2}}\bigl(y^{(i)}-\bm{w}^{\top}\bm{x}^{(i)}-b\bigr)^{2}.
++\frac{1}{2\sigma^{2}}\bigl(y^{(i)}-\bm{w}^{\mathsf T}\bm{x}^{(i)}-b\bigr)^{2}.
 \end{align*}
-$\sigma$ 固定时，极大似然与最小化 $L(\bm{w},b)$ 等价。
+$\sigma$ 固定时，后一项与均方误差 $L(\bm{w},b)$ 只差正常数，故极大似然与最小化 $L$ 等价：
+最小化的仍是平方预测误差，不是在估计一个概率值。
 
 \subsection{从线性回归到深度网络}
 
-同一仿射映射可看成只有一层计算单元的网络：输入给定，输出由 $\bm{w},b$ 计算。
+同一仿射映射可看成只有一层计算单元的网络：输入给定，输出由 $\bm{w},b$ 计算，得到点预测。
 
 \subsubsection{神经网络图}
 
 输入层提供 $x_{1},\ldots,x_{d}$，输出层一个单元
 \[
-o_{1}=\bm{w}^{\top}\bm{x}+b.
+o_{1}=\bm{w}^{\mathsf T}\bm{x}+b.
 \]
-每个输入都连到该单元，参数个数为 $d+1$。
+$o_1$ 就是 $\hat{y}$：与 $y$ 同量纲的点预测。每个输入都连到该单元，参数个数为 $d+1$，
+每个 $w_j$ 仍是“该特征增加 $1$ 时预测增加多少”。
 
 \subsubsection{生物学}
 
 树突接收 $x_{i}$，突触权重为 $w_{i}$，胞体做加权和后再经激活
 \[
-o=\phi\bigl(\bm{w}^{\top}\bm{x}+b\bigr).
+o=\phi\bigl(\bm{w}^{\mathsf T}\bm{x}+b\bigr).
 \]
-线性回归对应 $\phi$ 为恒等映射。
+$\bm{w}^{\mathsf T}\bm{x}+b$ 先算出一个实数打分，$\phi$ 再把它变成输出激活。
+线性回归对应 $\phi$ 为恒等映射，故 $o$ 仍是点预测。
 
 \subsection{小结}
 
-对象是仿射预测 $\hat{y}=\bm{w}^{\top}\bm{x}+b$，目标是 $L(\bm{w},b)$，
-高斯噪声下它等于负对数似然；可逆时用正规方程，否则用小批量梯度。
+对象是仿射点预测 $\hat{y}=\bm{w}^{\mathsf T}\bm{x}+b$（与 $y$ 同量纲，不是概率），
+目标 $L(\bm{w},b)$ 是均方误差（平均平方偏离，不是概率）；
+高斯噪声下它等于负对数似然；可逆时用正规方程，否则用小批量梯度
+（每个分量是参数增加 $1$ 时损失大约增加多少）。
 
 \subsection{练习}
 
-核验 $\sum_{i}(x_{i}-b)^{2}$ 对 $b$ 的驻点、把 $b$ 并入 $\bm{X}$ 后正规方程是否仍成立，
-以及 $\bm{X}^{\top}\bm{X}$ 奇异时梯度法与解析解的关系。
+核验 $\sum_{i}(x_{i}-b)^{2}$ 对 $b$ 的驻点：$b$ 应等于各 $x_i$ 的均值，即“典型水平”，不是某一个观测。
+把 $b$ 并入 $\bm{X}$ 后正规方程是否仍给出同一组权重。
+$\bm{X}^{\mathsf T}\bm{X}$ 奇异时解析解不存在，梯度法仍可沿“减小均方误差”的方向走。
 
 \section{线性回归的从零开始实现}
 
@@ -174,7 +202,8 @@ o=\phi\bigl(\bm{w}^{\top}\bm{x}+b\bigr).
 \[
 \bm{y}=\bm{X}\bm{w}+b+\bm{\epsilon},
 \]
-其中 $\bm{\epsilon}$ 的分量独立同分布。合成数据时 $\bm{w},b$ 已知，用来对照估计。
+其中 $\bm{\epsilon}$ 的分量独立同分布。$\bm{X}\bm{w}+b$ 是无噪声的点预测，$\epsilon_i$ 是第 $i$ 个样本的加性扰动，
+与 $y$ 同量纲；合成数据时 $\bm{w},b$ 已知，用来对照估计出的权重是否接近真值。
 
 \subsection{读取数据集}
 
@@ -183,7 +212,8 @@ o=\phi\bigl(\bm{w}^{\top}\bm{x}+b\bigr).
 (\bm{X}_{\mathcal{B}},\bm{y}_{\mathcal{B}}),\qquad
 |\mathcal{B}|=B.
 \]
-遍历前打乱下标，使各批近似无偏。
+$\bm{X}_{\mathcal{B}}\in\mathbb{R}^{B\times d}$ 的每一行仍是一个样本的特征，$\bm{y}_{\mathcal{B}}\in\mathbb{R}^{B}$ 是对应点目标。
+遍历前打乱下标，使各批对梯度的估计近似无偏。$B$ 是本批样本个数，不是损失。
 
 \subsection{初始化模型参数}
 
@@ -191,6 +221,7 @@ o=\phi\bigl(\bm{w}^{\top}\bm{x}+b\bigr).
 \bm{w}\sim\mathcal{N}(\bm{0},0.01^{2}\bm{I}),\qquad b=0,
 \]
 并对其后每次损失关于 $(\bm{w},b)$ 求梯度。
+$w_j$ 的初值是接近 $0$ 的随机权重，表示起步时“几乎不看任何特征”；$b=0$ 表示基线预测从 $0$ 开始。
 
 \subsection{定义模型}
 
@@ -198,6 +229,7 @@ o=\phi\bigl(\bm{w}^{\top}\bm{x}+b\bigr).
 \[
 \hat{\bm{y}}=\bm{X}\bm{w}+b.
 \]
+输入 $\bm{X}\in\mathbb{R}^{B\times d}$，输出 $\hat{\bm{y}}\in\mathbb{R}^{B}$：每个分量是该样本的点预测，与 $y$ 同量纲。
 
 \subsection{定义损失函数}
 
@@ -206,6 +238,8 @@ o=\phi\bigl(\bm{w}^{\top}\bm{x}+b\bigr).
 l=\frac{1}{2}\|\hat{\bm{y}}-\bm{y}\|_{2}^{2}
 \quad\text{（再按约定取平均或求和）}.
 \]
+$\|\hat{\bm{y}}-\bm{y}\|_{2}^{2}$ 是残差向量的平方欧氏长度，再乘 $1/2$。
+得到的是均方误差型标量（求和或平均只差因子 $B$），表示这批点预测离真值有多远，不是概率。
 
 \subsection{定义优化算法}
 
@@ -220,6 +254,7 @@ l=\frac{1}{2}\|\hat{\bm{y}}-\bm{y}\|_{2}^{2}
 \qquad
 \bm{\theta}=(\bm{w},b).
 \]
+$\nabla_{\bm{\theta}}$ 的每个分量是对应参数增加 $1$ 时批量损失大约增加多少。
 用 $|\mathcal{B}|$ 规范化后，步长不随批量大小线性膨胀。
 
 \subsection{训练}
@@ -231,16 +266,18 @@ g&\leftarrow
 \partial_{(\bm{w},b)}\frac{1}{|\mathcal{B}|}\sum_{i\in\mathcal{B}}l^{(i)},\\
 (\bm{w},b)&\leftarrow(\bm{w},b)-\eta g.
 \end{align*}
+第一行算出点预测，第二行算出“参数每增 $1$ 损失变多少”，第三行沿负梯度改权重以减小均方误差。
 
 \subsection{小结}
 
-从零实现把训练写成张量上的 $\hat{\bm{y}}=\bm{X}\bm{w}+b$ 与
-$(\bm{w},b)\leftarrow(\bm{w},b)-\eta g$，不引入层对象。
+从零实现把训练写成张量上的 $\hat{\bm{y}}=\bm{X}\bm{w}+b$（点预测）与
+$(\bm{w},b)\leftarrow(\bm{w},b)-\eta g$（$g$ 为损失对参数的敏感度），不引入层对象。
 
 \subsection{练习}
 
-核验 $\bm{w}=\bm{0}$ 时梯度是否仍指向残差方向、
-二阶导数在自动微分中的形状，以及 $n$ 不能整除 $|\mathcal{B}|$ 时最后一批的基数。
+核验 $\bm{w}=\bm{0}$ 时梯度是否仍指向残差方向：此时 $\hat{y}=b$，梯度由 $b-y$ 驱动。
+二阶导数 $\partial^2 L/\partial w_j\partial w_k$ 表示一阶敏感度再随 $w_k$ 变多快。
+$n$ 不能整除 $|\mathcal{B}|$ 时最后一批的基数小于 $B$，平均损失仍是该批样本的均方误差。
 
 \section{线性回归的简洁实现}
 
@@ -249,6 +286,7 @@ $(\bm{w},b)\leftarrow(\bm{w},b)-\eta g$，不引入层对象。
 \subsection{生成数据集}
 
 仍用 $\bm{y}=\bm{X}\bm{w}+b+\bm{\epsilon}$ 生成 $(\bm{X},\bm{y})$。
+$\bm{y}$ 的每个分量是带噪声的真实目标，与随后的 $\hat{y}$ 同量纲。
 
 \subsection{读取数据集}
 
@@ -258,7 +296,8 @@ $(\bm{w},b)\leftarrow(\bm{w},b)-\eta g$，不引入层对象。
 \;\longmapsto\;
 \{(\bm{X}_{\mathcal{B}},\bm{y}_{\mathcal{B}})\}.
 \]
-训练模式下每个周期打乱样本次序。
+每次取出的 $\bm{X}_{\mathcal{B}}$ 是特征块，$\bm{y}_{\mathcal{B}}$ 是对应目标。
+训练模式下每个周期打乱样本次序，不改变这些数的含义。
 
 \subsection{定义模型}
 
@@ -267,12 +306,14 @@ $(\bm{w},b)\leftarrow(\bm{w},b)-\eta g$，不引入层对象。
 f(\bm{X})=\bm{X}\bm{W}+\bm{b},\qquad \bm{W}\in\mathbb{R}^{d\times 1}
 \]
 作为唯一计算层；顺序容器只含这一层。
+输出每个分量仍是点预测：$W_{j1}$ 是第 $j$ 个特征的权重。
 
 \subsection{初始化模型参数}
 
 \[
 W_{ij}\sim\mathcal{N}(0,0.01^{2}),\qquad b=0.
 \]
+初值接近 $0$ 的权重表示起步时预测接近常数 $b$；它们将被梯度改成拟合数据的权重。
 
 \subsection{定义损失函数}
 
@@ -280,6 +321,7 @@ W_{ij}\sim\mathcal{N}(0,0.01^{2}),\qquad b=0.
 \[
 L=\frac{1}{n}\sum_{i=1}^{n}\frac{1}{2}\bigl(\hat{y}^{(i)}-y^{(i)}\bigr)^{2}.
 \]
+$L$ 是均方误差，表示平均平方偏离，不是类概率，也不是准确率。
 
 \subsection{定义优化算法}
 
@@ -287,15 +329,17 @@ L=\frac{1}{n}\sum_{i=1}^{n}\frac{1}{2}\bigl(\hat{y}^{(i)}-y^{(i)}\bigr)^{2}.
 \[
 \bm{\theta}\leftarrow\bm{\theta}-\eta\nabla_{\bm{\theta}}L_{\mathcal{B}}.
 \]
+$\nabla_{\bm{\theta}}L_{\mathcal{B}}$ 的分量是该参数增加 $1$ 时本批均方误差大约增加多少。
 
 \subsection{训练}
 
 每个小批量依次：前向 $L_{\mathcal{B}}$、反向 $\nabla_{\bm{\theta}}L_{\mathcal{B}}$、参数更新。
-周期结束时用 $L$ 监控拟合。
+$L_{\mathcal{B}}$ 监控的是本批均方误差大小；周期结束时用全训练 $L$ 看整体拟合，二者都不是概率。
 
 \subsection{小结}
 
-简洁实现把 $\bm{X}\mapsto\bm{X}\bm{W}+\bm{b}$、平方损失与小批量梯度封装成可组合对象，数学映射与从零实现相同。
+简洁实现把 $\bm{X}\mapsto\bm{X}\bm{W}+\bm{b}$、平方损失与小批量梯度封装成可组合对象，
+数学映射与从零实现相同：$\hat{y}$ 是点预测，$L$ 是均方误差。
 
 \subsection{练习}
 
@@ -308,6 +352,8 @@ l(y,y')=
 \end{cases}
 \]
 在 $|y-y'|=\sigma$ 处的连续性与可导性。
+$|y-y'|$ 是绝对误差，与 $y$ 同量纲；中间段的平方项仍是误差大小，不是概率。
+$\sigma$ 是分段阈值，与残差同量纲。
 
 \section{softmax回归}
 
@@ -319,7 +365,8 @@ $q=3$ 时标签用独热向量
 \[
 y\in\{(1,0,0),\ (0,1,0),\ (0,0,1)\}.
 \]
-一般 $y\in\{1,\ldots,q\}$ 对应 $\bm{y}=\bm{e}_{y}\in\{0,1\}^{q}$。
+向量里的 $1$ 表示“属于该类”，$0$ 表示“不属于”；各分量互斥，和为 $1$。
+一般 $y\in\{1,\ldots,q\}$ 对应 $\bm{y}=\bm{e}_{y}\in\{0,1\}^{q}$，其中下标 $y$ 是真实类别编号。
 
 \subsection{网络架构}
 
@@ -329,7 +376,9 @@ o_{1}&=x_{1}w_{11}+x_{2}w_{12}+x_{3}w_{13}+x_{4}w_{14}+b_{1},\\
 o_{2}&=x_{1}w_{21}+x_{2}w_{22}+x_{3}w_{23}+x_{4}w_{24}+b_{2},\\
 o_{3}&=x_{1}w_{31}+x_{2}w_{32}+x_{3}w_{33}+x_{4}w_{34}+b_{3}.
 \end{align*}
+$o_k$ 由特征加权求和得到，是类 $k$ 的未归一化打分（logit），可正可负，不是概率。
 矩阵形式 $\bm{o}=\bm{W}\bm{x}+\bm{b}$，$\bm{W}\in\mathbb{R}^{q\times d}$。
+$W_{kj}$ 是：特征 $j$ 增加 $1$ 时，类 $k$ 的打分增加多少。
 
 \subsection{全连接层的参数开销}
 
@@ -337,6 +386,7 @@ $d$ 入 $q$ 出的全连接层参数个数为
 \[
 \#(\bm{W},\bm{b})=dq+q=\mathcal{O}(dq).
 \]
+这是一个正整数，表示要存储并更新多少个权重与偏置，不是损失值。
 
 \subsection{softmax运算}
 
@@ -346,10 +396,13 @@ $d$ 入 $q$ 出的全连接层参数个数为
 \qquad
 \hat{y}_{j}=\frac{\exp(o_{j})}{\sum_{k}\exp(o_{k})}.
 \]
+先对每个打分取指数（保证为正），再除以所有类指数之和。
+$\hat{y}_{j}$ 是类 $j$ 的概率：取值 $[0,1]$，且 $\sum_{j}\hat{y}_{j}=1$。
 指数严格递增，故
 \[
 \operatorname*{argmax}_{j}\hat{y}_{j}=\operatorname*{argmax}_{j}o_{j}.
 \]
+左边是概率最大的类编号，右边是打分最高的类编号，二者给出同一个离散预测。
 
 \subsection{小批量样本的矢量化}
 
@@ -359,16 +412,19 @@ $\bm{X}\in\mathbb{R}^{n\times d}$ 时
 \hat{\bm{Y}}&=\mathrm{softmax}(\bm{O}),
 \end{align*}
 其中 $\mathrm{softmax}$ 沿类别轴作用。
+$O_{ij}$ 是第 $i$ 个样本对类 $j$ 的打分；$\hat{Y}_{ij}$ 是第 $i$ 个样本属于类 $j$ 的概率，在 $[0,1]$。
 
 \subsection{损失函数}
 
 仍由最大似然导出：独立样本下最小化 $-\log P(\bm{Y}\mid\bm{X})$。
+该标量越大，表示模型对真实标签越惊讶。
 
 \subsubsection{对数似然}
 
 \[
 P(\bm{Y}\mid\bm{X})=\prod_{i=1}^{n}P(\bm{y}^{(i)}\mid\bm{x}^{(i)}).
 \]
+每一项 $P(\bm{y}^{(i)}\mid\bm{x}^{(i)})$ 是模型分给真实类的概率，在 $(0,1]$。
 负对数似然分解为交叉熵之和
 \begin{align*}
 -\log P(\bm{Y}\mid\bm{X})
@@ -381,7 +437,9 @@ P(\bm{Y}\mid\bm{X})=\prod_{i=1}^{n}P(\bm{y}^{(i)}\mid\bm{x}^{(i)}).
 \[
 l(\bm{y},\hat{\bm{y}})=-\sum_{j=1}^{q}y_{j}\log\hat{y}_{j}.
 \]
-独热标签时 $l=-\log\hat{y}_{y^{\ast}}$。
+独热标签时 $l=-\log\hat{y}_{y^{\ast}}$：只取出真实类概率再取负对数。
+$\log$ 为自然对数，故 $l$ 的单位是 nats，表示模型对真类有多惊讶：
+真类概率接近 $1$ 时 $l$ 接近 $0$，真类概率接近 $0$ 时 $l$ 趋向 $+\infty$。它不是均方误差，也不是准确率。
 
 \subsubsection{softmax及其导数}
 
@@ -397,7 +455,7 @@ l(\bm{y},\hat{\bm{y}})
 \log\sum_{k=1}^{q}\exp(o_{k})
 -\sum_{j=1}^{q}y_{j}o_{j}.
 \end{align*}
-对分数求导得到
+第一项是各打分的 $\mathrm{logsumexp}$，第二项是真实类的打分。对分数求导得到
 \begin{align*}
 \partial_{o_{j}}l(\bm{y},\hat{\bm{y}})
 &=
@@ -405,6 +463,8 @@ l(\bm{y},\hat{\bm{y}})
 &=
 \mathrm{softmax}(\bm{o})_{j}-y_{j}.
 \end{align*}
+$\partial l/\partial o_{j}$ 是打分 $o_j$ 增加 $1$ 时交叉熵大约增加多少，
+数值上等于“预测的类 $j$ 概率减去真实独热标签”。
 因此反向传播中，$\nabla_{\bm{o}}l=\hat{\bm{y}}-\bm{y}$。
 
 \subsubsection{交叉熵损失}
@@ -413,7 +473,8 @@ l(\bm{y},\hat{\bm{y}})
 \[
 l(\bm{y},\hat{\bm{y}})=-\sum_{j=1}^{q}y_{j}\log\hat{y}_{j}
 \]
-仍是交叉熵，等于在标签分布下对 $-\log\hat{y}_{j}$ 的期望。
+仍是交叉熵，等于在标签分布下对 $-\log\hat{y}_{j}$ 的期望，单位仍是 nats：
+表示用模型概率编码真实分布时平均有多惊讶。
 
 \subsection{信息论基础}
 
@@ -425,7 +486,7 @@ l(\bm{y},\hat{\bm{y}})=-\sum_{j=1}^{q}y_{j}\log\hat{y}_{j}
 \[
 H[P]=\sum_{j}-P(j)\log P(j)
 \]
-是按 $P$ 编码时的最小期望码长。
+是按 $P$ 编码时的最小期望码长，单位 nats。$H[P]\ge 0$；越接近均匀分布越大，确定事件则为 $0$。
 
 \subsubsection{信息量}
 
@@ -433,7 +494,7 @@ H[P]=\sum_{j}-P(j)\log P(j)
 \[
 I(j)=-\log P(j)=\log\frac{1}{P(j)}.
 \]
-$P(j)$ 越小，$I(j)$ 越大。熵是自信息的期望。
+$P(j)$ 越小，$I(j)$ 越大：越罕见的事件一旦发生，惊讶越大。熵是自信息的期望。
 
 \subsubsection{重新审视交叉熵}
 
@@ -441,7 +502,9 @@ $P(j)$ 越小，$I(j)$ 越大。熵是自信息的期望。
 \[
 H(P,Q)=\sum_{j}-P(j)\log Q(j)=H(P)+D_{\mathrm{KL}}(P\|Q)
 \]
-在 $Q=P$ 时取最小 $H(P)$。分类目标等价于极大似然，也等价于降低用 $\hat{\bm{y}}$ 编码真实标签所需的惊异。
+在 $Q=P$ 时取最小 $H(P)$。
+$H(P,Q)$ 是用 $Q$ 编码 $P$ 的平均码长（nats）；$D_{\mathrm{KL}}$ 是多付的那部分，非负。
+分类目标等价于极大似然，也等价于降低用 $\hat{\bm{y}}$ 编码真实标签所需的惊异。
 
 \subsection{模型预测和评估}
 
@@ -449,21 +512,26 @@ H(P,Q)=\sum_{j}-P(j)\log Q(j)=H(P)+D_{\mathrm{KL}}(P\|Q)
 \[
 \hat{y}=\operatorname*{argmax}_{j}\hat{y}_{j}.
 \]
+$\hat{y}_{j}$ 是类概率，取最大者得到离散类编号，不是概率本身。
 精度是正确个数与总数之比
 \[
 \mathrm{acc}=\frac{1}{n}\sum_{i=1}^{n}\mathbf{1}\{\hat{y}^{(i)}=y^{(i)}\}.
 \]
+指示为 $1$ 表示该样本预测类等于真类，$0$ 表示错误；$\mathrm{acc}\in[0,1]$ 是判对的比例。
 精度不可导，训练仍最小化交叉熵。
 
 \subsection{小结}
 
-$\mathrm{softmax}$ 把 $\bm{o}$ 映到概率，$\nabla_{\bm{o}}l=\hat{\bm{y}}-\bm{y}$ 连接交叉熵与线性层；
-精度在单纯形顶点上评估 $\operatorname*{argmax}$。
+$\mathrm{softmax}$ 把打分 $\bm{o}$ 映到类概率（第 $k$ 个分量在 $[0,1]$ 且和为 $1$），
+交叉熵 $l=-\log\hat{y}_{y^{\ast}}$ 是模型对真类的惊讶（nats），
+$\nabla_{\bm{o}}l=\hat{\bm{y}}-\bm{y}$ 的分量是打分增加 $1$ 时惊讶大约增加多少；
+精度是判对样本所占比例。
 
 \subsection{练习}
 
-核验交叉熵对 $\bm{o}$ 的 Hessian 与 $\mathrm{softmax}(\bm{o})$ 的协方差是否一致，
-以及均匀分布 $(\tfrac{1}{3},\tfrac{1}{3},\tfrac{1}{3})$ 下二元码的冗余。
+核验交叉熵对 $\bm{o}$ 的 Hessian 与 $\mathrm{softmax}(\bm{o})$ 的协方差是否一致：
+二阶导表示一阶敏感度再随打分变化有多快。
+均匀分布 $(\tfrac{1}{3},\tfrac{1}{3},\tfrac{1}{3})$ 下每个类概率都是 $1/3$，熵为 $\log 3$ nats。
 
 \section{图像分类数据集}
 
@@ -472,11 +540,13 @@ Fashion-MNIST 提供 $q=10$ 的服装灰度图，后续 softmax 实验都在该 
 \subsection{读取数据集}
 
 训练集 $n_{\mathrm{train}}=60000$，测试集 $n_{\mathrm{test}}=10000$，
-每类分别 $6000$ 与 $1000$ 张。单张图
+每类分别 $6000$ 与 $1000$ 张。这些正整数是样本个数，不是精度。
+单张图
 \[
 \bm{X}\in\mathbb{R}^{28\times 28},\qquad C=1,
 \]
-形状记为 $h\times w=28\times 28$。测试集不参与参数更新。
+形状记为 $h\times w=28\times 28$。每个像素 $X_{hw}$ 是该位置的灰度强度。
+测试集不参与参数更新，用来估计判对比例。
 
 \subsection{读取小批量}
 
@@ -485,20 +555,23 @@ Fashion-MNIST 提供 $q=10$ 的服装灰度图，后续 softmax 实验都在该 
 \mathsf{X}\in\mathbb{R}^{|\mathcal{B}|\times 1\times 28\times 28},\qquad
 \bm{y}\in\{1,\ldots,10\}^{|\mathcal{B}|}.
 \]
+$\mathsf{X}$ 的第一轴是样本编号，后面是通道与空间；$\bm{y}$ 的每个分量是真实类编号。
 训练时打乱，测试时按序。
 
 \subsection{整合所有组件}
 
-读取映射把 $(\text{批量大小},\text{可选边长})$ 映到训练与测试迭代器。
-可选边长把 $28\times 28$ 双线性映到指定 $(h',w')$。
+读取映射把批量大小与可选边长映到训练与测试迭代器。
+可选边长把 $28\times 28$ 双线性映到指定 $(h',w')$：输出每个像素仍是灰度，只是网格变了。
 
 \subsection{小结}
 
-图像对象是 $h\times w$ 灰度阵，批量读取把它们变成可并行的 $(\mathsf{X},\bm{y})$。
+图像对象是 $h\times w$ 灰度阵（像素是强度），批量读取把它们变成可并行的 $(\mathsf{X},\bm{y})$；
+$\bm{y}$ 是类编号，随后将变成独热或用于选取 $\hat{y}_{y}$。
 
 \subsection{练习}
 
 核验 $|\mathcal{B}|\to 1$ 时 I/O 相对计算的占比，以及迭代器是否成为训练的时间瓶颈。
+这里比较的是运行时间，不是交叉熵或精度这两个数的含义。
 
 \section{softmax回归的从零开始实现}
 
@@ -509,10 +582,12 @@ Fashion-MNIST 提供 $q=10$ 的服装灰度图，后续 softmax 实验都在该 
 \[
 \bm{W}\in\mathbb{R}^{784\times 10},\qquad \bm{b}\in\mathbb{R}^{1\times 10},
 \]
-$W_{ij}\sim\mathcal{N}(0,\sigma^{2})$，$b_{j}=0$。展平是
+$W_{ij}\sim\mathcal{N}(0,\sigma^{2})$，$b_{j}=0$。$W_{ij}$ 是像素 $i$ 对类 $j$ 打分的权重。
+展平是
 \[
 \mathbb{R}^{28\times 28}\longrightarrow\mathbb{R}^{784}.
 \]
+每个像素强度原样排成向量，不改变那些灰度值。
 
 \subsection{定义softmax操作}
 
@@ -520,6 +595,7 @@ $W_{ij}\sim\mathcal{N}(0,\sigma^{2})$，$b_{j}=0$。展平是
 \[
 \mathrm{softmax}(\bm{X})_{ij}=\frac{\exp(X_{ij})}{\sum_{k}\exp(X_{ik})}.
 \]
+第 $i$ 行第 $j$ 列是样本 $i$ 属于类 $j$ 的概率，在 $[0,1]$，且同行求和为 $1$。
 
 \subsection{定义模型}
 
@@ -527,6 +603,7 @@ $W_{ij}\sim\mathcal{N}(0,\sigma^{2})$，$b_{j}=0$。展平是
 \hat{\bm{Y}}=\mathrm{softmax}(\bm{X}\bm{W}+\bm{b}),
 \]
 其中 $\bm{X}$ 已展平为 $|\mathcal{B}|\times 784$。
+先得打分 $\bm{X}\bm{W}+\bm{b}$，再变成类概率；$\hat{Y}_{ij}$ 不是点预测房价那种实数目标。
 
 \subsection{定义损失函数}
 
@@ -534,6 +611,8 @@ $W_{ij}\sim\mathcal{N}(0,\sigma^{2})$，$b_{j}=0$。展平是
 \[
 l(\bm{y},\hat{\bm{Y}})=-\sum_{i=1}^{|\mathcal{B}|}\log\hat{Y}_{i,y^{(i)}}.
 \]
+对每个样本取出真实类概率再取 $-\log$，单位 nats，再对批量求和（或平均）：
+表示这批样本上模型对真类有多惊讶。
 
 \subsection{分类精度}
 
@@ -544,29 +623,32 @@ l(\bm{y},\hat{\bm{Y}})=-\sum_{i=1}^{|\mathcal{B}|}\log\hat{Y}_{i,y^{(i)}}.
 \sum_{i}
 \mathbf{1}\bigl\{\operatorname*{argmax}_{j}\hat{Y}_{ij}=y^{(i)}\bigr\}.
 \]
+先对每行概率取最大类，再数判对的比例。$\mathrm{acc}\in[0,1]$ 是正确样本所占分数，不可导。
 
 \subsection{训练}
 
 与线性回归同一循环：前向 $\hat{\bm{Y}}$、交叉熵、反向、小批量更新。
-每个周期在测试集上报告 $\mathrm{acc}$。
+每个周期在测试集上报告 $\mathrm{acc}$，即测试判对比例；更新所用的梯度仍来自交叉熵，不是来自 $\mathrm{acc}$。
 
 \subsection{预测}
 
 对新图取
 \[
-\hat{y}=\operatorname*{argmax}_{j}\mathrm{softmax}(\bm{x}^{\top}\bm{W}+\bm{b})_{j}.
+\hat{y}=\operatorname*{argmax}_{j}\mathrm{softmax}(\bm{x}^{\mathsf T}\bm{W}+\bm{b})_{j}.
 \]
+先把打分变成十类概率，再取概率最大的类编号，作为离散预测。
 
 \subsection{小结}
 
 从零实现的核心是
-$\hat{\bm{Y}}=\mathrm{softmax}(\bm{X}\bm{W}+\bm{b})$ 与 $l=-\sum\log\hat{y}_{y}$，
-训练循环与线性回归同构。
+$\hat{\bm{Y}}=\mathrm{softmax}(\bm{X}\bm{W}+\bm{b})$（类概率）与 $l=-\sum\log\hat{y}_{y}$（nats 惊讶），
+训练循环与线性回归同构，但 $L$ 不再是均方误差。
 
 \subsection{练习}
 
-核验 $\exp(o_{j})$ 在 $o_{j}$ 很大时的溢出、$\log\hat{y}_{j}$ 在 $\hat{y}_{j}\to 0$ 时的定义域，
-以及 $\operatorname*{argmax}$ 是否总是决策最优。
+核验 $\exp(o_{j})$ 在 $o_{j}$ 很大时的溢出、$\log\hat{y}_{j}$ 在 $\hat{y}_{j}\to 0$ 时的定义域：
+后者趋向 $+\infty$，对应“对真类几乎零概率”的无限惊讶。
+$\operatorname*{argmax}$ 给出的是类编号，在 0-1 损失下是贝叶斯最优决策，对其他代价未必最优。
 
 \section{softmax回归的简洁实现}
 
@@ -578,6 +660,7 @@ $\hat{\bm{Y}}=\mathrm{softmax}(\bm{X}\bm{W}+\bm{b})$ 与 $l=-\sum\log\hat{y}_{y}
 \[
 W_{ij}\sim\mathcal{N}(0,0.01^{2}),\qquad b_{j}=0.
 \]
+$W_{ij}$ 仍是像素到类打分的权重，初值接近 $0$ 表示起步时各类打分接近相等。
 
 \subsection{重新审视Softmax的实现}
 
@@ -590,6 +673,7 @@ W_{ij}\sim\mathcal{N}(0,0.01^{2}),\qquad b_{j}=0.
 &=
 \frac{\exp(o_{j}-\max_{k}o_{k})}{\sum_{k}\exp(o_{k}-\max_{k}o_{k})}.
 \end{align*}
+减去最大值只改指数的尺度，不改变概率 $\hat{y}_{j}\in[0,1]$。
 对数概率为
 \begin{align*}
 \log\hat{y}_{j}
@@ -599,7 +683,8 @@ W_{ij}\sim\mathcal{N}(0,0.01^{2}),\qquad b_{j}=0.
 o_{j}-\max_{k}o_{k}
 -\log\sum_{k}\exp(o_{k}-\max_{k}o_{k}).
 \end{align*}
-交叉熵直接用 $\log\hat{y}_{y^{\ast}}$，避免先指数再取对数。
+$\log\hat{y}_{j}\le 0$，是类 $j$ 概率的对数；交叉熵直接用 $-\log\hat{y}_{y^{\ast}}$（nats），
+避免先指数再取对数造成的下溢。
 
 \subsection{优化算法}
 
@@ -608,16 +693,21 @@ o_{j}-\max_{k}o_{k}
 \bm{\theta}\leftarrow\bm{\theta}-\eta\nabla_{\bm{\theta}}L_{\mathcal{B}},
 \qquad \eta=0.1.
 \]
+$L_{\mathcal{B}}$ 是本批平均交叉熵（nats）；梯度分量是对应参数增加 $1$ 时该惊讶大约增加多少。
+$\eta=0.1$ 是步长，无量纲地缩放这一敏感度。
 
 \subsection{训练}
 
 调用与从零实现相同的周期循环；框架在交叉熵内部完成稳定的 $\log\mathrm{softmax}$。
+监控的 $L$ 仍是平均惊讶，$\mathrm{acc}$ 仍是判对比例。
 
 \subsection{小结}
 
 简洁路径仍是 $\bm{O}=\bm{X}\bm{W}+\bm{b}$ 与交叉熵，差别在于用
-$\log\hat{y}_{j}=o_{j}-\max o-\mathrm{LSE}(\bm{o}-\max o)$ 保证数值稳定。
+$\log\hat{y}_{j}=o_{j}-\max o-\mathrm{LSE}(\bm{o}-\max o)$ 保证数值稳定；
+$\hat{y}_{j}$ 的含义不变：类 $j$ 的概率。
 
 \subsection{练习}
 
-核验增大周期后测试精度下降是否对应过拟合，以及 $|\mathcal{B}|,\eta$ 对 $\nabla L_{\mathcal{B}}$ 方差的影响。
+核验增大周期后测试精度下降是否对应过拟合：训练交叉熵仍降、测试判对比例却降。
+$|\mathcal{B}|,\eta$ 影响 $\nabla L_{\mathcal{B}}$ 的方差：批量越小，每次“损失对参数的敏感度”估计越吵。

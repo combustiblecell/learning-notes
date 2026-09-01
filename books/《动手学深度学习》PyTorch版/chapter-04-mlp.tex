@@ -15,16 +15,19 @@ softmax 回归是一次仿射再归一化。多层感知机在仿射之间加入
 \subsubsection{线性模型可能会出错}
 
 权重为正时，$x_{j}$ 增大则线性分数增大。许多关系非单调，例如体温与风险在正常值两侧反向变化，
-单次仿射无法同时拟合两支。
+单次仿射无法同时拟合两支：线性打分只能沿一个方向走，不能在同一特征上先降后升。
 
 \subsubsection{在网络中加入隐藏层}
 
 $L-1$ 个隐藏层给出表示，最后一层做线性预测。一层隐藏、宽度 $h$ 的 MLP 为
 \begin{align*}
 \bm{h}&=\sigma\bigl(\bm{W}^{(1)}\bm{x}+\bm{b}^{(1)}\bigr),\\
-\bm{o}&=\bm{W}^{(2)}\bm{h}+\bm{b}^{(2)},
+\bm{o}&=\bm{W}^{(2)}\bm{h}+\bm{b}^{(2)}.
 \end{align*}
-两层都全连接。输入层不计计算，故该网络层数为 $2$。
+$\bm{W}^{(1)}\bm{x}+\bm{b}^{(1)}$ 先得到 $h$ 个预激活（实数打分）；$\sigma$ 逐元素作用后，
+$h_j$ 是第 $j$ 个隐藏单元被保留下来的激活值。
+$\bm{o}$ 再由这些激活线性组合：回归时是点预测，分类时是各类打分。
+两层都全连接。输入层不计计算，故该网络层数为 $2$。层数是正整数，不是损失。
 
 \subsubsection{从线性到非线性}
 
@@ -43,37 +46,47 @@ $L-1$ 个隐藏层给出表示，最后一层做线性预测。一层隐藏、�
 &=
 \bm{X}\bm{W}+\bm{b}.
 \end{align*}
+$\bm{O}$ 的每个分量仍只是输入的一次加权和，与单层线性模型同类。
 插入逐元素 $\sigma$ 后
 \begin{align*}
 \bm{H}&=\sigma\bigl(\bm{X}\bm{W}^{(1)}+\bm{b}^{(1)}\bigr),\\
 \bm{O}&=\bm{H}\bm{W}^{(2)}+\bm{b}^{(2)}.
 \end{align*}
+$H_{ij}$ 是样本 $i$ 第 $j$ 个隐藏单元的激活（ReLU 时为被保留的非负响应）；
 此时一般不能再合并为单次仿射。
 
 \subsubsection{通用近似定理}
 
 单隐层、宽度足够且 $\sigma$ 非多项式时，MLP 可在紧集上一致逼近连续函数。
-可表示不等于可学习；更深的复合往往用更少的单元逼近同一类 $f$。
+可表示不等于可学习：定理只说存在某组权重使 $\hat{y}$ 任意接近目标 $f(\bm{x})$，
+不保证梯度下降能找到它们。更深的复合往往用更少的单元逼近同一类 $f$。
 
 \subsection{激活函数}
 
 激活 $\sigma:\mathbb{R}\to\mathbb{R}$ 是可微（或几乎处处可微）的逐元素非线性，作用在仿射输出上。
+输入是一个预激活实数，输出是该单元的激活值。
 
 \subsubsection{ReLU函数}
 
 \[
 \operatorname{ReLU}(x)=\max(x,0).
 \]
-其亚梯度在 $x\neq 0$ 为 $\mathbf{1}\{x>0\}$。带泄露参数 $\alpha$ 的变体
+$x>0$ 时输出就是 $x$ 本身（该激活被保留）；$x\le 0$ 时输出 $0$（该激活被截断）。
+输出取值 $[0,+\infty)$，与预激活同量纲。
+其亚梯度在 $x\neq 0$ 为 $\mathbf{1}\{x>0\}$：$1$ 表示正半轴上“激活原样通过”，$0$ 表示负半轴上梯度被挡住。
+带泄露参数 $\alpha$ 的变体
 \[
 \operatorname{pReLU}(x)=\max(0,x)+\alpha\min(0,x).
 \]
+正半轴仍保留 $x$；负半轴保留 $\alpha x$（$\alpha$ 通常较小），避免完全死掉。
 
 \subsubsection{sigmoid函数}
 
 \[
 \operatorname{sigmoid}(x)=\frac{1}{1+\exp(-x)}.
 \]
+把任意实数打分压到 $(0,1)$：接近 $1$ 表示该单元几乎饱和开通，接近 $0$ 表示几乎关闭。
+它是平滑门控，不是 ReLU 那种“保留或截断”。
 导数为
 \begin{align*}
 \frac{\mathrm{d}}{\mathrm{d}x}\operatorname{sigmoid}(x)
@@ -82,28 +95,33 @@ $L-1$ 个隐藏层给出表示，最后一层做线性预测。一层隐藏、�
 &=
 \operatorname{sigmoid}(x)\bigl(1-\operatorname{sigmoid}(x)\bigr).
 \end{align*}
-$|x|$ 大时导数趋于 $0$。
+该导数是 $x$ 增加 $1$ 时 sigmoid 输出大约增加多少，最大为 $1/4$；$|x|$ 大时趋于 $0$，
+表示饱和区里再改预激活几乎不改变门控值。
 
 \subsubsection{tanh函数}
 
 \[
 \operatorname{tanh}(x)=\frac{1-\exp(-2x)}{1+\exp(-2x)}.
 \]
+把实数打分压到 $(-1,1)$：正值表示正向激活，负值表示反向激活，不是类概率。
 导数
 \[
-\frac{\mathrm{d}}{\mathrm{d}x}\operatorname{tanh}(x)=1-\operatorname{tanh}^{2}(x).
+\frac{\mathrm{d}}{\mathrm{d}x}\operatorname{tanh}(x)=1-\operatorname{tanh}^{2}(x)
 \]
-奇函数且值域 $(-1,1)$。恒等式 $\operatorname{tanh}(x)+1=2\operatorname{sigmoid}(2x)$。
+是预激活增加 $1$ 时 $\operatorname{tanh}$ 输出大约增加多少，在 $0$ 处最大为 $1$。
+奇函数且值域 $(-1,1)$。恒等式 $\operatorname{tanh}(x)+1=2\operatorname{sigmoid}(2x)$
+表示二者只差仿射变换，饱和时梯度同样变小。
 
 \subsection{小结}
 
 MLP 的定义是 $\bm{H}=\sigma(\bm{X}\bm{W}^{(1)}+\bm{b}^{(1)})$ 再接线性输出；
-无 $\sigma$ 则退回 $\bm{O}=\bm{X}\bm{W}+\bm{b}$。常用 $\sigma$ 为 ReLU、sigmoid、tanh。
+ReLU 的输出是被保留的非负激活；无 $\sigma$ 则退回 $\bm{O}=\bm{X}\bm{W}+\bm{b}$。
 
 \subsection{练习}
 
-核验 $\operatorname{pReLU}$ 的导数、仅用 ReLU 的网络是否为连续分段线性，
-以及 $\operatorname{tanh}(x)+1=2\operatorname{sigmoid}(2x)$。
+核验 $\operatorname{pReLU}$ 的导数：正半轴为 $1$（保留），负半轴为 $\alpha$（按比例保留）。
+仅用 ReLU 的网络输出是连续分段线性函数。
+再核验 $\operatorname{tanh}(x)+1=2\operatorname{sigmoid}(2x)$ 两边每个 $x$ 是否同一实数。
 
 \section{多层感知机的从零开始实现}
 
@@ -117,7 +135,8 @@ MLP 的定义是 $\bm{H}=\sigma(\bm{X}\bm{W}^{(1)}+\bm{b}^{(1)})$ 再接线性�
 \bm{W}^{(2)}\in\mathbb{R}^{256\times 10},\quad
 \bm{b}^{(2)}\in\mathbb{R}^{10}.
 \]
-每层单独存储，以便 $\partial J/\partial\bm{W}^{(\ell)}$ 写回。
+$W^{(1)}_{jk}$ 是像素 $j$ 对隐单元 $k$ 预激活的权重；$W^{(2)}_{k\ell}$ 是隐激活 $k$ 对类 $\ell$ 打分的权重。
+每层单独存储，以便 $\partial J/\partial\bm{W}^{(\ell)}$ 写回：该偏导的每个分量是对应权重增加 $1$ 时损失大约增加多少。
 
 \subsection{激活函数}
 
@@ -125,6 +144,7 @@ MLP 的定义是 $\bm{H}=\sigma(\bm{X}\bm{W}^{(1)}+\bm{b}^{(1)})$ 再接线性�
 \[
 \sigma(\bm{Z})=\operatorname{ReLU}(\bm{Z})=\max(\bm{Z},\bm{0}).
 \]
+$Z_{ij}>0$ 的位置输出原值（保留的激活），其余为 $0$（被截断）。形状与 $\bm{Z}$ 相同。
 
 \subsection{模型}
 
@@ -133,6 +153,7 @@ MLP 的定义是 $\bm{H}=\sigma(\bm{X}\bm{W}^{(1)}+\bm{b}^{(1)})$ 再接线性�
 \bm{H}&=\operatorname{ReLU}\bigl(\bm{X}\bm{W}^{(1)}+\bm{b}^{(1)}\bigr),\\
 \bm{O}&=\bm{H}\bm{W}^{(2)}+\bm{b}^{(2)}.
 \end{align*}
+$\bm{H}$ 的条目是保留下来的隐藏激活；$\bm{O}$ 的第 $i$ 行是样本 $i$ 的十类打分，随后再变概率。
 
 \subsection{损失函数}
 
@@ -140,21 +161,23 @@ MLP 的定义是 $\bm{H}=\sigma(\bm{X}\bm{W}^{(1)}+\bm{b}^{(1)})$ 再接线性�
 \[
 L=\frac{1}{|\mathcal{B}|}\sum_{i}l(\bm{y}^{(i)},\mathrm{softmax}(\bm{o}^{(i)})).
 \]
+$\mathrm{softmax}(\bm{o}^{(i)})_k$ 是样本 $i$ 属于类 $k$ 的概率；$l$ 是 $-\log$ 真类概率，单位 nats。
+$L$ 是本批平均惊讶，不是均方误差，也不是精度。
 
 \subsection{训练}
 
 与 softmax 回归同一循环，只是 $f_{\bm{\theta}}$ 换成上面的两层映射；
-典型设置周期 $10$、$\eta=0.1$。
+典型设置周期 $10$、$\eta=0.1$。周期数是遍历训练集的次数，$\eta$ 缩放“损失对参数的敏感度”。
 
 \subsection{小结}
 
-从零实现把 MLP 写成两组 $(\bm{W}^{(\ell)},\bm{b}^{(\ell)})$ 与一次 $\operatorname{ReLU}$；
-层数增多时参数命名与梯度缓冲会线性增加。
+从零实现把 MLP 写成两组 $(\bm{W}^{(\ell)},\bm{b}^{(\ell)})$ 与一次 $\operatorname{ReLU}$（保留非负激活）；
+层数增多时参数命名与梯度缓冲会线性增加，每个梯度分量含义不变。
 
 \subsection{练习}
 
-核验隐藏宽度、层数与 $\eta$ 对训练损失和测试精度的联合影响，
-以及超参数积空间为何使网格搜索代价上升。
+核验隐藏宽度、层数与 $\eta$ 对训练损失（平均 nats）和测试精度（判对比例）的联合影响，
+以及超参数积空间为何使网格搜索代价上升：要试的组合数是各超参数取值个数之积。
 
 \section{多层感知机的简洁实现}
 
@@ -169,15 +192,18 @@ L=\frac{1}{|\mathcal{B}|}\sum_{i}l(\bm{y}^{(i)},\mathrm{softmax}(\bm{o}^{(i)})).
 \;\xrightarrow{\ \mathrm{Linear}(256,10)\ }\;
 \bm{O}.
 \]
-损失与优化器与 softmax 简洁实现相同。
+第一线性层输出预激活，ReLU 留下非负激活，第二线性层给出十类打分。
+损失与优化器与 softmax 简洁实现相同：交叉熵仍是惊讶，梯度仍是损失变化率。
 
 \subsection{小结}
 
-简洁实现与 softmax 回归的差别只是中间多了 $\bm{H}=\operatorname{ReLU}(\bm{X}\bm{W}^{(1)}+\bm{b}^{(1)})$。
+简洁实现与 softmax 回归的差别只是中间多了 $\bm{H}=\operatorname{ReLU}(\bm{X}\bm{W}^{(1)}+\bm{b}^{(1)})$，
+即多了一层被保留的隐藏激活。
 
 \subsection{练习}
 
-核验隐层数、$\sigma$ 的选取以及 $\bm{W}$ 的初值分布对同一分类损失的影响。
+核验隐层数、$\sigma$ 的选取以及 $\bm{W}$ 的初值分布对同一分类损失的影响：
+比较的是交叉熵（nats）与测试判对比例，不是点预测均方误差。
 
 \section{模型选择、欠拟合和过拟合}
 
@@ -185,22 +211,25 @@ L=\frac{1}{|\mathcal{B}|}\sum_{i}l(\bm{y}^{(i)},\mathrm{softmax}(\bm{o}^{(i)})).
 
 \subsection{训练误差和泛化误差}
 
-训练误差 $R_{\mathrm{emp}}$ 在 $\mathcal{D}_{\mathrm{train}}$ 上计算；
+训练误差 $R_{\mathrm{emp}}$ 在 $\mathcal{D}_{\mathrm{train}}$ 上计算，是有限样本的平均损失。
 泛化误差是
 \[
 R(f)=\mathbb{E}_{(\bm{x},y)\sim P}\bigl[\ell(f(\bm{x}),y)\bigr],
 \]
-只能用独立测试集估计。
+对未知 $P$ 取期望，表示“新样本上典型损失有多大”，只能用独立测试集估计。
+回归时该损失是均方误差，分类时是交叉熵或 $0$-$1$ 错误率。
 
 \subsubsection{统计学习理论}
 
 监督学习默认独立同分布：$\mathcal{D}_{\mathrm{train}}$ 与测试样本均来自同一 $P$，且样本间无记忆。
 在该条件下，经验风险以可控制的速率逼近 $R(f)$；函数类越丰富，逼近越慢。
+这里的“速率”描述 $R_{\mathrm{emp}}-R$ 这个差距（仍是损失单位）随 $n$ 缩小得有多快。
 
 \subsubsection{模型复杂性}
 
 参数多、取值范围大或需要更多更新步的模型更复杂。简单模型加大数据时
-$R_{\mathrm{emp}}\approx R$；复杂模型加小样本时 $R_{\mathrm{emp}}$ 下降而 $R$ 上升。
+$R_{\mathrm{emp}}\approx R$，两个误差都表示同一损失的大小；
+复杂模型加小样本时 $R_{\mathrm{emp}}$ 下降而 $R$ 上升，表示只记住了训练集。
 
 \subsection{模型选择}
 
@@ -209,17 +238,19 @@ $R_{\mathrm{emp}}\approx R$；复杂模型加小样本时 $R_{\mathrm{emp}}$ 下
 \subsubsection{验证集}
 
 数据划分为训练、验证、测试。超参数只在验证集上比较；测试集保留给最终估计 $R$。
+验证误差是验证样本上的平均损失或错误率，含义与测试误差相同，只是不能当作最终报告。
 反复使用验证集等于间接拟合验证分布。
 
 \subsubsection{\texorpdfstring{$K$折交叉验证}{K折交叉验证}}
 
 把训练集分成 $K$ 个不交子集 $\mathcal{I}_{1},\ldots,\mathcal{I}_{K}$。第 $k$ 折在
 $\bigcup_{j\neq k}\mathcal{I}_{j}$ 上训练，在 $\mathcal{I}_{k}$ 上验证，再平均 $K$ 次误差。
+每一次折误差是该折验证样本上的平均损失；$K$ 次平均是对 $R$ 的更稳估计。$K$ 是折数，正整数。
 
 \subsection{欠拟合还是过拟合？}
 
-训练与验证误差都高且接近，是欠拟合：$\mathcal{F}$ 不足以表示目标。
-训练误差明显低于验证误差，是过拟合：容量相对 $n$ 过大。
+训练与验证误差都高且接近，是欠拟合：$\mathcal{F}$ 不足以表示目标，两个数都表示“误差仍然大”。
+训练误差明显低于验证误差，是过拟合：容量相对 $n$ 过大，训练误差不再代表新样本上的误差。
 
 \subsubsection{模型复杂性}
 
@@ -227,11 +258,13 @@ $\bigcup_{j\neq k}\mathcal{I}_{j}$ 上训练，在 $\mathcal{I}_{k}$ 上验证�
 \[
 \hat{y}=\sum_{i=0}^{d}x^{i}w_{i}
 \]
-的阶数 $d$ 直接控制容量：$d$ 过小欠拟合，$d$ 过大过拟合。
+由各次幂加权求和得到，$\hat{y}$ 是与 $y$ 同量纲的点预测。
+阶数 $d$ 直接控制容量：$d$ 过小欠拟合，$d$ 过大过拟合。$d$ 是最高次数，不是损失。
 
 \subsubsection{数据集大小}
 
-$n$ 越小越容易过拟合。固定 $P$ 时，增大 $n$ 通常降低 $R$；数据足够才支撑更复杂的 $\mathcal{F}$。
+$n$ 越小越容易过拟合。固定 $P$ 时，增大 $n$ 通常降低 $R$；$n$ 是样本个数。
+数据足够才支撑更复杂的 $\mathcal{F}$。
 
 \subsection{多项式回归}
 
@@ -244,11 +277,13 @@ y=5+1.2x-3.4\frac{x^{2}}{2!}+5.6\frac{x^{3}}{3!}+\epsilon,
 \qquad
 \epsilon\sim\mathcal{N}(0,0.1^{2}).
 \]
-特征常取 $x^{i}/i!$ 以平衡各阶尺度。
+前四项给出无噪声的点真值，$\epsilon$ 是与 $y$ 同量纲的加性噪声。
+特征常取 $x^{i}/i!$ 以平衡各阶尺度，除阶乘不改变“这是 $x$ 的 $i$ 次幂特征”的含义。
 
 \subsubsection{对模型进行训练和测试}
 
-在训练集上最小化平方损失，在测试集上估计 $R$。同一优化循环，只是 $\bm{x}$ 换成多项式特征。
+在训练集上最小化平方损失，在测试集上估计 $R$。
+训练 $L$ 是均方误差（点预测的平均平方偏离）；测试 $L$ 是同一误差在新样本上的估计。
 
 \subsubsection{三阶多项式函数拟合(正常)}
 
@@ -256,24 +291,28 @@ y=5+1.2x-3.4\frac{x^{2}}{2!}+5.6\frac{x^{3}}{3!}+\epsilon,
 \[
 \bm{w}\approx(5,\ 1.2,\ -3.4,\ 5.6).
 \]
+每个 $w_i$ 是对应幂次特征的权重：该特征增加 $1$ 时点预测增加 $w_i$。
 
 \subsubsection{线性函数拟合(欠拟合)}
 
-$d=1$ 只能表示仿射。非线性真值下训练损失停在高位，验证损失同样高。
+$d=1$ 只能表示仿射。非线性真值下训练损失停在高位，验证损失同样高：
+两个均方误差都大，表示点预测整体离真值远。
 
 \subsubsection{高阶多项式函数拟合(过拟合)}
 
-$d$ 过大时高阶系数缺乏约束，拟合噪声。训练损失可很低，测试损失仍高。
+$d$ 过大时高阶系数缺乏约束，拟合噪声。训练均方误差可很低，测试均方误差仍高：
+说明 $\hat{y}$ 在训练点上很准，在新 $x$ 上不是可靠的点预测。
 
 \subsection{小结}
 
-比较的是 $R_{\mathrm{emp}}$ 与验证估计的 $R$：二者都高为欠拟合，差距大为过拟合。
-用验证集或 $K$ 折选择 $d$ 一类复杂度，而不是把训练损失当作泛化。
+比较的是 $R_{\mathrm{emp}}$ 与验证估计的 $R$：二者都是误差大小（回归为均方误差，分类可为交叉熵或错误率）。
+二者都高为欠拟合，差距大为过拟合。用验证集或 $K$ 折选择 $d$ 一类复杂度，而不是把训练损失当作泛化。
 
 \subsection{练习}
 
-核验多项式正规方程是否有闭式解、训练损失随 $d$ 降到 $0$ 所需阶数，
-以及去掉 $1/i!$ 缩放后各列条件数的变化。
+核验多项式正规方程是否有闭式解、训练损失随 $d$ 降到 $0$ 所需阶数
+（能把 $n$ 个点的均方误差打到接近 $0$ 的最低 $d$），
+以及去掉 $1/i!$ 缩放后各列条件数的变化：条件数大表示权重估计对数据扰动更敏感。
 
 \section{权重衰减}
 
@@ -285,12 +324,15 @@ $d$ 过大时高阶系数缺乏约束，拟合噪声。训练损失可很低，�
 \[
 L(\bm{w},b)
 =
-\frac{1}{n}\sum_{i=1}^{n}\frac{1}{2}\bigl(\bm{w}^{\top}\bm{x}^{(i)}+b-y^{(i)}\bigr)^{2}.
+\frac{1}{n}\sum_{i=1}^{n}\frac{1}{2}\bigl(\bm{w}^{\mathsf T}\bm{x}^{(i)}+b-y^{(i)}\bigr)^{2}.
 \]
+$L$ 仍是均方误差，表示点预测的平均平方偏离。
 $L_{2}$ 正则目标
 \[
 L(\bm{w},b)+\frac{\lambda}{2}\|\bm{w}\|^{2}
 \]
+在原损失上加上一项：$\frac{\lambda}{2}\|\bm{w}\|^{2}=\frac{\lambda}{2}\sum_j w_j^2$
+是为权重过大而额外付出的损失，不是数据拟合误差本身。$\lambda\ge 0$ 越大，越惩罚大权重。
 对应高斯先验。梯度步把惩罚写成衰减
 \begin{align*}
 \bm{w}
@@ -299,9 +341,11 @@ L(\bm{w},b)+\frac{\lambda}{2}\|\bm{w}\|^{2}
 -
 \frac{\eta}{|\mathcal{B}|}
 \sum_{i\in\mathcal{B}}
-\bm{x}^{(i)}\bigl(\bm{w}^{\top}\bm{x}^{(i)}+b-y^{(i)}\bigr).
+\bm{x}^{(i)}\bigl(\bm{w}^{\mathsf T}\bm{x}^{(i)}+b-y^{(i)}\bigr).
 \end{align*}
-$\lambda=0$ 退回普通 SGD；$b$ 通常不惩罚。
+因子 $(1-\eta\lambda)$ 先把每个权重按比例缩小，再减去数据梯度
+（数据梯度分量仍是：该权重增加 $1$ 时均方误差大约增加多少）。
+$\lambda=0$ 退回普通 SGD；$b$ 通常不惩罚，因为偏置不是“特征权重过大”。
 
 \subsection{高维线性回归}
 
@@ -311,21 +355,24 @@ y=0.05+\sum_{i=1}^{d}0.01\,x_{i}+\epsilon,
 \qquad
 \epsilon\sim\mathcal{N}(0,0.01^{2}),
 \]
-取 $d$ 大于 $n$ 时，无正则的最小二乘会过拟合。
+$0.05$ 是基线，$0.01$ 是每个特征的真权重，$\epsilon$ 是噪声，三者与 $y$ 同量纲。
+取 $d$ 大于 $n$ 时，无正则的最小二乘会过拟合：训练均方误差可很小，测试均方误差大。
 
 \subsection{从零开始实现}
 
 把 $\frac{\lambda}{2}\|\bm{w}\|_{2}^{2}$ 加进批量损失，再用原有线性模型与平方损失。
+前者是大权重的额外损失，后者是点预测误差。
 
 \subsubsection{初始化模型参数}
 
-与线性回归相同：$\bm{w}$ 小高斯，$b=0$。
+与线性回归相同：$\bm{w}$ 小高斯，$b=0$。初值接近 $0$ 表示起步时权重尚未变大。
 
 \subsubsection{\texorpdfstring{定义$L_2$范数惩罚}{定义L2范数惩罚}}
 
 \[
 \frac{\lambda}{2}\|\bm{w}\|_{2}^{2}=\frac{\lambda}{2}\sum_{j}w_{j}^{2}.
 \]
+每个 $w_j^2$ 是该权重大小的平方，求和再乘 $\lambda/2$ 得到额外损失：权重越远离 $0$，这项越大。
 
 \subsubsection{定义训练代码实现}
 
@@ -334,15 +381,17 @@ y=0.05+\sum_{i=1}^{d}0.01\,x_{i}+\epsilon,
 \frac{1}{|\mathcal{B}|}\sum_{i\in\mathcal{B}}\frac{1}{2}(\hat{y}^{(i)}-y^{(i)})^{2}
 +\frac{\lambda}{2}\|\bm{w}\|_{2}^{2},
 \]
-梯度同时含数据项与 $\lambda\bm{w}$。
+第一项是本批均方误差，第二项是大权重的额外损失。
+梯度同时含数据项与 $\lambda\bm{w}$：$\lambda w_j$ 就是惩罚项对 $w_j$ 的敏感度。
 
 \subsubsection{忽略正则化直接训练}
 
-$\lambda=0$ 时训练误差下降、测试误差不降，对应过拟合。
+$\lambda=0$ 时训练误差下降、测试误差不降，对应过拟合：没有为过大权重付出额外损失。
 
 \subsubsection{使用权重衰减}
 
 $\lambda>0$ 时训练误差上升、测试误差下降，有效范数 $\|\bm{w}\|$ 被压小。
+$\|\bm{w}\|$ 是权重向量的欧氏长度，表示参数整体有多大；被压小意味着模型更平滑。
 
 \subsection{简洁实现}
 
@@ -350,16 +399,20 @@ $\lambda>0$ 时训练误差上升、测试误差下降，有效范数 $\|\bm{w}\
 \[
 \bm{w}\leftarrow(1-\eta\lambda)\bm{w}-\eta\nabla_{\bm{w}}L_{\mathcal{B}},
 \]
-可只衰减 $\bm{w}$ 而不衰减 $b$。与把惩罚写入损失在一阶上等价。
+可只衰减 $\bm{w}$ 而不衰减 $b$。与把惩罚写入损失在一阶上等价：
+都是在拟合误差之外，为权重过大再加一项损失并沿其梯度缩小权重。
 
 \subsection{小结}
 
-权重衰减把目标写成 $L+\frac{\lambda}{2}\|\bm{w}\|^{2}$，更新中出现因子 $(1-\eta\lambda)$。
+权重衰减把目标写成 $L+\frac{\lambda}{2}\|\bm{w}\|^{2}$：前一项是数据上的误差，
+后一项是大权重的额外损失；更新中出现因子 $(1-\eta\lambda)$。
 
 \subsection{练习}
 
-核验测试误差随 $\lambda$ 的曲线、把惩罚改成 $\sum_{j}|w_{j}|$ 后的近端更新，
-以及 $\|\bm{w}\|_{2}^{2}=\bm{w}^{\top}\bm{w}$ 在矩阵参数上对应的 Frobenius 式 $\|\bm{W}\|_{F}^{2}$。
+核验测试误差随 $\lambda$ 的曲线：$\lambda$ 过小过拟合，过大则欠拟合（额外损失压过了拟合项）。
+把惩罚改成 $\sum_{j}|w_{j}|$ 后是 $L_1$，近端更新会把小权重推到恰好 $0$。
+$\|\bm{w}\|_{2}^{2}=\bm{w}^{\mathsf T}\bm{w}$ 在矩阵参数上对应 Frobenius 式 $\|\bm{W}\|_{F}^{2}$，
+仍是“所有权重大小的平方和”，作为额外损失。
 
 \section{暂退法（Dropout）}
 
@@ -381,12 +434,13 @@ h'
 \dfrac{h}{1-p}, & \text{其他情况}.
 \end{cases}
 \end{align*}
-于是 $\mathbb{E}[h']=h$。测试时不用暂退，直接用 $h$。
+掩码为 $0$ 表示该激活被丢弃（输出 $0$）；掩码为 $1$ 表示被保留，并除以 $1-p$ 以保持期望。
+于是 $\mathbb{E}[h']=h$：平均看来激活大小不变。测试时不用暂退，直接用 $h$。
 
 \subsection{实践中的暂退法}
 
-暂退作用在激活之后。被置零的单元前向为 $0$，反向梯度亦为 $0$。
-靠近输入的层常用较小的 $p$。推断默认 $p=0$。
+暂退作用在激活之后。被置零的单元前向为 $0$（丢弃），反向梯度亦为 $0$（这条路不传敏感度）。
+靠近输入的层常用较小的 $p$。推断默认 $p=0$，即全部激活都被保留。
 
 \subsection{从零开始实现}
 
@@ -394,11 +448,13 @@ h'
 \[
 h'_{j}=\frac{M_{j}}{1-p}h_{j}.
 \]
-$p=0$ 为恒等，$p=1$ 输出全零。
+$M_j\in\{0,1\}$：$0$ 表示丢弃该隐藏激活，$1$ 表示保留。
+$p=0$ 为恒等（全部保留），$p=1$ 输出全零（全部丢弃）。
 
 \subsubsection{定义模型参数}
 
 两隐层 MLP，$784\to 256\to 256\to 10$，各层 $(\bm{W}^{(\ell)},\bm{b}^{(\ell)})$。
+权重含义与普通 MLP 相同：连接两端激活的线性系数。
 
 \subsubsection{定义模型}
 
@@ -408,24 +464,28 @@ $p=0$ 为恒等，$p=1$ 输出全零。
 \bm{H}_{2}&=\operatorname{dropout}_{p_{2}}\bigl(\operatorname{ReLU}(\bm{H}_{1}\bm{W}^{(2)}+\bm{b}^{(2)})\bigr),\\
 \bm{O}&=\bm{H}_{2}\bm{W}^{(3)}+\bm{b}^{(3)},
 \end{align*}
-常见 $p_{1}=0.2$、$p_{2}=0.5$；评估时两处暂退关闭。
+ReLU 先给出保留的非负激活，dropout 再按掩码把一部分置 $0$（丢弃）、其余放大（保留）。
+常见 $p_{1}=0.2$、$p_{2}=0.5$；评估时两处暂退关闭，掩码全为 $1$。
 
 \subsubsection{训练和测试}
 
-训练循环与普通 MLP 相同；测试前向是无掩码的确定性映射。
+训练循环与普通 MLP 相同；测试前向是无掩码的确定性映射，每个激活都被保留。
+损失仍是交叉熵（nats），精度仍是判对比例。
 
 \subsection{简洁实现}
 
-在每个全连接与激活之后插入暂退层，训练随机丢弃，测试恒等通过。
+在每个全连接与激活之后插入暂退层，训练随机丢弃（掩码 $0$）或保留（掩码 $1$），测试恒等通过。
 
 \subsection{小结}
 
-暂退把 $h$ 换成期望仍为 $h$ 的 $h'$，只在训练使用；它与范数惩罚从不同方向限制共适应。
+暂退把 $h$ 换成期望仍为 $h$ 的 $h'$：掩码 $0/1$ 表示丢弃/保留；只在训练使用。
+它与范数惩罚从不同方向限制共适应：一个随机丢掉激活，一个为过大权重加额外损失。
 
 \subsection{练习}
 
-核验交换两层 $p$ 对 $\mathrm{Var}(\bm{H}_{\ell})$ 的影响、测试期保持暂退是否改变 $\mathbb{E}[\hat{\bm{y}}]$，
-以及同时使用 $\lambda\|\bm{w}\|^{2}$ 与暂退时验证误差是否可加。
+核验交换两层 $p$ 对 $\mathrm{Var}(\bm{H}_{\ell})$ 的影响：方差描述该层激活起伏有多大。
+测试期保持暂退会改变 $\mathbb{E}[\hat{\bm{y}}]$，因为随机丢弃使类概率的平均不再等于无掩码前向。
+同时使用 $\lambda\|\bm{w}\|^{2}$ 与暂退时，验证误差（平均损失或错误率）是否可加。
 
 \section{前向传播、反向传播和计算图}
 
@@ -442,6 +502,9 @@ L&=l(\bm{o},y),\\
 s&=\frac{\lambda}{2}\bigl(\|\bm{W}^{(1)}\|_{F}^{2}+\|\bm{W}^{(2)}\|_{F}^{2}\bigr),\\
 J&=L+s.
 \end{align*}
+$\bm{z}$ 是隐层预激活，$\bm{h}=\phi(\bm{z})$ 是激活（ReLU 时为被保留的非负响应），
+$\bm{o}$ 是输出打分，$L$ 是数据损失（回归为均方误差，分类为交叉熵 nats），
+$s$ 是大权重的额外损失，$J$ 是二者之和，训练真正最小化的标量。
 前向按依赖顺序计算并缓存 $\bm{z},\bm{h},\bm{o},L,s,J$。
 
 \subsection{前向传播计算图}
@@ -449,6 +512,7 @@ J&=L+s.
 结点是变量与算子。数据从 $\bm{x}$ 流向 $J$：
 $\bm{x},\bm{W}^{(1)}\to\bm{z}\to\bm{h}$，再与 $\bm{W}^{(2)}$ 得 $\bm{o}$，
 $(\bm{o},y)$ 得 $L$，$(\bm{W}^{(1)},\bm{W}^{(2)})$ 得 $s$，最后 $J=L+s$。
+图上每个结点的值就是上一小节对应的那个数。
 
 \subsection{反向传播}
 
@@ -458,10 +522,12 @@ $(\bm{o},y)$ 得 $L$，$(\bm{W}^{(1)},\bm{W}^{(2)})$ 得 $s$，最后 $J=L+s$。
 =
 \mathrm{prod}\Bigl(\frac{\partial\mathsf{Z}}{\partial\mathsf{Y}},\frac{\partial\mathsf{Y}}{\partial\mathsf{X}}\Bigr).
 \]
+$\mathrm{prod}$ 按维把下游敏感度与局部导数乘起来：得到的是 $\mathsf{X}$ 增加时 $\mathsf{Z}$ 大约增加多少。
 目标对两分支
 \[
 \frac{\partial J}{\partial L}=1,\qquad \frac{\partial J}{\partial s}=1.
 \]
+二者都是 $1$，表示 $J$ 对数据损失与权重惩罚同等相加，各增加 $1$ 则 $J$ 增加 $1$。
 对输出
 \[
 \frac{\partial J}{\partial\bm{o}}
@@ -470,12 +536,14 @@ $(\bm{o},y)$ 得 $L$，$(\bm{W}^{(1)},\bm{W}^{(2)})$ 得 $s$，最后 $J=L+s$。
 =
 \frac{\partial L}{\partial\bm{o}}\in\mathbb{R}^{q}.
 \]
+第 $k$ 个分量是打分 $o_k$ 增加 $1$ 时 $J$ 大约增加多少。
 正则项
 \[
 \frac{\partial s}{\partial\bm{W}^{(1)}}=\lambda\bm{W}^{(1)},
 \qquad
 \frac{\partial s}{\partial\bm{W}^{(2)}}=\lambda\bm{W}^{(2)}.
 \]
+每个条目是：该权重增加 $1$ 时，大权重额外损失大约增加 $\lambda$ 倍的当前权重。
 第二层权重
 \begin{align*}
 \frac{\partial J}{\partial\bm{W}^{(2)}}
@@ -484,16 +552,18 @@ $(\bm{o},y)$ 得 $L$，$(\bm{W}^{(1)},\bm{W}^{(2)})$ 得 $s$，最后 $J=L+s$。
 +
 \mathrm{prod}\Bigl(\frac{\partial J}{\partial s},\frac{\partial s}{\partial\bm{W}^{(2)}}\Bigr)\\
 &=
-\frac{\partial J}{\partial\bm{o}}\,\bm{h}^{\top}+\lambda\bm{W}^{(2)}.
+\frac{\partial J}{\partial\bm{o}}\,\bm{h}^{\mathsf T}+\lambda\bm{W}^{(2)}.
 \end{align*}
+第一项是数据路径上的梯度，第二项来自额外损失；和的每个分量仍是“该权重增加 $1$ 时 $J$ 大约增加多少”。
 隐层
 \[
 \frac{\partial J}{\partial\bm{h}}
 =
 \mathrm{prod}\Bigl(\frac{\partial J}{\partial\bm{o}},\frac{\partial\bm{o}}{\partial\bm{h}}\Bigr)
 =
-{\bm{W}^{(2)}}^{\top}\frac{\partial J}{\partial\bm{o}}.
+{\bm{W}^{(2)}}^{\mathsf T}\frac{\partial J}{\partial\bm{o}}.
 \]
+第 $j$ 个分量是隐藏激活 $h_j$ 增加 $1$ 时 $J$ 大约增加多少。
 预激活
 \[
 \frac{\partial J}{\partial\bm{z}}
@@ -502,6 +572,7 @@ $(\bm{o},y)$ 得 $L$，$(\bm{W}^{(1)},\bm{W}^{(2)})$ 得 $s$，最后 $J=L+s$。
 =
 \frac{\partial J}{\partial\bm{h}}\odot\phi'(\bm{z}).
 \]
+Hadamard 积把激活导数乘上去：ReLU 在被截断处 $\phi'=0$，故那些位置的敏感度为 $0$。
 第一层权重
 \begin{align*}
 \frac{\partial J}{\partial\bm{W}^{(1)}}
@@ -510,8 +581,9 @@ $(\bm{o},y)$ 得 $L$，$(\bm{W}^{(1)},\bm{W}^{(2)})$ 得 $s$，最后 $J=L+s$。
 +
 \mathrm{prod}\Bigl(\frac{\partial J}{\partial s},\frac{\partial s}{\partial\bm{W}^{(1)}}\Bigr)\\
 &=
-\frac{\partial J}{\partial\bm{z}}\,\bm{x}^{\top}+\lambda\bm{W}^{(1)}.
+\frac{\partial J}{\partial\bm{z}}\,\bm{x}^{\mathsf T}+\lambda\bm{W}^{(1)}.
 \end{align*}
+同样是数据项加额外损失项，每个条目是损失对该权重的变化率。
 
 \subsection{训练神经网络}
 
@@ -521,20 +593,23 @@ $(\bm{o},y)$ 得 $L$，$(\bm{W}^{(1)},\bm{W}^{(2)})$ 得 $s$，最后 $J=L+s$。
 \leftarrow
 \bm{W}^{(\ell)}-\eta\frac{\partial J}{\partial\bm{W}^{(\ell)}}.
 \]
+减去的是“权重增加 $1$ 时 $J$ 的变化率”乘步长，目的是减小 $J=L+s$。
 反向依赖前向的 $\bm{h},\bm{z}$；下一次前向又依赖更新后的 $\bm{W}$。训练需保存中间激活，内存大于纯预测。
 
 \subsection{小结}
 
-前向按图计算 $J=L+s$，反向按
-$\partial J/\partial\bm{W}^{(2)}=\frac{\partial J}{\partial\bm{o}}\bm{h}^{\top}+\lambda\bm{W}^{(2)}$
+前向按图计算 $J=L+s$（数据误差加大权重额外损失），反向按
+$\partial J/\partial\bm{W}^{(2)}=\frac{\partial J}{\partial\bm{o}}\bm{h}^{\mathsf T}+\lambda\bm{W}^{(2)}$
 与
-$\partial J/\partial\bm{W}^{(1)}=\frac{\partial J}{\partial\bm{z}}\bm{x}^{\top}+\lambda\bm{W}^{(1)}$
-写回参数梯度。
+$\partial J/\partial\bm{W}^{(1)}=\frac{\partial J}{\partial\bm{z}}\bm{x}^{\mathsf T}+\lambda\bm{W}^{(1)}$
+写回参数梯度：每个分量都是对应参数增加 $1$ 时总损失大约增加多少。
 
 \subsection{练习}
 
-核验 $f(\bm{X})$ 对 $\bm{X}\in\mathbb{R}^{n\times m}$ 的梯度形状、给隐层加 $\bm{b}$ 后的额外反向式，
-以及二阶导数如何加厚计算图。
+核验 $f(\bm{X})$ 对 $\bm{X}\in\mathbb{R}^{n\times m}$ 的梯度形状必须与 $\bm{X}$ 相同，
+每个条目是该输入增加 $1$ 时标量目标大约增加多少。
+给隐层加 $\bm{b}$ 后多一条 $\partial J/\partial\bm{b}$，含义同权重梯度。
+二阶导数如何加厚计算图：每个海森条目是一阶敏感度再对另一参数求导。
 
 \section{数值稳定性和模型初始化}
 
@@ -548,6 +623,7 @@ $L$ 层网络
 \qquad
 \bm{o}=f_{L}\circ\cdots\circ f_{1}(\bm{x}).
 \]
+$\bm{h}^{(l)}$ 是第 $l$ 层算出的激活，$\bm{o}$ 是最终输出（打分或点预测）。
 对第 $l$ 层权重
 \begin{align*}
 \partial_{\bm{W}^{(l)}}\bm{o}
@@ -557,22 +633,25 @@ $L$ 层网络
 \underbrace{\partial_{\bm{h}^{(l)}}\bm{h}^{(l+1)}}_{\bm{M}^{(l+1)}}
 \underbrace{\partial_{\bm{W}^{(l)}}\bm{h}^{(l)}}_{\bm{v}^{(l)}}.
 \end{align*}
-各 $\bm{M}$ 的奇异值大于 $1$ 则爆炸，小于 $1$ 则消失。
+每个 $\bm{M}$ 是一层对上一层激活的局部敏感度。各 $\bm{M}$ 的奇异值大于 $1$ 则爆炸，小于 $1$ 则消失：
+连乘后得到的数不再是可用的“损失变化率”，而是数值上的 $0$ 或溢出。
 
 \subsubsection{梯度消失}
 
 $\operatorname{sigmoid}$ 的导数最大为 $1/4$，且 $|x|$ 大时接近 $0$。多层连乘后
-$\partial J/\partial\bm{W}^{(1)}$ 可数值为零。ReLU 在正半轴导数为 $1$，减轻该问题。
+$\partial J/\partial\bm{W}^{(1)}$ 可数值为零：看起来像“改第一层权重几乎不改变损失”，其实是饱和造成的。
+ReLU 在正半轴导数为 $1$（保留的激活原样传梯度），减轻该问题。
 
 \subsubsection{梯度爆炸}
 
 若每层 Jacobian 的尺度约 $1$ 但略大，或初始化方差过大，则
 $\prod_{\ell}\bm{M}^{(\ell)}$ 指数增长，一步更新即可使参数溢出。
+此时梯度分量不再是可信的损失变化率，而是被放大到无意义的大数。
 
 \subsubsection{打破对称性}
 
 隐单元置换不改变可表示函数。若 $\bm{W}^{(1)}$ 各行相同，则各隐单元激活相同、梯度相同，
-对称无法被梯度打破。随机独立初始化使各单元轨迹分离。
+对称无法被梯度打破。随机独立初始化使各单元轨迹分离：起步时各权重是不同的随机数，不是同一个值。
 
 \subsection{参数初始化}
 
@@ -581,6 +660,7 @@ $\prod_{\ell}\bm{M}^{(\ell)}$ 指数增长，一步更新即可使参数溢出�
 \subsubsection{默认初始化}
 
 不指定时框架用小方差随机分布；中等深度往往可用，但不能保证任意深度。
+这些初值仍是权重，只是幅度被限制，以免一开始激活或梯度过大。
 
 \subsubsection{Xavier初始化}
 
@@ -588,6 +668,7 @@ $\prod_{\ell}\bm{M}^{(\ell)}$ 指数增长，一步更新即可使参数溢出�
 \[
 o_{i}=\sum_{j=1}^{n_{\mathrm{in}}}w_{ij}x_{j}.
 \]
+$o_i$ 是第 $i$ 个输出打分（或预激活），由输入加权求和得到。
 设 $E[w_{ij}]=E[x_{j}]=0$ 且独立，$E[x_{j}^{2}]=\gamma^{2}$，$E[w_{ij}^{2}]=\sigma^{2}$，则
 \begin{align*}
 E[o_{i}]
@@ -601,11 +682,13 @@ E[o_{i}^{2}]-(E[o_{i}])^{2}\\
 &=
 n_{\mathrm{in}}\sigma^{2}\gamma^{2}.
 \end{align*}
+$E[o_i]$ 是输出的平均水平；$\mathrm{Var}[o_i]$ 是输出起伏有多大，与 $o_i$ 量纲的平方相同。
 希望 $\mathrm{Var}[o_{i}]$ 不随 $n_{\mathrm{in}}$ 爆炸，同时反向不随 $n_{\mathrm{out}}$ 爆炸，折中
 \begin{align*}
 \frac{1}{2}(n_{\mathrm{in}}+n_{\mathrm{out}})\sigma^{2}&=1,\\
 \sigma&=\sqrt{\frac{2}{n_{\mathrm{in}}+n_{\mathrm{out}}}}.
 \end{align*}
+$\sigma$ 是每个权重的标准差：权重作为随机数时典型绝对值有多大。
 对应均匀分布
 \[
 U\Biggl(
@@ -613,20 +696,24 @@ U\Biggl(
 \sqrt{\frac{6}{n_{\mathrm{in}}+n_{\mathrm{out}}}}
 \Biggr).
 \]
+采样得到的每个 $w_{ij}$ 仍是权重，只是范围按输入输出维数缩放，以便激活方差接近常数。
 
 \subsubsection{额外阅读}
 
 Xavier 只覆盖独立、零均值、方差匹配的情形。共享参数、残差或序列模型需要各自的尺度启发式。
+那些启发式同样是在规定“权重作为随机数时应有多大”，以便梯度仍表示可信的损失变化率。
 
 \subsection{小结}
 
-梯度是一层层 $\bm{M}^{(\ell)}$ 的乘积；Xavier 令
-$\sigma=\sqrt{2/(n_{\mathrm{in}}+n_{\mathrm{out}})}$，使输出方差与梯度方差同时可控，随机性用来破对称。
+梯度是一层层局部敏感度 $\bm{M}^{(\ell)}$ 的乘积。
+Xavier 取 $\sigma=\sqrt{2/(n_{\mathrm{in}}+n_{\mathrm{out}})}$，
+使输出方差与梯度方差同时可控；随机初始化用来打破对称。
 
 \subsection{练习}
 
-核验线性或 softmax 回归把全部 $w_{ij}$ 设成同一常数是否仍能学，
-以及矩阵乘积特征值界对 $\prod\bm{M}^{(\ell)}$ 尺度的含义。
+核验线性或 softmax 回归把全部 $w_{ij}$ 设成同一常数是否仍能学：
+对称时各隐单元（若有）梯度相同，无法分化。
+矩阵乘积特征值界对 $\prod\bm{M}^{(\ell)}$ 尺度的含义：特征值大于 $1$ 则敏感度连乘爆炸。
 
 \section{环境和分布偏移}
 
@@ -635,7 +722,7 @@ $\sigma=\sqrt{2/(n_{\mathrm{in}}+n_{\mathrm{out}})}$，使输出方差与梯度�
 \subsection{分布偏移的类型}
 
 无结构假设时，$p_{S}(\bm{x})=p_{T}(\bm{x})$ 仍可有 $p_{S}(y\mid\bm{x})=1-p_{T}(y\mid\bm{x})$，不可学。
-因此要对 $p(y\mid\bm{x})$ 或 $p(\bm{x}\mid y)$ 施加不变性。
+$p(y\mid\bm{x})$ 是条件概率，在 $[0,1]$。因此要对 $p(y\mid\bm{x})$ 或 $p(\bm{x}\mid y)$ 施加不变性。
 
 \subsubsection{协变量偏移}
 
@@ -643,6 +730,7 @@ $\sigma=\sqrt{2/(n_{\mathrm{in}}+n_{\mathrm{out}})}$，使输出方差与梯度�
 \[
 p(y\mid\bm{x})=q(y\mid\bm{x}),\qquad p(\bm{x})\neq q(\bm{x}).
 \]
+左边两个条件概率相等，表示同一 $\bm{x}$ 下标签的可能性不变；右边两个密度不同，表示特征出现的频率变了。
 在认为 $\bm{x}$ 导致 $y$ 时自然成立。
 
 \subsubsection{标签偏移}
@@ -651,32 +739,39 @@ p(y\mid\bm{x})=q(y\mid\bm{x}),\qquad p(\bm{x})\neq q(\bm{x}).
 \[
 p(\bm{x}\mid y)=q(\bm{x}\mid y),\qquad p(y)\neq q(y).
 \]
+$p(y)$ 是类的先验比例，在 $[0,1]$ 且各类和为 $1$；源与目标的先验可以不同。
 在认为 $y$ 导致 $\bm{x}$（如疾病导致症状）时自然成立。
 
 \subsubsection{概念偏移}
 
-$p(y\mid\bm{x})$ 本身随时间或地点改变，即同一 $\bm{x}$ 对应的标签定义漂移。
+$p(y\mid\bm{x})$ 本身随时间或地点改变，即同一 $\bm{x}$ 对应的标签定义漂移：
+同一个特征向量现在对应的“正确 $y$”已经不是训练时的那个含义。
 
 \subsection{分布偏移示例}
 
 下列情形中 $p_{S}$ 与 $p_{T}$ 的差异往往被精度数字掩盖。
+精度仍是判对比例，但不能代表目标分布上的同一比例。
 
 \subsubsection{医学诊断}
 
 用医院患者与校园献血者构造对照，则 $p(\bm{x})$ 混入年龄等与疾病无关的差异，
-即使 $p(y\mid\bm{x})$ 在目标人群中不同，训练集精度也不能迁移。
+即使 $p(y\mid\bm{x})$ 在目标人群中不同，训练集精度也不能迁移：
+那个 $\mathrm{acc}\in[0,1]$ 只描述源分布上的判对比例。
 
 \subsubsection{自动驾驶汽车}
 
 合成渲染的路沿纹理恒定，检测器学到该伪特征。真实图像的 $p(\bm{x})$ 不含这一捷径，部署失败。
+检测分数或框的 IoU 在源域上的数值，不再表示目标域上的同一质量。
 
 \subsubsection{非平稳分布}
 
 $P$ 缓变而模型不更新：广告中的新设备、垃圾邮件的新模板、节后过时的推荐，都属于 $p_{T}\neq p_{S}$。
+原有 $\hat{y}$ 仍按旧分布给出点预测或类概率，但这些数对当前总体不再校准。
 
 \subsubsection{更多轶事}
 
 训练缺特写人脸、英美查询词分布不同、类别在网上均匀而现实长尾，都使经验风险偏离真实风险。
+经验风险是源样本平均损失，真实风险是目标 $P$ 上的期望损失，二者不是同一个数。
 
 \subsection{分布偏移纠正}
 
@@ -688,12 +783,14 @@ $P$ 缓变而模型不更新：广告中的新设备、垃圾邮件的新模板�
 \[
 \operatorname*{minimize}_{f}\ \frac{1}{n}\sum_{i=1}^{n}l(f(\bm{x}_{i}),y_{i})
 \]
-逼近真实风险
+把 $n$ 条样本损失取平均，得到源分布上的平均误差。
+它逼近真实风险
 \[
 \mathbb{E}_{p(\bm{x},y)}[l(f(\bm{x}),y)]
 =
-\iint l(f(\bm{x}),y)\,p(\bm{x},y)\,\mathrm{d}\bm{x}\,\mathrm{d}y.
+\iint l(f(\bm{x}),y)\,p(\bm{x},y)\,\mathrm{d}\bm{x}\,\mathrm{d}y
 \]
+仅当样本来自同一个 $p$；右边是对密度加权后的平均损失，与单条 $l$ 同量纲。
 
 \subsubsection{协变量偏移纠正}
 
@@ -707,16 +804,19 @@ $p(y\mid\bm{x})=q(y\mid\bm{x})$ 时
 \[
 \beta_{i}\stackrel{\mathrm{def}}{=}\frac{p(\bm{x}_{i})}{q(\bm{x}_{i})}
 \]
+是两个密度之比，非负：大于 $1$ 表示该 $\bm{x}$ 在目标域相对更常见，应在平均损失里占更大份。
 给出加权经验风险
 \[
 \operatorname*{minimize}_{f}\ \frac{1}{n}\sum_{i=1}^{n}\beta_{i}l(f(\bm{x}_{i}),y_{i}).
 \]
+每条损失仍是原来的误差或惊讶，只是按 $\beta_i$ 重新加权。
 用分类器区分源/目标域，
 \[
 P(z=1\mid\bm{x})=\frac{p(\bm{x})}{p(\bm{x})+q(\bm{x})},
 \qquad
 \frac{P(z=1\mid\bm{x})}{P(z=-1\mid\bm{x})}=\frac{p(\bm{x})}{q(\bm{x})}.
 \]
+$P(z=1\mid\bm{x})\in[0,1]$ 是“该样本来自目标域”的概率。
 若 $h(\bm{x})$ 为对数几率，则
 \begin{align*}
 \beta_{i}
@@ -725,6 +825,7 @@ P(z=1\mid\bm{x})=\frac{p(\bm{x})}{p(\bm{x})+q(\bm{x})},
 &=
 \exp\bigl(h(\bm{x}_{i})\bigr).
 \end{align*}
+$h(\bm{x})$ 是未归一化对数几率，$\exp(h)$ 还原成密度比 $\beta_i$。
 
 \subsubsection{标签偏移纠正}
 
@@ -736,17 +837,20 @@ $p(\bm{x}\mid y)=q(\bm{x}\mid y)$ 时
 \end{align*}
 权重
 \[
-\beta_{i}\stackrel{\mathrm{def}}{=}\frac{p(y_{i})}{q(y_{i})}.
+\beta_{i}\stackrel{\mathrm{def}}{=}\frac{p(y_{i})}{q(y_{i})}
 \]
+是两类先验之比：目标域更常见的类，其样本在平均损失中权重更大。
 混淆关系
 \[
 \bm{C}\,p(\bm{y})=\mu(\hat{\bm{y}})
 \]
 用源域混淆矩阵 $\bm{C}$ 与目标域预测边缘 $\mu(\hat{\bm{y}})$ 反解 $p(\bm{y})$。
+$C_{kj}$ 是真类为 $j$ 时预测为 $k$ 的比例，在 $[0,1]$；$\mu$ 是目标域上各类被预测到的频率。
 
 \subsubsection{概念偏移纠正}
 
-$p(y\mid\bm{x})$ 改变时重要性加权不再成立，需新标签。缓慢漂移可用新数据继续更新已有 $\bm{\theta}$。
+$p(y\mid\bm{x})$ 改变时重要性加权不再成立，需新标签。缓慢漂移可用新数据继续更新已有 $\bm{\theta}$：
+更新所用的梯度仍是新损失对参数的变化率。
 
 \subsection{学习问题的分类法}
 
@@ -755,6 +859,7 @@ $p(y\mid\bm{x})$ 改变时重要性加权不再成立，需新标签。缓慢漂
 \subsubsection{批量学习}
 
 一次给定 $\{(\bm{x}_{i},y_{i})\}_{i=1}^{n}$，学得 $f$ 后在同一 $P$ 上部署，不再更新。
+$n$ 条样本上的平均损失在部署后不再重新计算。
 
 \subsubsection{在线学习}
 
@@ -771,36 +876,45 @@ l(y_{t},f_{t}(\bm{x}_{t}))
 \;\longrightarrow\;
 f_{t+1}.
 \]
+每步先给出预测 $f_t(\bm{x}_t)$，再看到 $y_t$，算出这一步的损失（误差或惊讶），然后更新。
+$l$ 是标量，含义与批量中的单样本损失相同。
 
 \subsubsection{老虎机}
 
-行动集有限，每步选一只臂并观测损失。比连续参数化的 $f$ 有更强的后悔界。
+行动集有限，每步选一只臂并观测损失。该损失是拉臂后看到的标量代价（或负奖励），
+比连续参数化的 $f$ 有更强的后悔界。后悔是相对最优臂多付的累计损失。
 
 \subsubsection{控制}
 
 环境状态依赖历史行动，例如锅炉温度依赖是否加热。策略必须考虑动力学，而不只是 i.i.d.\ 样本。
+状态变量（如温度）与奖励/损失仍是有量纲的测量值。
 
 \subsubsection{强化学习}
 
-在可记忆、甚至对抗的环境中选行动以最大化期望回报。监督批学习是其无交互特例。
+在可记忆、甚至对抗的环境中选行动以最大化期望回报。
+回报是折扣奖励之和，与单步奖励同量纲；监督批学习是其无交互特例。
 
 \subsubsection{考虑到环境}
 
-若行动改变未来的 $P$，静止环境上的最优 $f$ 部署后可能失效。变化慢可限制参数步长；变化稀但剧烈则需检测后再适应。
+若行动改变未来的 $P$，静止环境上的最优 $f$ 部署后可能失效。
+变化慢可限制参数步长 $\eta$（每步少改一点）；变化稀但剧烈则需检测后再适应。
 
 \subsection{机器学习中的公平、责任和透明度}
 
 部署把 $\hat{y}$ 变成影响人的决策。精度不是唯一风险：不同子群上 $p(y\mid\bm{x})$ 不同、
 各类错误代价不对称时，应用代价敏感的损失而不是单纯 $\mathrm{acc}$。
+$\mathrm{acc}$ 只是全体样本上的判对比例，不区分哪一类错误更贵。
 
 \subsection{小结}
 
-真实风险是 $\mathbb{E}_{p}[l]$，经验风险是其样本平均。协变量偏移用 $\beta_{i}=p(\bm{x}_{i})/q(\bm{x}_{i})$ 纠偏，
-标签偏移用 $\beta_{i}=p(y_{i})/q(y_{i})$；概念偏移则要求更新标签定义。
+真实风险是 $\mathbb{E}_{p}[l]$，经验风险是其样本平均，二者都是损失大小。
+协变量偏移用 $\beta_{i}=p(\bm{x}_{i})/q(\bm{x}_{i})$（密度比）纠偏，
+标签偏移用 $\beta_{i}=p(y_{i})/q(y_{i})$（先验比）；概念偏移则要求更新标签定义。
 
 \subsection{练习}
 
-核验用域分类器估计 $\beta_{i}$ 是否恢复 $p(\bm{x})/q(\bm{x})$，以及除分布偏移外还有哪些因素使 $R_{\mathrm{emp}}$ 偏离 $R$。
+核验用域分类器估计 $\beta_{i}$ 是否恢复 $p(\bm{x})/q(\bm{x})$：$\beta_i$ 应是非负密度比。
+以及除分布偏移外还有哪些因素使 $R_{\mathrm{emp}}$ 偏离 $R$（有限样本、过拟合、标签噪声）。
 
 \section{实战Kaggle比赛：预测房价}
 
@@ -809,14 +923,17 @@ f_{t+1}.
 \subsection{下载和缓存数据集}
 
 名称映到 $(\mathrm{url},\mathrm{sha1})$。本地缓存命中且校验一致则不再下载。
+校验和是文件指纹，用来确认磁盘上的字节就是预期的那一份，不是房价数值。
 
 \subsection{Kaggle}
 
-比赛提供训练表（含房价）与测试表（无房价）。提交的是测试集上的 $\hat{y}$ 向量。
+比赛提供训练表（含房价）与测试表（无房价）。提交的是测试集上的 $\hat{y}$ 向量：
+每个分量是一座房屋的点预测房价，与美元（或对数价格）同量纲，不是概率。
 
 \subsection{访问和读取数据集}
 
-每行一座房屋，特征含数值与类别，缺失记为 $\mathrm{NA}$。价格 $y$ 只在训练集出现。
+每行一座房屋，特征含数值与类别，缺失记为 $\mathrm{NA}$。
+$\mathrm{NA}$ 表示该位置没有观测，不是数值 $0$。价格 $y$ 只在训练集出现，是要拟合的目标。
 划分训练集得到验证折；官方测试误差只在提交后可见。
 
 \subsection{数据预处理}
@@ -825,7 +942,11 @@ f_{t+1}.
 \[
 x\leftarrow\frac{x-\mu}{\sigma},
 \]
-缺失用列均值填充。类别列独热。训练集与测试集的编码与 $\mu,\sigma$ 必须同源统计量。
+$\mu$ 是列均值（该属性的典型水平），$\sigma$ 是列标准差（起伏有多大）；
+标准化后的 $x$ 无量纲，表示“偏离均值多少个标准差”。
+缺失用列均值填充：缺口处的数是典型水平，不是观测。
+类别列独热：$1$ 表示属于该类，$0$ 表示不属于。
+训练集与测试集的编码与 $\mu,\sigma$ 必须同源统计量。
 
 \subsection{训练}
 
@@ -833,25 +954,33 @@ x\leftarrow\frac{x-\mu}{\sigma},
 \[
 \sqrt{\frac{1}{n}\sum_{i=1}^{n}\bigl(\log y_{i}-\log\hat{y}_{i}\bigr)^{2}},
 \]
-对应相对误差而非绝对美元误差。模型可以是线性层或带权重衰减的 MLP。
+先对价格取对数（相对尺度），再算均方误差的平方根。
+得到的是典型相对误差大小，不是绝对美元误差，也不是概率。
+模型可以是线性层（点预测）或带权重衰减的 MLP（隐藏激活再映射到价格）。
 
 \subsection{\texorpdfstring{$K$折交叉验证}{K折交叉验证}}
 
 第 $i$ 折取切片 $\mathcal{I}_{i}$ 为验证、其余为训练。$K$ 次后报告平均训练误差与平均验证误差。
+这两个数都是对数 RMSE，表示相对预测误差的典型大小。
 
 \subsection{模型选择}
 
-在折平均验证误差上选层宽、$\lambda$、暂退 $p$ 与 $\eta$。训练误差远低于折验证误差表示过拟合。
+在折平均验证误差上选层宽、$\lambda$、暂退 $p$ 与 $\eta$。
+训练误差远低于折验证误差表示过拟合：训练对数 RMSE 不再代表新房屋上的相对误差。
+$\lambda$ 控制大权重的额外损失，$p$ 是丢弃激活的概率。
 
 \subsection{提交Kaggle预测}
 
 用选定超参数在全部训练样本上重拟合，再映射测试特征到 $\hat{y}$，写成提交表。
+表中每一项仍是点预测房价。
 
 \subsection{小结}
 
-表格映射是：标准化与独热得到 $\bm{X}$，用 $\log$ RMSE 训练，用 $K$ 折选超参数后再全量拟合。
+表格映射是：标准化与独热得到 $\bm{X}$（特征），用 $\log$ RMSE 训练（相对误差），
+用 $K$ 折选超参数后再全量拟合。$\hat{y}$ 始终是与价格相关的点预测，不是类概率。
 
 \subsection{练习}
 
-核验直接优化 $\log y$ 与优化 $y$ 再取对数的差别、均值填充在非随机缺失下的偏差，
-以及不标准化连续列时梯度尺度。
+核验直接优化 $\log y$ 与优化 $y$ 再取对数的差别：前者把损失定义在对数价格上。
+均值填充在非随机缺失下的偏差：填进去的是列均值，不是真实未观测房价。
+不标准化连续列时梯度尺度：取值大的列会使对应权重的“损失变化率”被放大。

@@ -26,9 +26,11 @@
 \qquad
 \bm{W}_2\in\mathbb{R}^{10\times 256}.
 \end{align*}
-即 $f=\ell_2\circ\operatorname{ReLU}\circ\ell_1$。
-形状允许 $f(\bm{x})\in\mathbb{R}^{10}$ 与 $\bm{x}\in\mathbb{R}^{20}$ 不同。
-反向传播给出 $\nabla_{\bm{W}_1}L$、$\nabla_{\bm{W}_2}L$ 及对输入的 $\nabla_{\bm{x}}L$。
+输入 $\bm{x}$ 先被映成 $256$ 维隐向量 $\bm{h}$，再映成 $10$ 维输出 $\bm{o}$。
+$\bm{h}$ 的每个分量是该隐单元对输入的非线性响应（负半轴被截成 $0$）；
+$\bm{o}$ 的每个分量是一类的未归一化打分，与标签同索引，不是概率。
+复合 $f=\ell_2\circ\operatorname{ReLU}\circ\ell_1$ 允许 $f(\bm{x})\in\mathbb{R}^{10}$ 与 $\bm{x}\in\mathbb{R}^{20}$ 形状不同。
+反向传播给出的 $\nabla_{\bm{W}_1}L$、$\nabla_{\bm{W}_2}L$、$\nabla_{\bm{x}}L$ 中，每个条目是对应参数或输入增大时标量损失大约增加多少。
 
 \subsection{顺序块}
 
@@ -38,6 +40,8 @@
 =
 f_n\circ f_{n-1}\circ\cdots\circ f_1(\bm{x}).
 \]
+左边是把 $n$ 个子映射串成一条管道后的总映射：输入先进 $f_1$，其输出再进 $f_2$，直到 $f_n$。
+得到的仍是最后一个子块的输出张量，形状由 $f_n$ 决定，含义由最后一层给出（打分、特征图等）。
 追加操作把 $f_{n+1}$ 接到链条末端。
 参数集是各子块参数的不交并
 \[
@@ -45,7 +49,8 @@ f_n\circ f_{n-1}\circ\cdots\circ f_1(\bm{x}).
 =
 \bigsqcup_{i=1}^{n}\operatorname{params}(f_i),
 \]
-这要求每个 $f_i$ 登记为子模块，而不能只放入普通列表。
+右边收集到的是全部可训练张量的集合，不是把参数数值相加。
+每个 $f_i$ 必须登记为子模块，而不能只放入普通列表，否则这些张量不会出现在优化器看到的 $\bm{\theta}$ 里。
 
 \subsection{在前向传播函数中执行代码}
 
@@ -55,17 +60,20 @@ f_n\circ f_{n-1}\circ\cdots\circ f_1(\bm{x}).
 \[
 f(\bm{x},\bm{w})=c\cdot\bm{w}^{\mathsf T}\bm{x}
 \]
-在 $\bm{w}$ 上可训练，$c$ 不进入 $\operatorname{params}(f)$。
+算出的是一个标量：先把 $\bm{x}$ 用 $\bm{w}$ 做线性打分，再乘固定系数 $c$。
+该标量与 $\bm{w}^{\mathsf T}\bm{x}$ 同量纲，只是被 $c$ 缩放；$c$ 不进入 $\operatorname{params}(f)$，因此梯度不更新 $c$。
 亦允许按范数分支，例如
 \[
 \bm{h}
 \leftarrow
 \begin{cases}
 \bm{h}/\|\bm{h}\|_2, & \|\bm{h}\|_2>1,\\
-\bm{h}, & \text{否则,}
+\bm{h}, & \text{otherwise,}
 \end{cases}
 \]
-再进入后续线性层。只要这些运算可微或次可微，反向传播仍给出 $\nabla_{\bm{\theta}}L$。
+再进入后续线性层。
+$\|\bm{h}\|_2$ 是隐向量的欧氏长度（非负标量）；大于 $1$ 时把 $\bm{h}$ 缩到单位球面，每个分量变成方向余弦，不再保留原来的幅度。
+只要这些运算可微或次可微，反向传播仍给出 $\nabla_{\bm{\theta}}L$，其含义仍是损失对参数的敏感度。
 
 \subsection{效率}
 
@@ -74,17 +82,20 @@ f(\bm{x},\bm{w})=c\cdot\bm{w}^{\mathsf T}\bm{x}
 \[
 T=T_{\mathrm{host}}+T_{\mathrm{device}}+T_{\mathrm{copy}}.
 \]
+三个加数都是以秒（或毫秒）计的墙钟时间：$T_{\mathrm{host}}$ 是 CPU 解释与调度，$T_{\mathrm{device}}$ 是核上算术，$T_{\mathrm{copy}}$ 是主机与器件之间搬数据。
 当 $T_{\mathrm{host}}$ 因全局解释器锁而串行时，$T_{\mathrm{device}}$ 被阻塞。
-把可向量化的映射尽量放进一次设备核，可减小 $T_{\mathrm{host}}/T$。
+把可向量化的映射尽量放进一次设备核，可减小比值 $T_{\mathrm{host}}/T$，该比值是无量纲的时间占比，越接近 $0$ 表示越少时间浪费在解释上。
 
 \subsection{小结}
 
 块是可嵌套映射 $f$，顺序块实现 $f_n\circ\cdots\circ f_1$，并负责参数登记与反向传播。
+前向算出的是表示或打分；$\operatorname{params}$ 收集的是可训练张量；$T$ 的各分量是时间，不是模型输出。
 
 \subsection{练习}
 
 核验列表存储是否仍使 $\operatorname{params}$ 递归可收集，以及并联
 $[f_1(\bm{x}),f_2(\bm{x})]$ 与重复实例 $f\circ\cdots\circ f$ 的形状。
+并联输出是把两路特征在通道或特征维上拼在一起，每个条目仍是对应子映射的响应，不是两路打分之和。
 
 \section{参数管理}
 
@@ -92,24 +103,27 @@ $[f_1(\bm{x}),f_2(\bm{x})]$ 与重复实例 $f\circ\cdots\circ f$ 的形状。
 \[
 \bm{\theta}^{\ast}\in\operatorname*{argmin}_{\bm{\theta}}L(\bm{\theta}).
 \]
+$L(\bm{\theta})$ 是标量训练损失；$\bm{\theta}^{\ast}$ 是使该损失尽可能小的那一组参数值，与 $\bm{\theta}$ 同形状。
 随后需要读出 $\bm{\theta}$ 以便复用、保存或检查。
 下面把访问、初始化与共享写成对 $\bm{\theta}$ 的运算。
 
 \subsection{参数访问}
 
 顺序模型中第 $\ell$ 层参数是命名张量，通常含权重 $\bm{W}^{(\ell)}$ 与偏置 $\bm{b}^{(\ell)}$。
+$W^{(\ell)}_{ij}$ 是第 $\ell$ 层输出单元 $i$ 对输入特征 $j$ 的权重；$b^{(\ell)}_i$ 是该单元的加性偏移，与该层打分同量纲。
 名称在整网中唯一，即使层数达数百。
 
 \subsubsection{目标参数}
 
 参数对象同时携带值、梯度与状态。
-未反向传播时 $\nabla_{\bm{\theta}}L$ 处于初始（通常为零）状态；
+未反向传播时 $\nabla_{\bm{\theta}}L$ 处于初始（通常为零）状态，零表示“尚未计入任何损失敏感度”，不是“损失对该参数不敏感”。
 一次 $L.\mathrm{backward}$ 之后
 \[
 \frac{\partial L}{\partial \bm{W}^{(\ell)}},\qquad
 \frac{\partial L}{\partial \bm{b}^{(\ell)}}
 \]
-才有定义。对参数的数值运算必须先取出底层张量。
+才有定义：每个条目是对应权重或偏置增加 $1$ 个单位时，标量损失大约增加多少。
+对参数的数值运算必须先取出底层张量。
 
 \subsubsection{一次性访问所有参数}
 
@@ -121,13 +135,15 @@ $[f_1(\bm{x}),f_2(\bm{x})]$ 与重复实例 $f\circ\cdots\circ f$ 的形状。
 \cup
 \bigcup_{B'\in\operatorname{children}(B)}\operatorname{params}(B').
 \]
-一次性遍历给出全部 $(\text{name},\bm{\theta}_{\text{name}})$，而不必按层手工索引。
+左边是块 $B$ 下全部参数张量的集合：本层的 $\operatorname{local}(B)$ 并上每个子块递归收集的结果。
+一次性遍历给出全部 $(\mathrm{name},\bm{\theta}_{\mathrm{name}})$，名称是字符串键，张量才是数值；不必按层手工索引。
 
 \subsubsection{从嵌套块收集参数}
 
 若 $B=\operatorname{Seq}(B_1,B_2,\ldots)$ 且每个 $B_i$ 自身又是顺序块，
 则名称按层级拼接。
-访问“第一主块、第二子块、第一层”的偏置，对应路径索引下的 $\bm{b}$。
+访问“第一主块、第二子块、第一层”的偏置，对应路径索引下的 $\bm{b}$，
+读到的每个 $b_i$ 仍是该层第 $i$ 个单元的偏移，不是路径编号本身。
 分层嵌套与嵌套列表索引同构。
 
 \subsection{参数初始化}
@@ -137,6 +153,7 @@ $[f_1(\bm{x}),f_2(\bm{x})]$ 与重复实例 $f\circ\cdots\circ f$ 的形状。
 \[
 \bm{W}\sim P.
 \]
+抽到的每个 $w_{ij}$ 是该连接的初始权重，本身没有“正确/错误”含义，只决定训练起点附近的打分尺度。
 
 \subsubsection{内置初始化}
 
@@ -144,15 +161,18 @@ $[f_1(\bm{x}),f_2(\bm{x})]$ 与重复实例 $f\circ\cdots\circ f$ 的形状。
 \[
 w_{ij}\sim\mathcal{N}(0,0.01^{2}),\qquad b_i=0.
 \]
-亦可令全部元素为常数，例如 $\bm{W}=\bm{1}$。
+$w_{ij}$ 是均值为 $0$、标准差为 $0.01$ 的随机权重，使初始线性打分接近 $0$；$b_i=0$ 表示一开始不加偏移。
+亦可令全部元素为常数，例如 $\bm{W}=\bm{1}$，此时每个 $w_{ij}=1$ 表示“所有输入特征等权相加”。
 不同块可使用不同规则：第一层 Xavier，第三层常数 $42$。
 Xavier 对 $\bm{W}\in\mathbb{R}^{n_{\mathrm{out}}\times n_{\mathrm{in}}}$ 满足
 \[
 \operatorname{Var}(w)
 =
-\frac{2}{n_{\mathrm{in}}+n_{\mathrm{out}}}
-\quad\text{（或均匀区间按该方差标定）}.
+\frac{2}{n_{\mathrm{in}}+n_{\mathrm{out}}}.
 \]
+左边是每个权重作为随机变量的方差（无量纲，若把激活视为无量纲），
+右边用输入输出宽度标定，使前向激活与反向梯度的方差大致不随层宽爆炸或消失。
+均匀区间可按该方差再标定上下界。
 
 \subsubsection{自定义初始化}
 
@@ -161,17 +181,18 @@ Xavier 对 $\bm{W}\in\mathbb{R}^{n_{\mathrm{out}}\times n_{\mathrm{in}}}$ 满足
 w
 \sim
 \begin{cases}
-U(5,10), & \text{概率 }1/4,\\
-0, & \text{概率 }1/2,\\
-U(-10,-5), & \text{概率 }1/4.
+U(5,10), & \text{probability }1/4,\\
+0, & \text{probability }1/2,\\
+U(-10,-5), & \text{probability }1/4.
 \end{cases}
 \]
+每个 $w$ 以 $1/2$ 概率恰好为 $0$（该连接一开始不贡献），否则落在远离零的两侧区间，绝对值约 $5$ 到 $10$。
 该规则仍是合法的 $P$，只是把质量放在远离零的两侧与原点。
 
 \subsection{参数绑定}
 
 共享指定 $\bm{W}^{(3)}=\bm{W}^{(5)}=\bm{W}$ 为同一张量，而非值相等的两份副本。
-于是 $\mathrm{d}\bm{W}^{(3)}=\mathrm{d}\bm{W}^{(5)}$。
+于是 $\mathrm{d}\bm{W}^{(3)}=\mathrm{d}\bm{W}^{(5)}$：两处看到的是同一组权重数值。
 反向传播时梯度相加：
 \[
 \frac{\partial L}{\partial \bm{W}}
@@ -180,16 +201,19 @@ U(-10,-5), & \text{概率 }1/4.
 +
 \frac{\partial L}{\partial \bm{W}^{(5)}}.
 \]
+左边每个条目是该共享权重增大时总损失的敏感度，等于两条使用路径上敏感度之和，而不是取平均或取较大者。
 前向两次使用同一 $\bm{W}$，更新一步同时改变两处表观层。
 
 \subsection{小结}
 
-参数是带梯度的命名张量；初始化给定 $P$，绑定使若干层共享同一 $\bm{W}$ 并把梯度相加。
+参数是带梯度的命名张量；初始化给定 $P$，抽到的数是训练起点上的权重；
+绑定使若干层共享同一 $\bm{W}$ 并把两条路径的 $\partial L/\partial\bm{W}$ 相加。
 
 \subsection{练习}
 
 在含共享层的感知机上核验 $\bm{W}^{(i)}=\bm{W}^{(j)}$ 是否为同一存储，
 以及 $\nabla_{\bm{W}}L$ 是否等于两条路径梯度之和。
+若相等，读到的每个梯度分量就是“该共享权重增大时损失增加多少”，已计入两处使用。
 
 \section{延后初始化}
 
@@ -199,14 +223,15 @@ U(-10,-5), & \text{概率 }1/4.
 
 \subsection{实例化网络}
 
-实例化后、首次前向之前，$\operatorname{params}$ 为空。
-设首个批量 $\bm{X}\in\mathbb{R}^{n\times d}$ 到达，由 $d$ 确定
+实例化后、首次前向之前，$\operatorname{params}$ 为空，表示还没有可训练数值，不是权重全为零。
+设首个批量 $\bm{X}\in\mathbb{R}^{n\times d}$ 到达，$n$ 是批量大小，$d$ 是每条样本的特征数，由 $d$ 确定
 \[
 \bm{W}^{(1)}\in\mathbb{R}^{h\times d},
 \qquad
 \bm{W}^{(2)}\in\mathbb{R}^{q\times h},
 \]
 再依层顺序分配并抽样。
+这里的 $h,d,q$ 都是轴长度（有几个隐单元、几个输入特征、几个输出），不是权重的数值。
 仅第一层真正依赖未知输入维，但框架仍按拓扑顺序完成全部形状。
 
 \subsection{小结}
@@ -215,12 +240,14 @@ U(-10,-5), & \text{概率 }1/4.
 \[
 \operatorname{shape}(\bm{W}^{(\ell)})
 \]
-全部成为已知后再初始化。
+全部成为已知的整数元组后再初始化。
+该元组表示权重矩阵有几行几列，不是矩阵里那些权重的大小。
 
 \subsection{练习}
 
 核验：只给出第一层输入维时哪些层立即分配；维不匹配是否使乘法
 $\bm{W}\bm{x}$ 无定义；输入维改变时共享参数如何约束形状。
+形状约束的是轴长度必须一致，与权重取值无关。
 
 \section{自定义层}
 
@@ -237,8 +264,9 @@ f(\bm{x})
 \qquad
 \bar{x}=\frac{1}{n}\sum_{i=1}^{n}x_i.
 \]
+输入 $\bm{x}\in\mathbb{R}^{n}$ 时，$\bar{x}$ 是各分量的算术平均，与 $x_i$ 同量纲，表示这组数的中心水平；
+$f(\bm{x})$ 的第 $i$ 个分量是相对该中心的偏差，和应接近 $0$（浮点下只是接近）。
 对批量矩阵按约定的轴取均值后广播相减。
-浮点下 $\sum_i f(\bm{x})_i$ 只是接近 $0$。
 该层可嵌入任意 $\operatorname{Seq}$。
 
 \subsection{带参数的层}
@@ -249,12 +277,14 @@ f(\bm{x})
 =
 \operatorname{ReLU}(\bm{W}\bm{x}+\bm{b}).
 \]
+输入 $\bm{x}\in\mathbb{R}^{d}$，输出 $\bm{f}(\bm{x})\in\mathbb{R}^{q}$：每个分量是该输出单元的 ReLU 响应，负打分被置 $0$，正打分原样保留。
 用框架的参数构造器登记 $\bm{W},\bm{b}$，则访问、初始化、共享、序列化都沿用统一接口，
 而不必为该层单独写读写程序。
 
 \subsection{小结}
 
 自定义层是映射 $f$，可无参数或带 $\bm{W},\bm{b}$；登记后即可出现在任意架构中。
+无参数层输出的是变换后的数据值；有参数层输出的是可学习的打分或激活。
 
 \subsection{练习}
 
@@ -263,6 +293,7 @@ f(\bm{x})
 y_k=\sum_{i,j}W_{ijk}\,x_i x_j
 \]
 的形状 $k\mapsto y_k$，以及把输入映到傅里叶系数前半部分的线性映射。
+$y_k$ 是一个标量：用第 $k$ 张权重切片对特征做二次型，表示特征两两交互对该输出通道的贡献，不是线性打分。
 
 \section{读写文件}
 
@@ -275,9 +306,9 @@ y_k=\sum_{i,j}W_{ijk}\,x_i x_j
 \operatorname{save}(\bm{X},p),\qquad
 \bm{X}'=\operatorname{load}(p),
 \]
-在格式一致时 $\bm{X}'=\bm{X}$。
+在格式一致时 $\bm{X}'=\bm{X}$：读回来的每个条目仍是原来的数值，形状也相同。
 列表 $(\bm{X}_1,\ldots,\bm{X}_m)$ 与字典 $k\mapsto\bm{X}_k$ 同样可往返，
-后者直接对应“全部权重名到张量”。
+后者直接对应“全部权重名到张量”，键是名称，值才是参数数值。
 
 \subsection{加载和保存模型参数}
 
@@ -288,17 +319,18 @@ f\leftarrow \operatorname{arch}(),
 \qquad
 \bm{\theta}(f)\leftarrow \operatorname{load}(p).
 \]
-必须先用代码重建与保存时相同的 $f$，再填入 $\bm{\theta}$。
-随机初始化被文件中的值覆盖。
+先用代码重建与保存时相同的映射 $f$，再把文件里的权重填回去。
+填入后每个参数张量的条目等于保存时的值，随机初始化被覆盖；架构本身（有哪些层、如何连接）仍由代码给出，不是从文件里读出来的数。
 
 \subsection{小结}
 
-$\operatorname{save}/\operatorname{load}$ 作用于张量；整网只固化 $\bm{\theta}$，架构仍由代码给出。
+$\operatorname{save}/\operatorname{load}$ 作用于张量，读写的是数值本身；整网只固化 $\bm{\theta}$，架构仍由代码给出。
 
 \subsection{练习}
 
 核验只加载前两层 $\bm{\theta}_{1:2}$ 并入新架构是否形状相容，
 以及同时保存架构时必须对 $f$ 施加何种可序列化限制。
+形状相容指轴长度一致，使矩阵乘有定义。
 
 \section{GPU}
 
@@ -310,7 +342,8 @@ GPU 把同一线性代数核放到高吞吐器件上。
 
 $\mathrm{cpu}$ 表示全部主机核与内存；$\mathrm{cuda}{:}i$ 表示第 $i$ 块卡及其显存（$i$ 从 $0$ 起）。
 $\mathrm{cuda}{:}0$ 与 $\mathrm{cuda}$ 等价。
-可用卡数 $k$ 查询后，第 $i$ 块记为 $\mathrm{cuda}{:}i$。
+可用卡数 $k$ 是一个非负整数，表示有几块可用 GPU，不是某张量里的数据值。
+查询后第 $i$ 块记为 $\mathrm{cuda}{:}i$。
 
 \subsection{张量与GPU}
 
@@ -320,11 +353,13 @@ $\mathrm{cuda}{:}0$ 与 $\mathrm{cuda}$ 等价。
 \operatorname{loc}(\bm{X})=\operatorname{loc}(\bm{Y}),
 \]
 否则结果的存储位置与计算位置均不确定。
+该等式比较的是设备标识是否相同，不是比较 $\bm{X}$ 与 $\bm{Y}$ 的数值。
+和 $\bm{X}+\bm{Y}$ 的每个条目才是对应位置数据值之和。
 
 \subsubsection{存储在GPU上}
 
 创建时可指定 $\operatorname{loc}(\bm{X})=\mathrm{cuda}{:}0$。
-该张量只占用该卡显存，容量受显存上界约束。
+该张量只占用该卡显存，容量受显存上界约束；上界是字节数，不是张量条目的取值范围。
 第二块卡上的张量满足 $\operatorname{loc}(\bm{Y})=\mathrm{cuda}{:}1$。
 
 \subsubsection{复制}
@@ -334,13 +369,16 @@ $\mathrm{cuda}{:}0$ 与 $\mathrm{cuda}$ 等价。
 \bm{Z}=\operatorname{copy}_{\operatorname{loc}(\bm{Y})}(\bm{X}),
 \]
 再计算 $\bm{Z}+\bm{Y}$。
+$\bm{Z}$ 与 $\bm{X}$ 数值相同、形状相同，只是住在另一块内存；加法得到的仍是对应条目之和。
 若 $\bm{Z}$ 已在目标设备，再次请求同一设备不分配新存储，即 $\operatorname{id}$ 不变。
+$\operatorname{id}$ 相同表示仍是同一块存储，不是数值相等。
 
 \subsubsection{旁注}
 
 器件间传输带宽远低于器件内计算。
 多次小复制的开销通常大于一次大复制。
 打印或转为主机数组会把数据拉回内存，并可能触发全局解释器锁，从而阻塞全部 GPU 核。
+这里增加的是 $T_{\mathrm{copy}}$，不改变张量里那些数的含义。
 
 \subsection{神经网络与GPU}
 
@@ -349,14 +387,16 @@ $\mathrm{cuda}{:}0$ 与 $\mathrm{cuda}$ 等价。
 \operatorname{loc}(\bm{X})=d,
 \]
 前向才在 $d$ 上计算 $f_{\bm{\theta}}(\bm{X})$。
+$f_{\bm{\theta}}(\bm{X})$ 的数值含义与在 CPU 上相同（打分、概率等），只是计算发生在另一器件。
 数据和参数同设备是有效训练的成立条件。
 
 \subsection{小结}
 
 运算要求全部输入同设备；默认 $\operatorname{loc}=\mathrm{cpu}$。
-不必要的 $\operatorname{copy}$ 会支配 $T$。
+不必要的 $\operatorname{copy}$ 会支配 $T$，但复制本身不改写条目的数学含义。
 
 \subsection{练习}
 
 比较大矩阵乘法上 CPU 与 GPU 的 $T$，并核验逐次把 Frobenius 范数拉回主机
 是否显著增加 $T_{\mathrm{copy}}$；两卡并行与单卡顺序的时间比应接近线性。
+$\|\bm{X}\|_F$ 仍是矩阵条目平方和的平方根（非负，表示整体幅度），与在哪块设备上算出无关。

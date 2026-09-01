@@ -1,7 +1,7 @@
 \chapter*{符号}
 \addcontentsline{toc}{chapter}{符号}
 
-沿用原书记号。后文把 $\mathbf{x}$ 写成 $\bm{x}$，含义不变。
+沿用原书记号。后文向量一律写成 $\bm{x}$。下面每个符号都给出：它由什么算出、这个数表示什么。
 
 \paragraph{数字}
 \begin{align*}
@@ -16,6 +16,12 @@ x&\in\mathbb{R}
 x_i=[\bm{x}]_i&&&\text{向量第 $i$ 个元素},\\
 x_{ij}=[\bm{X}]_{ij}&&&\text{矩阵第 $i$ 行第 $j$ 列}.
 \end{align*}
+$x$ 是一个实数，例如一个房价、一个损失值，没有方向。
+$\bm{x}$ 是 $n$ 个这样的实数排成一列，$x_i$ 是第 $i$ 个特征（或第 $i$ 个坐标）上的取值。
+$\bm{X}$ 的条目 $x_{ij}$ 在数据矩阵里常是第 $i$ 个样本的第 $j$ 个特征，
+在权重矩阵里常是“输出单元 $i$ 对输入特征 $j$ 的权重”。
+$\mathsf{X}$ 是更高阶的同类对象，例如批量图像。
+$\bm{I}$ 的对角为 $1$、其余为 $0$，表示“该坐标保持原值、不与其他坐标混合”。
 
 \paragraph{集合}
 \begin{align*}
@@ -27,6 +33,9 @@ x_{ij}=[\bm{X}]_{ij}&&&\text{矩阵第 $i$ 行第 $j$ 列}.
 \mathcal{A}\cap\mathcal{B},\
 \mathcal{A}\setminus\mathcal{B}&&&\text{并、交、相对补}.
 \end{align*}
+$\mathcal{X}$ 标明哪些对象被允许出现，本身不是测量值。
+$\mathbb{R}^{n}$ 表示“有序的 $n$ 个实数”，维数 $n$ 是特征个数，不是欧氏长度。
+并、交、差得到的仍是集合：并是“至少属于其中一个”，交是“同时属于两个”，差是“在 $\mathcal{A}$ 但不在 $\mathcal{B}$”。
 
 \paragraph{函数与算子}
 \begin{align*}
@@ -43,6 +52,14 @@ f(\cdot),\ \log(\cdot),\ \exp(\cdot),
 \qquad
 \sum,\ \prod,\ \stackrel{\mathrm{def}}{=}.
 \end{align*}
+$f(\bm{x})$ 由输入算出输出。$\log$ 与 $\exp$ 互为反函数；后文 $\log$ 默认自然对数，
+因而交叉熵的单位是 nats（自然单位），不是 bit。
+指示 $\mathbf{1}_{\mathcal{X}}$ 取值 $\{0,1\}$：$1$ 表示“属于该集合”，$0$ 表示不属于。
+转置只交换行列角色，不改变那些数。Hadamard 积 $(\bm{A}\odot\bm{B})_{ij}=a_{ij}b_{ij}$
+是对应位置相乘，不是加权求和。
+$|\mathcal{X}|$ 是元素个数，一个非负整数。
+$\|\bm{x}\|_2=\sqrt{\sum_i x_i^2}$ 是欧氏长度，非负，为零当且仅当 $\bm{x}=\bm{0}$。
+点积 $\bm{x}^{\mathsf T}\bm{y}=\sum_i x_i y_i$ 是一个标量：若 $\bm{x}$ 是权重、$\bm{y}$ 是特征，它就是一次线性打分。
 
 \paragraph{微积分}
 \[
@@ -51,6 +68,10 @@ f(\cdot),\ \log(\cdot),\ \exp(\cdot),
 \nabla_{\bm{x}}y,\quad
 \int_a^b f(x)\,\mathrm{d}x.
 \]
+$\mathrm{d}y/\mathrm{d}x$ 是切线斜率：输入增加极小 $h$ 时，输出大约增加该斜率乘 $h$。
+$\partial y/\partial x_i$ 只动第 $i$ 个自变量。
+$\nabla_{\bm{x}}y$ 把这些偏导收成向量，第 $j$ 个分量是 $x_j$ 增加 $1$ 个单位时 $y$ 大约增加多少。
+积分 $\int_a^b f(x)\,\mathrm{d}x$ 是密度在区间上的累积；若 $f$ 是概率密度，该积分才是 $[0,1]$ 上的概率。
 
 \paragraph{概率与信息论}
 \begin{align*}
@@ -61,3 +82,15 @@ P(\cdot),\quad z\sim P,
 \operatorname{Var}(f(x)),\\
 H(X),\quad D_{\mathrm{KL}}(P\|Q).
 \end{align*}
+$P(\mathcal{A})\in[0,1]$ 是事件发生的可能性；$z\sim P$ 表示按这个分布抽样。
+$\mathbb{E}[X]$ 是按概率加权的平均水平，与 $X$ 同量纲。
+$\operatorname{Var}(X)$ 是相对均值的平方偏离的平均，量纲是 $X$ 的平方。
+熵
+\[
+H(X)=\sum_{j}-P(j)\log P(j)
+\]
+是按 $P$ 编码时的平均自信息，单位为 nats，表示“平均有多不确定”。
+\[
+D_{\mathrm{KL}}(P\|Q)=\sum_{j}P(j)\log\frac{P(j)}{Q(j)}
+\]
+是用 $Q$ 编码 $P$ 时多付出的平均码长，非负，为零当且仅当 $P=Q$。

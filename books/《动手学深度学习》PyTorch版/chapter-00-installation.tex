@@ -1,13 +1,17 @@
 \chapter*{安装}
 \addcontentsline{toc}{chapter}{安装}
 
-运行原书代码需要 Python 3 环境、PyTorch 与辅助包 \code{d2l}。
-记依赖集合为 $\mathcal{P}$，运行时环境为映射
+运行原书代码需要 Python~3、PyTorch 与辅助包 \code{d2l}。
+记依赖集合为 $\mathcal{P}$。把解释器版本与 $\mathcal{P}$ 配成同一隔离环境后，
+笔记本里的张量运算才能按后文章节的公式求值；配错版本则同一符号可能对应不同实现。
+
+原书推荐用 conda 创建名为 \code{d2l} 的环境，再安装 CPU 或 GPU 版 PyTorch。
+有 NVIDIA GPU 且已配置 CUDA 时，同一前向
 \[
-(\text{Python},\;\mathcal{P})
-\;\longmapsto\;
-\text{可执行的 Jupyter Notebook}.
+\hat{y}=f_{\bm{\theta}}(\bm{x})
 \]
-原书推荐用 conda 创建名为 \code{d2l} 的隔离环境，再安装 CPU 或 GPU 版 PyTorch。
-有 NVIDIA GPU 且已配置 CUDA 时，同一模型的前向与反向可在加速器上求值；
-前几章用 CPU 即可完成。每次运行前激活该环境，使解释器与包版本一致。
+与同一反向 $\nabla_{\bm{\theta}}L$ 可在加速器上求值：算出的 $\hat{y}$、$L$ 与各梯度分量
+在数学含义上与 CPU 相同，只是求值更快。前几章用 CPU 即可完成。
+
+每次运行前激活该环境。激活成功表示后续 \code{import torch} 读到的是这一套包，
+而不是系统里另一份；它本身不是一个数值，而是“公式将在哪一套实现上被计算”的选择。

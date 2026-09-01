@@ -107,17 +107,18 @@ $1000$ 维是 ImageNet 各类的 logits。
 \subsection{边界框}
 
 两角表示 $(x_1,y_1,x_2,y_2)$ 与中心表示 $(x,y,w,h)$ 互转：
-\begin{align*}
-x&=\frac{x_1+x_2}{2},\quad
+\[
+x=\frac{x_1+x_2}{2},\quad
 y=\frac{y_1+y_2}{2},\quad
 w=x_2-x_1,\quad
 h=y_2-y_1,
-\\
-x_1&=x-w/2,\quad
+\]
+\[
+x_1=x-w/2,\quad
 x_2=x+w/2,\quad
 y_1=y-h/2,\quad
 y_2=y+h/2.
-\end{align*}
+\]
 $(x_1,y_1)$ 是左上角像素（或归一化到 $[0,1]$ 的图像比例）坐标，
 $(x_2,y_2)$ 是右下角；$(x,y)$ 是中心位置，$w,h$ 是宽和高，单位与坐标轴相同。
 这四个数描述框在图上的几何位置，不是分类 logits，也不是 IoU。

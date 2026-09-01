@@ -15,6 +15,7 @@ $P(x_1,\ldots,x_T)$，循环神经网络用共享参数的隐状态压缩历史�
 \[
 x_t \sim P(x_t \mid x_{t-1},\ldots,x_1).
 \]
+右边是在已经见到前 $t-1$ 项的条件下，$x_t$ 取各个合法值的概率，每个概率在 $[0,1]$ 且对 $x_t$ 求和为 $1$。
 联合分布由这些条件依次相乘得到。不同的条件独立性假设对应不同的模型类。
 
 \subsubsection{自回归模型}
@@ -23,8 +24,10 @@ x_t \sim P(x_t \mid x_{t-1},\ldots,x_1).
 \[
 P(x_1,\ldots,x_T)=\prod_{t=1}^{T}P(x_t \mid x_{t-1},\ldots,x_1).
 \]
+左边是整条序列同时出现的联合概率，在 $[0,1]$；右边每一因子是下一步的条件概率。
 自回归模型直接估计右侧每个条件分布，输入是过去观测本身。
 隐变量自回归则另设 $h_t=f(x_t,h_{t-1})$，再用 $P(x_t \mid h_{t-1})$ 近似条件。
+$h_t$ 是到时刻 $t$ 为止的压缩摘要：固定长度的向量，用来代替越来越长的原始历史 $(x_1,\ldots,x_t)$。
 
 \subsubsection{马尔可夫模型}
 
@@ -34,6 +37,7 @@ P(x_1,\ldots,x_T)=\prod_{t=1}^{T}P(x_t \mid x_{t-1}),
 \qquad
 P(x_1 \mid x_0)=P(x_1).
 \]
+每个 $P(x_t \mid x_{t-1})$ 是“前一项为 $x_{t-1}$ 时当前项为 $x_t$”的概率，仍在 $[0,1]$。
 此时隔一步的条件可由全概率公式消去中间变量：
 \begin{align*}
 P(x_{t+1} \mid x_{t-1})
@@ -43,7 +47,8 @@ P(x_{t+1} \mid x_{t-1})
 &=
 \sum_{x_t} P(x_{t+1} \mid x_t)\,P(x_t \mid x_{t-1}).
 \end{align*}
-更高阶只是把条件窗口从 $1$ 换成 $\tau$。
+$P(x_{t+1}\mid x_{t-1})$ 是隔一步的转移概率，把所有可能的中间 $x_t$ 按路径概率加权求和，结果仍在 $[0,1]$。
+更高阶只是把条件窗口从 $1$ 换成 $\tau$，$\tau$ 是回看的步数（正整数），不是观测值。
 
 \subsubsection{因果关系}
 
@@ -51,22 +56,26 @@ P(x_{t+1} \mid x_{t-1})
 \[
 P(x_1,\ldots,x_T)=\prod_{t=T}^{1}P(x_t \mid x_{t+1},\ldots,x_T),
 \]
-则估计对象变成“由未来推断过去”。因果序列上正向条件通常比反向更容易稳定估计。
+则每个因子变成“由未来推断过去”的条件概率，数值上仍在 $[0,1]$，但估计对象不再是因果生成过程。
+因果序列上正向条件通常比反向更容易稳定估计。
 
 \subsection{训练}
 
 用正弦加噪声生成 $x_t=\sin t+\epsilon_t$，$t=1,\ldots,1000$。
+$x_t$ 与 $\sin t$ 同量纲，是该时刻的观测；$\epsilon_t$ 是加性噪声。
 嵌入窗口长度 $\tau$ 后，监督对为
 \[
 y_t=x_t,
 \qquad
 \bm{x}_t=(x_{t-\tau},\ldots,x_{t-1}).
 \]
-前 $\tau$ 项没有完整历史，故丢弃；训练只用前 $600$ 个对。
+$y_t$ 是要预测的当前观测；$\bm{x}_t\in\mathbb{R}^{\tau}$ 的分量是紧邻的过去 $\tau$ 个观测，不是时间下标本身。
+前 $\tau$ 项没有完整历史，故丢弃；训练只用前 $600$ 个对，$600$ 是样本个数。
 于是回归映射是
 \[
 \hat{x}_t=f(\bm{x}_t).
 \]
+$\hat{x}_t$ 是与 $x_t$ 同量纲的点预测，不是概率。
 
 \subsection{预测}
 
@@ -78,7 +87,8 @@ y_t=x_t,
 \\
 \hat{x}_{607}&=f(x_{603},x_{604},\hat{x}_{605},\hat{x}_{606}).
 \end{align*}
-当输入窗口全部换成 $\hat{x}$ 后，误差沿时间累积，这就是 $k$ 步预测。
+每个 $\hat{x}_{t}$ 仍是该时刻观测的点预测。
+当输入窗口全部换成 $\hat{x}$ 后，误差沿时间累积，这就是 $k$ 步预测；$k$ 是向前看的步数。
 
 \subsection{小结}
 
@@ -86,12 +96,13 @@ y_t=x_t,
 \[
 P(x_1,\ldots,x_T)=\prod_{t=1}^{T}P(x_t \mid x_{t-1},\ldots,x_1),
 \]
-训练必须尊重时间顺序；$k$ 步预测把估计误差迭代送入同一映射 $f$。
+每个因子是下一步取值的条件概率；训练必须尊重时间顺序；$k$ 步预测把估计误差迭代送入同一映射 $f$。
 
 \subsection{练习}
 
 核验对象是窗口长度 $\tau$、噪声为零时正弦的最小充分历史，
 以及把已有 $\hat{x}$ 反馈后 $k$ 步误差如何放大。
+误差 $\hat{x}_t-x_t$ 与观测同量纲，表示预测偏了多少。
 
 \section{文本预处理}
 
@@ -101,17 +112,18 @@ $P(x_1,\ldots,x_T)$。
 \subsection{读取数据集}
 
 语料是字符串行的列表。清洗后每行是小写字母与空格组成的序列，
-标点与大小写差异被抹掉，得到原始字符流。
+标点与大小写差异被抹掉，得到原始字符流。这里还没有数值，只有符号。
 
 \subsection{词元化}
 
 词元化是映射
 \[
-\operatorname{tokenize}:\ \text{字符串}
+\operatorname{tokenize}:\ \text{string}
 \longrightarrow
 (z_1,\ldots,z_L),\qquad z_\ell\in\mathcal{Z},
 \]
 其中 $\mathcal{Z}$ 是词元集合，可取单词或字符。输出是词元列表的列表。
+$L$ 是一条文本被切成的词元个数；$z_\ell$ 是符号，尚未变成整数。
 
 \subsection{词表}
 
@@ -121,7 +133,9 @@ $P(x_1,\ldots,x_T)$。
 \longrightarrow
 \{0,1,\ldots,|\mathcal{V}|-1\}.
 \]
-先统计语料频率 $n(z)$，丢掉 $n(z)<m$ 的低频项，剩余按频次分配下标。
+每个词元被映成一个整数下标，取值于 $0$ 到 $|\mathcal{V}|-1$；$|\mathcal{V}|$ 是词表大小（有多少个不同词元），不是某个词的频率。
+先统计语料频率 $n(z)$，$n(z)$ 是非负整数，表示词元 $z$ 出现了多少次。
+丢掉 $n(z)<m$ 的低频项，$m$ 是频次阈值；剩余按频次分配下标。
 未见或已删词元映到 $\texttt{<unk>}$。可选地加入填充 $\texttt{<pad>}$、
 开始 $\texttt{<bos>}$、结束 $\texttt{<eos>}$。
 
@@ -129,21 +143,23 @@ $P(x_1,\ldots,x_T)$。
 
 把读入、词元化与查表合成
 \[
-\text{文本}
+\text{text}
 \longmapsto
 (\operatorname{corpus},\operatorname{vocab}),
 \]
 其中 $\operatorname{corpus}=(x_1,\ldots,x_T)$ 且 $x_t\in\{0,\ldots,|\mathcal{V}|-1\}$。
+每个 $x_t$ 是词元在词表中的整数编号，不是该词的嵌入向量，也不是概率。
 后续字符级语言模型把整本语料当作一条长序列，而不是按行切成多条。
 
 \subsection{小结}
 
 预处理的终点是整数序列 $(x_1,\ldots,x_T)$ 与词表 $\operatorname{Vocab}$，
-后面所有概率都定义在这套下标上。
+后面所有概率都定义在这套下标上：$x_t$ 是类别编号。
 
 \subsection{练习}
 
 核验词元粒度（字符或词）以及最低频次 $m$ 如何改变 $|\mathcal{V}|$。
+$|\mathcal{V}|$ 变大表示词表更宽，输出层要预测的类别数随之增加。
 
 \section{语言模型和数据集}
 
@@ -151,6 +167,7 @@ $P(x_1,\ldots,x_T)$。
 \[
 P(x_1,x_2,\ldots,x_T).
 \]
+该数是整句同时出现的概率，在 $[0,1]$。
 估计该分布后，就能给任意句子打分，也能逐项生成后续词元。
 
 \subsection{学习语言模型}
@@ -161,6 +178,7 @@ P(x_1,x_2,\ldots,x_T)
 =
 \prod_{t=1}^{T}P(x_t \mid x_1,\ldots,x_{t-1}).
 \]
+每个条件因子是“历史已定时下一个词元为 $x_t$”的概率。
 例如
 \begin{align*}
 &P(\text{deep},\text{learning},\text{is},\text{fun})
@@ -173,12 +191,14 @@ P(\text{is}\mid\text{deep},\text{learning})
 &\qquad\cdot
 P(\text{fun}\mid\text{deep},\text{learning},\text{is}).
 \end{align*}
+四个因子都在 $[0,1]$，乘积是这四个词按该顺序出现的联合概率。
 计数估计是
 \[
 \hat{P}(\text{learning}\mid\text{deep})
 =
 \frac{n(\text{deep, learning})}{n(\text{deep})}.
 \]
+分子是二元组出现次数，分母是前一词出现次数；商是相对频率，作为条件概率的估计，在 $[0,1]$。
 低频组合用拉普拉斯平滑：
 \begin{align*}
 \hat{P}(x)
@@ -193,6 +213,7 @@ P(\text{fun}\mid\text{deep},\text{learning},\text{is}).
 &=
 \frac{n(x,x',x'')+\epsilon_3\hat{P}(x'')}{n(x,x')+\epsilon_3}.
 \end{align*}
+各式分子分母都在计次上加伪计数 $\epsilon$，得到的仍是 $[0,1]$ 上的概率估计，避免零频导致条件概率为 $0$。
 
 \subsection{\texorpdfstring{马尔可夫模型与$n$元语法}{马尔可夫模型与n元语法}}
 
@@ -210,7 +231,7 @@ P(x_1,x_2,x_3,x_4)
 &=
 P(x_1)P(x_2\mid x_1)P(x_3\mid x_1,x_2)P(x_4\mid x_2,x_3).
 \end{align*}
-三式分别是一元、二元、三元语法。
+三式分别是一元、二元、三元语法：每一因子仍是（条件）概率，只是条件里记住的历史长度不同。
 
 \subsection{自然语言统计}
 
@@ -220,14 +241,17 @@ n_i \propto \frac{1}{i^{\alpha}},
 \qquad
 \log n_i = -\alpha\log i + c.
 \]
+$n_i$ 是第 $i$ 高频词的出现次数（非负整数）；$\alpha>0$ 是幂律指数，无量纲；$c$ 是对数坐标下的截距。
 该幂律不仅出现在一元语法，也出现在更高阶 $n$ 元计数上，
 因此长片段的经验频率会迅速变得极稀。
 
 \subsection{读取长序列数据}
 
 语料长度 $T$ 通常远大于一次能送入网络的步数 $n$。
+$T,n$ 都是词元个数。
 把长序列切成长度为 $n$ 的子序列，标签是整体左移一项后的序列，
 即用 $(x_t,\ldots,x_{t+n-1})$ 预测 $(x_{t+1},\ldots,x_{t+n})$。
+每个 $x$ 仍是词表下标。
 
 \subsubsection{随机采样}
 
@@ -237,22 +261,26 @@ n_i \propto \frac{1}{i^{\alpha}},
 \bigl\lfloor(35-1)/5\bigr\rfloor=6
 \]
 个特征--标签对；批量大小为 $2$ 时得到 $3$ 个批量。
+$6$ 和 $3$ 都是条数或批次数（计数），不是词元编号。
 
 \subsubsection{顺序分区}
 
 相邻批量的第 $i$ 条子序列在原文中也相邻。
 隐状态可以跨批量延续；随机采样则每个批量必须重新初始化隐状态。
-两种读法都输出形状为 $(\text{批量大小},n)$ 的 $(\bm{X},\bm{Y})$。
+两种读法都输出形状为 $(\text{batch size},n)$ 的 $(\bm{X},\bm{Y})$：
+第一维是批量中有几条序列，第二维是每条有几个时间步；每个条目是词表下标。
 
 \subsection{小结}
 
 语言模型估计 $P(x_1,\ldots,x_T)$；$n$ 元语法用马尔可夫截断使计数可行，
 长序列则按随机采样或顺序分区切成固定长度窗口。
+窗口长度 $n$ 是时间步个数，窗口里的数是词元编号。
 
 \subsection{练习}
 
 核验四元语法在词表大小 $10^5$ 时要存储的计数规模，
 以及随机偏移是否让窗口起点在文档上接近均匀。
+$10^5$ 是 $|\mathcal{V}|$，计数规模是需要记住的 $n$ 元组个数。
 
 \section{循环神经网络}
 
@@ -262,6 +290,9 @@ P(x_t \mid x_{t-1},\ldots,x_1)\approx P(x_t \mid h_{t-1}),
 \qquad
 h_t=f(x_t,h_{t-1}).
 \]
+$h_{t-1}$ 是到 $t-1$ 为止整段序列的压缩摘要，长度固定，用来代替变长历史。
+$P(x_t\mid h_{t-1})$ 是在该摘要下下一个词元的条件概率。
+$h_t=f(x_t,h_{t-1})$ 把当前词元并入摘要，得到“到当前为止”的新摘要。
 参数不随 $t$ 增加。
 
 \subsection{无隐状态的神经网络}
@@ -272,7 +303,9 @@ h_t=f(x_t,h_{t-1}).
 \\
 \bm{O}&=\bm{H}\bm{W}_{hq}+\bm{b}_q.
 \end{align*}
-不同时间步的 $\bm{H}$ 互不传递，因此无法携带 $t$ 之前的信息。
+$n$ 是批量大小，$d$ 是每条样本的特征维。
+$\bm{H}$ 的每一行是该样本的隐激活；$\bm{O}$ 的每一行是词表上的打分。
+不同时间步的 $\bm{H}$ 互不传递，因此无法携带 $t$ 之前的信息，行向量不是序列摘要。
 
 \subsection{有隐状态的循环神经网络}
 
@@ -287,17 +320,22 @@ h_t=f(x_t,h_{t-1}).
 \bm{H}_t\bm{W}_{hq}+\bm{b}_q.
 \end{align*}
 其中 $\bm{X}_t\in\mathbb{R}^{n\times d}$，$\bm{H}_t\in\mathbb{R}^{n\times h}$，
-$\bm{O}_t\in\mathbb{R}^{n\times q}$。同一套 $(\bm{W}_{xh},\bm{W}_{hh},\bm{W}_{hq})$
-在所有 $t$ 上共享。
+$\bm{O}_t\in\mathbb{R}^{n\times q}$。
+$\bm{H}_t$ 的第 $i$ 行是第 $i$ 条序列到时刻 $t$ 的压缩摘要：它混合了当前输入 $\bm{X}_t$ 与上一摘要 $\bm{H}_{t-1}$。
+$\bm{O}_t$ 的第 $i$ 行是在该摘要下对词表各词元的线性打分，经 softmax 后才是概率。
+同一套 $(\bm{W}_{xh},\bm{W}_{hh},\bm{W}_{hq})$ 在所有 $t$ 上共享。
 
 \subsection{基于循环神经网络的字符级语言模型}
 
 词元取字符。批量大小为 $1$ 时，序列如 ``machine'' 的每个字符先映成向量，
 再按时间送入上式。时刻 $t$ 的标签是下一个字符，输出 $\bm{O}_t$ 经 softmax
-得到 $P(x_{t+1}\mid h_t)$。训练目标仍是
+得到 $P(x_{t+1}\mid h_t)$：向量每个分量在 $[0,1]$ 且和为 $1$，表示下一个字符是该类的概率。
+$h_t$ 此时是“machine”中前 $t$ 个字符的压缩摘要。
+训练目标仍是
 \[
 P(x_1,\ldots,x_T)=\prod_{t=1}^{T}P(x_t \mid h_{t-1}).
 \]
+每个因子用对应时刻的摘要代替完整历史，乘积仍是整句联合概率的模型估计。
 
 \subsection{困惑度（Perplexity）}
 
@@ -305,12 +343,13 @@ P(x_1,\ldots,x_T)=\prod_{t=1}^{T}P(x_t \mid h_{t-1}).
 \[
 \frac{1}{n}\sum_{t=1}^{n}-\log P(x_t \mid x_{t-1},\ldots,x_1)
 \]
+是每个位置上交叉熵的平均，单位是 nat（若 $\log$ 为自然对数）：越大表示模型给真实下一词的概率越低。
 再指数化，得到困惑度
 \[
 \exp\Biggl(-\frac{1}{n}\sum_{t=1}^{n}\log P(x_t \mid x_{t-1},\ldots,x_1)\Biggr).
 \]
 它是模型在每个位置上有效分支数的几何平均：均匀乱猜约为 $|\mathcal{V}|$，
-完美预测为 $1$。
+完美预测为 $1$。该数无量纲，越小越好。
 
 \subsection{小结}
 
@@ -318,12 +357,13 @@ P(x_1,\ldots,x_T)=\prod_{t=1}^{T}P(x_t \mid h_{t-1}).
 \[
 \bm{H}_t=\phi(\bm{X}_t\bm{W}_{xh}+\bm{H}_{t-1}\bm{W}_{hh}+\bm{b}_h)
 \]
-使 $h_t$ 携带到当前为止的历史，并用困惑度衡量 $P(x_t\mid h_{t-1})$ 的质量。
+使 $h_t$ 成为到当前为止的序列压缩摘要，并用困惑度衡量 $P(x_t\mid h_{t-1})$ 的质量。
 
 \subsection{练习}
 
 核验下一字符的输出维必须等于 $|\mathcal{V}|$，
 以及沿很长的 $t$ 反传时乘积 $\prod_j\partial h_j/\partial h_{j-1}$ 的尺度。
+每个 $\partial h_j/\partial h_{j-1}$ 是摘要对上一摘要的局部敏感度；乘积决定早期词对最终损失的影响有多大。
 
 \section{循环神经网络的从零开始实现}
 
@@ -333,8 +373,10 @@ P(x_1,\ldots,x_T)=\prod_{t=1}^{T}P(x_t \mid h_{t-1}).
 \subsection{独热编码}
 
 词表大小为 $N$ 时，下标 $i$ 映到单位向量 $\bm{e}_i\in\{0,1\}^{N}$，
-$(\bm{e}_i)_j=[i=j]$。小批量时间步 $\bm{X}_t$ 的每一行都是某个 $\bm{e}_{x}$，
-因而 $\bm{X}_t\in\mathbb{R}^{n\times N}$，且 $\bm{X}_t\bm{W}_{xh}$ 选出第 $x$ 行。
+$(\bm{e}_i)_j=[i=j]$。
+第 $j$ 个分量是 $1$ 表示“该词元就是类 $j$”，$0$ 表示不是；各分量互斥，和为 $1$。
+小批量时间步 $\bm{X}_t$ 的每一行都是某个 $\bm{e}_{x}$，
+因而 $\bm{X}_t\in\mathbb{R}^{n\times N}$，且 $\bm{X}_t\bm{W}_{xh}$ 选出 $\bm{W}_{xh}$ 的第 $x$ 行，即该类的嵌入式线性特征。
 
 \subsection{初始化模型参数}
 
@@ -344,11 +386,13 @@ $(\bm{e}_i)_j=[i=j]$。小批量时间步 $\bm{X}_t$ 的每一行都是某个 $\
 \bm{W}_{hh}\in\mathbb{R}^{h\times h},\
 \bm{W}_{hq}\in\mathbb{R}^{h\times N}
 \]
-及偏置。输入层与输出层共用同一词表，故两边维度都是 $N$。
+及偏置。这些形状中的 $N,h$ 是轴长度：$N$ 是词表有多大，$h$ 是摘要向量有几维。
+输入层与输出层共用同一词表，故两边维度都是 $N$。
 
 \subsection{循环神经网络模型}
 
-初始隐状态 $\bm{H}_0=\bm{0}\in\mathbb{R}^{n\times h}$。一个时间步是
+初始隐状态 $\bm{H}_0=\bm{0}\in\mathbb{R}^{n\times h}$，表示“还没有任何历史”的空摘要。
+一个时间步是
 \begin{align*}
 \bm{H}_t
 &=
@@ -358,15 +402,19 @@ $(\bm{e}_i)_j=[i=j]$。小批量时间步 $\bm{X}_t$ 的每一行都是某个 $\
 &=
 \bm{H}_t\bm{W}_{hq}+\bm{b}_q.
 \end{align*}
-最外层按 $t=1,\ldots,n_{\text{steps}}$ 循环，把全部 $\bm{O}_t$ 拼成输出。
+$\tanh$ 把摘要各维限制在 $(-1,1)$；$\bm{H}_t$ 仍是到 $t$ 为止的压缩摘要。
+$\bm{O}_t$ 是词表上的 logits。
+最外层按 $t=1,\ldots,n_{\text{steps}}$ 循环，把全部 $\bm{O}_t$ 拼成输出；$n_{\text{steps}}$ 是展开的时间步数。
 
 \subsection{预测}
 
-给定前缀。预热期只更新 $h_t$ 不采样；之后每步取
+给定前缀。预热期只更新 $h_t$ 不采样，目的是先把前缀压进摘要。
+之后每步取
 \[
 \hat{x}_{t+1}=\operatorname*{argmax}_{x}P(x \mid h_t)
 \]
 或按该分布抽样，再把 $\hat{x}_{t+1}$ 作为下一输入。
+$P(x\mid h_t)$ 是在当前摘要下各词元的概率；argmax 得到的是概率最大的那个词元编号，不是概率值本身。
 
 \subsection{梯度裁剪}
 
@@ -374,20 +422,24 @@ $(\bm{e}_i)_j=[i=j]$。小批量时间步 $\bm{X}_t$ 的每一行都是某个 $\
 \[
 \bigl|f(\bm{x})-f(\bm{y})\bigr|\le L\|\bm{x}-\bm{y}\|.
 \]
+$L$ 是利普希茨常数：输入距离增加 $1$，输出最多变 $L$。
 沿梯度走一步后
 \[
 \bigl|f(\bm{x})-f(\bm{x}-\eta\bm{g})\bigr|\le L\eta\|\bm{g}\|.
 \]
+$\|\bm{g}\|$ 是梯度向量的欧氏长度，表示参数敏感度整体有多大；$\eta\|\bm{g}\|$ 是这一步参数移动的尺度。
 阈值 $\theta$ 下的裁剪
 \[
 \bm{g}\leftarrow\min\Bigl(1,\frac{\theta}{\|\bm{g}\|}\Bigr)\bm{g}
 \]
-把更新幅度限制在 $\theta$ 以内，用来抑制爆炸，但不修复消失。
+把 $\|\bm{g}\|$ 限制在 $\theta$ 以内：若原本已经小于 $\theta$ 则不动，否则按比例缩小。
+用来抑制爆炸，但不修复消失。$\theta$ 与 $\|\bm{g}\|$ 同量纲（损失对参数的敏感度的范数）。
 
 \subsection{训练}
 
-一个迭代周期内：随机采样则每批量重置 $h$；顺序分区则延续 $h$ 但截断梯度。
+一个迭代周期内：随机采样则每批量重置 $h$（空摘要）；顺序分区则延续 $h$ 但截断梯度。
 更新前执行上式裁剪，并用困惑度汇总不同长度序列的交叉熵。
+困惑度仍是有效分支数的几何平均。
 
 \subsection{小结}
 
@@ -395,12 +447,14 @@ $(\bm{e}_i)_j=[i=j]$。小批量时间步 $\bm{X}_t$ 的每一行都是某个 $\
 \[
 (\bm{e}_{x_t},h_{t-1})\mapsto(h_t,\bm{O}_t)
 \]
-写成可训练循环核，预热提供可用的 $h$，裁剪保证 $\|\bm{g}\|$ 有上界。
+写成可训练循环核：$h_t$ 是更新后的序列摘要，$\bm{O}_t$ 是下一词打分。
+预热提供可用的 $h$，裁剪保证 $\|\bm{g}\|$ 有上界。
 
 \subsection{练习}
 
 核验独热与嵌入层第一层等价、去掉裁剪后 $\|\bm{g}\|$ 是否发散，
 以及用 $P(x)^\alpha$ 抽样如何改变生成分布。
+$\alpha>1$ 会让概率更集中在高频词，$\alpha<1$ 更平坦；$\alpha$ 无量纲。
 
 \section{循环神经网络的简洁实现}
 
@@ -414,15 +468,18 @@ $(\bm{e}_i)_j=[i=j]$。小批量时间步 $\bm{X}_t$ 的每一行都是某个 $\
 =
 \operatorname{RNN}(\bm{X}_{1:T},\bm{H}_0).
 \]
+$\bm{H}_{1:T}$ 的每个时间切片都是对应时刻的序列摘要，$\bm{H}_T$ 是读完整段后的最终摘要。
 这里的 $\bm{H}_{1:T}$ 还不是词表上的 logits；完整模型是
 \[
 \bm{O}_t=\bm{H}_t\bm{W}_{hq}+\bm{b}_q.
 \]
-多层时，上一层的 $\bm{H}_t^{(\ell-1)}$ 作为下一层输入。
+$\bm{O}_t$ 的每个分量是该词元的线性打分。
+多层时，上一层的 $\bm{H}_t^{(\ell-1)}$ 作为下一层输入，仍是摘要，只是抽象层级更高。
 
 \subsection{训练与预测}
 
-随机初始化时前缀续写接近均匀乱猜。训练目标、裁剪与困惑度与从零实现相同，
+随机初始化时前缀续写接近均匀乱猜，即 $P(x\mid h_t)\approx 1/|\mathcal{V}|$。
+训练目标、裁剪与困惑度与从零实现相同，
 只是 $\operatorname{RNN}$ 的逐步递推由编译后的算子完成。
 
 \subsection{小结}
@@ -431,11 +488,13 @@ $(\bm{e}_i)_j=[i=j]$。小批量时间步 $\bm{X}_t$ 的每一行都是某个 $\
 \[
 \bm{H}_t=\phi(\bm{X}_t\bm{W}_{xh}+\bm{H}_{t-1}\bm{W}_{hh}+\bm{b}_h),
 \]
-只把该递包装成层；词表上的 $\bm{O}_t$ 仍由单独的线性映射给出。
+只把该递包装成层；$h_t$ 的含义仍是到 $t$ 为止的压缩摘要。
+词表上的 $\bm{O}_t$ 仍由单独的线性映射给出。
 
 \subsection{练习}
 
 核验增加隐藏层数是否仍收敛，以及用同一循环核拟合序列节中的自回归窗口 $f$。
+更深只改变摘要的层数，不改变“$h_t$ 概括迄今历史”这一含义。
 
 \section{通过时间反向传播}
 
@@ -453,6 +512,7 @@ o_t&=g(h_t,w_o),
 \[
 L=\frac{1}{T}\sum_{t=1}^{T}l(y_t,o_t).
 \]
+$h_t$ 是时刻 $t$ 的序列摘要；$o_t$ 是由该摘要算出的输出打分；$l$ 是该步损失；$L$ 是各步平均，标量。
 对 $w_h$ 求偏导：
 \begin{align*}
 \frac{\partial L}{\partial w_h}
@@ -462,6 +522,7 @@ L=\frac{1}{T}\sum_{t=1}^{T}l(y_t,o_t).
 \frac{\partial g(h_t,w_o)}{\partial h_t}
 \frac{\partial h_t}{\partial w_h}.
 \end{align*}
+左边是共享循环参数增大时平均损失大约增加多少。
 隐状态本身对参数的依赖是递推
 \[
 \frac{\partial h_t}{\partial w_h}
@@ -471,6 +532,7 @@ L=\frac{1}{T}\sum_{t=1}^{T}l(y_t,o_t).
 \frac{\partial f(x_t,h_{t-1},w_h)}{\partial h_{t-1}}
 \frac{\partial h_{t-1}}{\partial w_h}.
 \]
+第一项是本步直接敏感度；第二项是经上一摘要间接传来的敏感度。
 令
 \begin{align*}
 a_t&=\frac{\partial h_t}{\partial w_h},
@@ -483,6 +545,7 @@ c_t&=\frac{\partial f(x_t,h_{t-1},w_h)}{\partial h_{t-1}},
 \[
 a_t=b_t+\sum_{i=1}^{t-1}\Biggl(\prod_{j=i+1}^{t}c_j\Biggr)b_i.
 \]
+$c_j$ 是摘要对上一摘要的雅可比；乘积 $\prod c_j$ 是从步 $i$ 传到步 $t$ 的总放大倍数，绝对值大于 $1$ 则爆炸、小于 $1$ 则消失。
 代回原变量，
 \begin{align*}
 \frac{\partial h_t}{\partial w_h}
@@ -507,6 +570,7 @@ a_t=b_t+\sum_{i=1}^{t-1}\Biggl(\prod_{j=i+1}^{t}c_j\Biggr)b_i.
 \subsubsection{截断时间步}
 
 在 $\tau$ 步后切断求和，即把 $\partial h_{t-\tau}/\partial w_h$ 视为常数。
+$\tau$ 是反传的最大时间跨度（步数）。
 这给出真实梯度的近似，使模型更关注短程依赖，并对应实现里对隐状态的分离。
 
 \subsubsection{随机截断}
@@ -521,7 +585,8 @@ z_t
 \frac{\partial f(x_t,h_{t-1},w_h)}{\partial h_{t-1}}
 \frac{\partial h_{t-1}}{\partial w_h}.
 \]
-$\mathbb{E}[z_t]$ 可与完全梯度一致，但方差更大。
+$\xi_t\in\{0,1\}$：$1$ 表示本步把敏感度传给上一摘要，$0$ 表示切断。
+$z_t$ 是对 $\partial h_t/\partial w_h$ 的随机估计；$\mathbb{E}[z_t]$ 可与完全梯度一致，但方差更大。
 
 \subsubsection{比较策略}
 
@@ -539,6 +604,7 @@ $\mathbb{E}[z_t]$ 可与完全梯度一致，但方差更大。
 \[
 L=\frac{1}{T}\sum_{t=1}^{T}l(\bm{o}_t,y_t).
 \]
+$\bm{h}_t$ 仍是线性摘要；$\bm{o}_t$ 是打分；$L$ 是平均逐步损失。
 输出梯度
 \[
 \frac{\partial L}{\partial\bm{o}_t}
@@ -546,6 +612,7 @@ L=\frac{1}{T}\sum_{t=1}^{T}l(\bm{o}_t,y_t).
 \frac{\partial l(\bm{o}_t,y_t)}{T\cdot\partial\bm{o}_t}
 \in\mathbb{R}^{q}.
 \]
+每个分量是该 logit 增大时平均损失大约增加多少。
 输出权重
 \[
 \frac{\partial L}{\partial\bm{W}_{qh}}
@@ -553,12 +620,14 @@ L=\frac{1}{T}\sum_{t=1}^{T}l(\bm{o}_t,y_t).
 \sum_{t=1}^{T}
 \frac{\partial L}{\partial\bm{o}_t}\bm{h}_t^{\top}.
 \]
+每个条目是对应输出权重增大时 $L$ 的敏感度，由各时刻外积累加。
 终端隐状态
 \[
 \frac{\partial L}{\partial\bm{h}_T}
 =
 \bm{W}_{qh}^{\top}\frac{\partial L}{\partial\bm{o}_T}.
 \]
+这是最终摘要各维增大时损失大约增加多少。
 对 $t<T$ 反向递推
 \begin{align*}
 \frac{\partial L}{\partial\bm{h}_t}
@@ -567,6 +636,7 @@ L=\frac{1}{T}\sum_{t=1}^{T}l(\bm{o}_t,y_t).
 +
 \bm{W}_{qh}^{\top}\frac{\partial L}{\partial\bm{o}_t}.
 \end{align*}
+第一项来自未来摘要，第二项来自本步输出；和是“本步摘要”对总损失的敏感度。
 展开后
 \[
 \frac{\partial L}{\partial\bm{h}_t}
@@ -576,6 +646,7 @@ L=\frac{1}{T}\sum_{t=1}^{T}l(\bm{o}_t,y_t).
 \bm{W}_{qh}^{\top}
 \frac{\partial L}{\partial\bm{o}_{T+t-i}}.
 \]
+$\bigl(\bm{W}_{hh}^{\top}\bigr)^{T-i}$ 把未来敏感度乘上 $T-i$ 次循环核，特征值模长决定放大或衰减。
 于是
 \begin{align*}
 \frac{\partial L}{\partial\bm{W}_{hx}}
@@ -588,7 +659,8 @@ L=\frac{1}{T}\sum_{t=1}^{T}l(\bm{o}_t,y_t).
 \sum_{t=1}^{T}
 \frac{\partial L}{\partial\bm{h}_t}\bm{h}_{t-1}^{\top}.
 \end{align*}
-$\bm{W}_{hh}^{\top}$ 的高次幂使特征值 $|\lambda|>1$ 时爆炸、$|\lambda|<1$ 时消失。
+这两个矩阵的每个条目仍是对应权重增大时 $L$ 大约增加多少。
+$\bm{W}_{hh}^{\top}$ 的高次幂使特征值 $|\lambda|>1$ 时爆炸、$|\lambda|<1$ 时消失；$|\lambda|$ 无量纲。
 
 \subsection{小结}
 
@@ -598,9 +670,11 @@ BPTT 的核心是
 =
 b_t+\sum_{i<t}\Biggl(\prod_{j=i+1}^{t}c_j\Biggr)b_i,
 \]
+左边是摘要对共享参数的敏感度；乘积是沿时间链的放大倍数。
 截断把乘积长度限制在 $\tau$；$\bm{W}_{hh}$ 的谱半径决定梯度尺度。
 
 \subsection{练习}
 
 核验对称矩阵 $\bm{M}$ 满足 $\bm{M}^{k}$ 的特征值为 $\lambda_i^{k}$，
 以及 $\bm{W}_{hh}^{T-t}$ 与主导特征向量对齐如何对应爆炸方向。
+$\lambda_i^{k}$ 是把第 $i$ 个特征值连乘 $k$ 次后的放大系数。
