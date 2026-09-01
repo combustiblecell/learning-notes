@@ -8,7 +8,14 @@
 \usepackage{fancyhdr}
 \usepackage{enumitem}
 \usepackage{listings}
-\usepackage[hidelinks]{hyperref}
+\usepackage[
+  unicode,
+  colorlinks=true,
+  linkcolor=Primary,
+  urlcolor=Accent,
+  bookmarksopen=true,
+  bookmarksnumbered=true
+]{hyperref}
 
 \definecolor{Primary}{HTML}{355C7D}
 \definecolor{Accent}{HTML}{6C8EAD}
@@ -21,11 +28,13 @@
 \setlist[itemize]{leftmargin=2em,itemsep=0.2em,topsep=0.3em}
 \setlist[enumerate]{leftmargin=2.2em,itemsep=0.2em,topsep=0.3em}
 \renewcommand{\arraystretch}{1.25}
+\setcounter{secnumdepth}{3}
+\setcounter{tocdepth}{3}
 
 \pagestyle{fancy}
 \fancyhf{}
 \fancyhead[L]{《动手学深度学习》PyTorch版}
-\fancyhead[R]{提炼学习笔记（试作）}
+\fancyhead[R]{\hyperlink{contents}{返回目录}}
 \fancyfoot[C]{\thepage}
 
 \hypersetup{
@@ -53,11 +62,11 @@
   #1
 }
 
-\newtcolorbox{notebox}[1][]{
+\newtcolorbox{principlebox}[1][]{
   colback=SoftGold,
   colframe=Goldenrod,
   fonttitle=\bfseries,
-  title={易混淆点},
+  title={数学原理},
   #1
 }
 
@@ -76,10 +85,10 @@
 \chapter*{试作说明}
 \addcontentsline{toc}{chapter}{试作说明}
 本 PDF 用于检验笔记的内容密度、排版和编译流程，仅提炼原书第二章“预备知识”。
-章内目录严格沿用 PyTorch 版原始顺序：
-数据操作、数据预处理、线性代数、微积分、自动微分、概率、查阅文档。
-正文只保留理解后续深度学习所需的概念、公式、PyTorch 操作和易混淆点。
+章内全部标题的名称、层级与顺序严格沿用 PyTorch 版原始目录。
+正文保留定义、成立条件、关键数学推导与结论，仅用极少量代码验证原理。
 
+\hypertarget{contents}{}
 \tableofcontents
 
 \clearpage

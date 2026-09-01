@@ -1,190 +1,337 @@
 \chapter{预备知识}
 
 \begin{summarybox}
-本章建立后续深度学习所需的最小工具链：
-用张量表示和操作数据，用 pandas 清洗表格，
-用线性代数描述模型，用微积分与自动微分训练参数，
-用概率描述不确定性，并能主动查阅 PyTorch API。
+本章给出后续深度学习所需的共同语言：张量负责承载数据，线性代数负责表达模型，
+微积分和自动微分负责训练参数，概率负责描述不确定性。正文严格保留原书标题层级，
+只提取定义、成立条件、关键推导和结论。
 \end{summarybox}
 
 \section{数据操作}
 
-深度学习中的数据主要表示为张量（tensor）。标量是零轴张量，向量是一轴张量，
-矩阵是二轴张量，更高维对象仍统一称为张量。PyTorch 的包名是 \code{torch}。
+张量是深度学习中统一的数据容器。零轴、一轴、二轴张量分别对应标量、向量和矩阵；
+更高阶张量可表示批量图像、视频或其他多轴数据。
 
-\subsubsection*{形状与创建}
+\subsection{入门}
 
-\noindent\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{4.2cm}X}
-\toprule
-操作 & 含义 \\
-\midrule
-\code{torch.arange(n)} & 创建从 $0$ 到 $n-1$ 的一维张量 \\
-\code{x.shape} & 返回每个轴的长度 \\
-\code{x.numel()} & 返回元素总数，即各轴长度之积 \\
-\code{x.reshape(3, 4)} & 改变观察数据的形状，不改变元素及其数量 \\
-\code{zeros / ones / randn} & 创建全零、全一或标准正态随机张量 \\
-\bottomrule
-\end{tabularx}
-
-\code{reshape} 中可用 $-1$ 让框架自动推断一个轴的长度，但新旧形状的元素总数必须相同。
-
-\subsubsection*{运算、广播和索引}
-
-同形状张量的 \code{+ - * / **} 默认逐元素运算；其中 \code{*} 不是矩阵乘法。
-形状不同时，PyTorch 可沿长度为 $1$ 的轴广播。例如 $3\times1$ 与 $1\times2$
-相加后得到 $3\times2$。
+张量的形状为各轴长度组成的元组，元素总数为各轴长度之积：
+\[
+\operatorname{numel}(\bm{X})=\prod_{i=1}^{n}d_i,
+\qquad
+\operatorname{shape}(\bm{X})=(d_1,\ldots,d_n).
+\]
+\code{reshape} 只改变张量的形状解释，不改变元素次序和总数。若其中一个轴写作 $-1$，
+该轴长度由元素总数和其余轴自动确定。
 
 \begin{lstlisting}
-import torch
 x = torch.arange(12).reshape(3, 4)
-a = torch.arange(3).reshape(3, 1)
-b = torch.arange(2).reshape(1, 2)
-c = a + b
-
-last_row = x[-1]
-block = x[1:3]       # includes 1, excludes 3
-x[0:2, :] = 12
+x.shape, x.numel()
 \end{lstlisting}
 
-\subsubsection*{内存与互操作}
+\subsection{运算符}
 
-\code{Y = Y + X} 会创建新对象；\code{Y += X} 或 \code{Y[:]=Y+X} 尽量复用原内存。
-张量与 NumPy 数组可共享底层内存，因此一侧的原地修改可能影响另一侧。
-单元素张量可用 \code{item()} 转为 Python 标量。
+同形状张量上的加、减、乘、除和幂默认逐元素执行。若
+$\bm{u},\bm{v}\in\mathbb{R}^{d}$，逐元素二元运算写为
+\[
+\bm{c}_i=f(u_i,v_i),\qquad i=1,\ldots,d.
+\]
+张量连接 \code{cat} 沿指定轴拼接数据；比较运算返回布尔张量；\code{sum}
+把指定范围内的元素相加。
 
-\begin{notebox}
-\begin{itemize}
-  \item \code{shape} 描述各轴长度，\code{numel()} 描述元素总数。
-  \item 广播是在运算时扩展形状；\code{reshape} 是重新解释同一批元素的形状。
-  \item \code{*} 是逐元素乘法，矩阵乘法使用 \code{torch.mm} 或 \code{@}。
-\end{itemize}
-\end{notebox}
+\subsection{广播机制}
+
+广播使形状不同但相容的张量能够逐元素运算。其规则可概括为：从末轴向前比较，
+对应轴长度必须相等，或其中一个为 $1$。长度为 $1$ 的轴在逻辑上复制到目标长度。
+例如
+\[
+\mathbb{R}^{3\times1}+\mathbb{R}^{1\times2}
+\longrightarrow \mathbb{R}^{3\times2}.
+\]
+
+\subsection{索引和切片}
+
+索引从 $0$ 开始，$-1$ 表示最后一个位置；切片 $[a:b]$ 包含 $a$ 而不包含 $b$。
+多轴张量在各轴分别给出索引或切片，冒号表示保留该轴全部元素。
+
+\subsection{节省内存}
+
+赋值 \code{Y = Y + X} 通常先创建新结果再改变变量引用；切片写回或原地运算尽量复用内存：
+\[
+\operatorname{id}(\bm{Y})\ \text{在}\ \bm{Y}[:]=\bm{Y}+\bm{X}\ \text{前后保持不变}.
+\]
+参数规模很大或同一计算反复执行时，避免无必要分配可减少内存压力。
+
+\subsection{转换为其他Python对象}
+
+PyTorch 张量与 NumPy 数组可共享底层内存，因此原地修改可能同时反映在两侧。
+单元素张量可用 \code{item()} 转为 Python 标量；NumPy 数组可再转换回张量。
+
+\subsection{小结}
+
+数据操作的核心是：用形状描述张量结构，用逐元素运算和广播组合数据，
+用索引定位数据，并在必要时通过原地操作控制内存分配。
+
+\subsection{练习}
+
+原书练习集中检验三个能力：由元素数推断合法形状、说明广播后的结果形状、
+以及判断张量与 NumPy 对象是否共享内存。
 
 \section{数据预处理}
 
-真实数据通常先以 CSV 等表格形式出现。基本流程是：
+原始数据往往含有缺失项和非数值字段，不能直接送入模型。预处理的目标是把表格转换为
+形状明确、数值类型一致的张量。
+
+\subsection{读取数据集}
+
+CSV 表中通常一行对应一个样本，一列对应一个属性。读取后先划分输入属性与预测目标，
+再分别处理。缺失值在 pandas 中通常表示为 \code{NaN}。
+
+\subsection{处理缺失值}
+
+数值属性可用该列均值替代缺失值。若第 $j$ 列观测集合为 $\mathcal{I}_j$，均值为
 \[
-\text{原始数据}\longrightarrow\text{pandas 清洗}\longrightarrow\text{数值矩阵}
-\longrightarrow\text{PyTorch 张量}.
+\bar{x}_j=\frac{1}{|\mathcal{I}_j|}\sum_{i\in\mathcal{I}_j}x_{ij},
+\]
+则缺失位置可暂以 $\bar{x}_j$ 填充。类别属性不能取算术均值，通常改为独热表示，
+并可把缺失本身编码为一个类别。
+
+\subsection{转换为张量格式}
+
+所有字段数值化且数据类型统一后，表格才可转换为张量：
+\[
+\text{DataFrame}\longrightarrow\text{NumPy array}
+\longrightarrow\text{PyTorch Tensor}.
 \]
 
-\begin{enumerate}
-  \item 用 \code{pd.read\_csv} 读取数据，行表示样本，列表示属性。
-  \item 将输入列与目标列分开。
-  \item 数值列的缺失值可用该列均值填充。
-  \item 类别列可做独热编码，并将缺失本身视为一个类别。
-  \item 所有字段数值化后，再转换为张量。
-\end{enumerate}
+\subsection{小结}
 
-\begin{lstlisting}
-import pandas as pd
-import torch
+预处理不是改变学习目标，而是把不完整、异质的原始字段变成模型能够计算的数值表示。
 
-data = pd.read_csv(data_file)
-inputs, outputs = data.iloc[:, 0:2], data.iloc[:, 2]
-inputs = inputs.fillna(inputs.mean(numeric_only=True))
-inputs = pd.get_dummies(inputs, dummy_na=True)
+\subsection{练习}
 
-X = torch.tensor(inputs.to_numpy(dtype=float))
-y = torch.tensor(outputs.to_numpy(dtype=float))
-\end{lstlisting}
-
-\begin{notebox}
-数值缺失和类别缺失的含义不同：前者可用统计量插补，后者通常需要单独编码。
-转换为张量前应确认所有列均已数值化且数据类型一致。
-\end{notebox}
+原书练习要求统计缺失最多的列并尝试删除它，用于理解“填充”与“删除”是两类不同策略。
 
 \section{线性代数}
 
-\subsubsection*{对象与形状}
+\subsection{标量}
 
-\begin{itemize}
-  \item 标量 $x\in\mathbb{R}$：单个数。
-  \item 向量 $\bm{x}\in\mathbb{R}^{n}$：$n$ 个标量组成的一列。
-  \item 矩阵 $\bm{A}\in\mathbb{R}^{m\times n}$：$m$ 行、$n$ 列。
-  \item 张量：向量、矩阵及更高阶数组的统一称呼。
-\end{itemize}
+标量是单个实数，记为 $x\in\mathbb{R}$。标量之间可进行通常的四则运算。
 
-矩阵转置交换行列，记作 $\bm{A}^{\mathsf T}$；若
-$\bm{A}=\bm{A}^{\mathsf T}$，则 $\bm{A}$ 为对称矩阵。
+\subsection{向量}
 
-\subsubsection*{逐元素运算与降维}
-
-Hadamard 积是逐元素乘法：
+向量是标量组成的有序列表，本书按列向量书写：
 \[
-\bm{A}\odot\bm{B}=[a_{ij}b_{ij}]_{m\times n}.
+\bm{x}=
+\begin{bmatrix}
+x_1\\x_2\\\vdots\\x_n
+\end{bmatrix}
+\in\mathbb{R}^{n}.
 \]
-求和或平均会沿指定轴降维；\code{keepdim=True} 可保留长度为 $1$ 的轴，
-便于后续广播。累积和 \code{cumsum} 不减少轴数。
 
-\subsubsection*{点积与矩阵乘法}
+\subsubsection{长度、维度和形状}
 
-\begin{align*}
+$\bm{x}\in\mathbb{R}^{n}$ 表示向量含 $n$ 个分量。一维张量的形状为 $(n,)$。
+这里向量的“维度”指分量数；张量语境中的“维度”还可能指轴数。
+
+\subsection{矩阵}
+
+矩阵 $\bm{A}\in\mathbb{R}^{m\times n}$ 含 $m$ 行、$n$ 列：
+\[
+\bm{A}=
+\begin{bmatrix}
+a_{11}&\cdots&a_{1n}\\
+\vdots&\ddots&\vdots\\
+a_{m1}&\cdots&a_{mn}
+\end{bmatrix}.
+\]
+转置交换行列，满足 $(\bm{A}^{\mathsf T})_{ij}=a_{ji}$。
+若 $\bm{A}=\bm{A}^{\mathsf T}$，则 $\bm{A}$ 为对称矩阵。
+
+\subsection{张量}
+
+向量和矩阵分别是一阶、二阶张量。图像常表示为高度、宽度和通道三个轴；
+增加批量或时间轴后即可形成更高阶张量。
+
+\subsection{张量算法的基本性质}
+
+同形状张量逐元素运算后形状不变。Hadamard 积定义为
+\[
+\bm{A}\odot\bm{B}
+=
+[a_{ij}b_{ij}]_{m\times n},
+\]
+它不同于矩阵乘法。张量与标量逐元素运算时，标量广播到每个位置。
+
+\subsection{降维}
+
+求和把若干轴聚合掉。对 $\bm{A}\in\mathbb{R}^{m\times n}$，
+\[
+\sum_{i=1}^{m}\sum_{j=1}^{n}a_{ij}
+\]
+得到标量；沿轴 $0$ 求和得到长度为 $n$ 的向量，沿轴 $1$ 求和得到长度为 $m$ 的向量。
+平均值由总和除以参与计算的元素数得到。
+
+\subsubsection{非降维求和}
+
+设置 \code{keepdim=True} 时，被聚合轴保留为长度 $1$，从而可借助广播做归一化。
+例如每行除以该行和：
+\[
+\widetilde{a}_{ij}
+=
+\frac{a_{ij}}{\sum_{k=1}^{n}a_{ik}}.
+\]
+累积和则保留原轴长度，输出当前位置之前的部分和。
+
+\subsection{点积（Dot Product）}
+
+两个等长向量的点积为
+\[
 \bm{x}^{\mathsf T}\bm{y}
-  &=\sum_{i=1}^{d}x_i y_i,\\
-(\bm{A}\bm{x})_i
-  &=\bm{a}_i^{\mathsf T}\bm{x},\\
-c_{ij}
-  &=\bm{a}_i^{\mathsf T}\bm{b}_j,
-  \qquad \bm{C}=\bm{A}\bm{B}.
-\end{align*}
+=
+\sum_{i=1}^{d}x_i y_i.
+\]
+它可解释为加权求和；当两个向量均为单位向量时，点积等于夹角余弦。
 
-若 $\bm{A}\in\mathbb{R}^{n\times k}$、
-$\bm{B}\in\mathbb{R}^{k\times m}$，则
-$\bm{A}\bm{B}\in\mathbb{R}^{n\times m}$。矩阵乘法要求中间维度 $k$ 相等。
+\subsection{矩阵-向量积}
 
-\subsubsection*{范数}
+令 $\bm{A}\in\mathbb{R}^{m\times n}$、$\bm{x}\in\mathbb{R}^{n}$，
+则
+\[
+\bm{A}\bm{x}
+=
+\begin{bmatrix}
+\bm{a}_1^{\mathsf T}\bm{x}\\
+\vdots\\
+\bm{a}_m^{\mathsf T}\bm{x}
+\end{bmatrix}
+\in\mathbb{R}^{m}.
+\]
+因此矩阵可视为从 $\mathbb{R}^{n}$ 到 $\mathbb{R}^{m}$ 的线性变换。
 
-\begin{align*}
-\lVert\bm{x}\rVert_1
-  &=\sum_i |x_i|,\\
-\lVert\bm{x}\rVert_2
-  &=\sqrt{\sum_i x_i^2},\\
-\lVert\bm{X}\rVert_F
-  &=\sqrt{\sum_i\sum_j x_{ij}^2}.
-\end{align*}
+\subsection{矩阵-矩阵乘法}
 
-范数把向量或矩阵映射为表示“大小”的标量。训练目标常用范数描述预测与真值的距离。
+若 $\bm{A}\in\mathbb{R}^{n\times k}$、$\bm{B}\in\mathbb{R}^{k\times m}$，
+则 $\bm{C}=\bm{A}\bm{B}\in\mathbb{R}^{n\times m}$，其中
+\[
+c_{ij}=\bm{a}_i^{\mathsf T}\bm{b}_j
+=
+\sum_{\ell=1}^{k}a_{i\ell}b_{\ell j}.
+\]
+中间维度 $k$ 必须相等；该运算可看作多个矩阵--向量积并列执行。
 
-\begin{notebox}
-\begin{itemize}
-  \item 向量的“维度”常指分量个数；张量的“维度”也可能指轴数，应结合语境判断。
-  \item 表格中通常一行是一个样本，而数学向量默认写成列向量。
-  \item \code{A * B} 是 Hadamard 积；\code{A @ B} 才是矩阵乘法。
-\end{itemize}
-\end{notebox}
+\subsection{范数}
+
+范数把向量映射为非负标量，并满足绝对齐次性、三角不等式和正定性。
+$L_p$ 范数定义为
+\[
+\|\bm{x}\|_p
+=
+\left(\sum_{i=1}^{n}|x_i|^p\right)^{1/p}.
+\]
+常用形式为
+\[
+\|\bm{x}\|_1=\sum_i|x_i|,
+\qquad
+\|\bm{x}\|_2=\sqrt{\sum_i x_i^2}.
+\]
+矩阵的 Frobenius 范数为
+\[
+\|\bm{X}\|_F
+=
+\sqrt{\sum_{i=1}^{m}\sum_{j=1}^{n}x_{ij}^{2}}.
+\]
+
+\subsubsection{范数和目标}
+
+训练常把“预测接近真值”写成距离最小化。例如平方误差本质上使用
+$L_2$ 范数平方：
+\[
+\min_{\bm{\theta}}
+\left\|
+\bm{y}-f_{\bm{\theta}}(\bm{X})
+\right\|_2^2.
+\]
+因此范数把几何上的距离概念转化为可优化目标。
+
+\subsection{关于线性代数的更多信息}
+
+本节只保留阅读后续章节所需内容。矩阵分解、低秩结构和张量分解属于进一步学习范围。
+
+\subsection{小结}
+
+线性代数用张量描述数据和参数，用点积及矩阵乘法描述层间映射，
+用范数把误差大小转成标量目标。
+
+\subsection{练习}
+
+原书练习要求验证转置、求和、矩阵乘法和范数性质，重点是同时检查公式与输出形状。
 
 \section{微积分}
 
-训练模型通常意味着寻找使损失函数最小的参数。优化衡量对训练数据的拟合过程；
-泛化衡量模型在未见数据上的表现，二者不能等同。
+优化研究怎样调整参数以降低训练目标；泛化研究所得模型能否在未见数据上保持效果。
+深度学习训练主要依赖微分而非积分。
 
-\subsubsection*{导数、偏导和梯度}
+\subsection{导数和微分}
 
-单变量函数的导数为
+函数 $f$ 在 $x$ 处的导数定义为
 \[
-f'(x)=\lim_{h\to0}\frac{f(x+h)-f(x)}{h}.
+f'(x)
+=
+\lim_{h\to0}\frac{f(x+h)-f(x)}{h},
 \]
-多元标量函数 $f:\mathbb{R}^{n}\to\mathbb{R}$ 对每个输入求偏导，
-组成梯度向量：
+前提是该极限存在。导数同时表示瞬时变化率和曲线切线斜率。
+
+对原书示例 $f(x)=3x^2-4x$，
+\[
+f'(x)=6x-4,\qquad f'(1)=2.
+\]
+这说明在 $x=1$ 附近，输入增加一个很小的 $\Delta x$ 时，
+输出的一阶变化约为 $2\Delta x$。
+
+常用求导法则为
+\begin{align*}
+(Cf)'&=Cf',\\
+(f+g)'&=f'+g',\\
+(fg)'&=f'g+fg',\\
+\left(\frac{f}{g}\right)'
+&=\frac{f'g-fg'}{g^2}.
+\end{align*}
+
+\subsection{偏导数}
+
+对多元函数 $y=f(x_1,\ldots,x_n)$，关于 $x_i$ 的偏导把其余变量视为常数：
+\[
+\frac{\partial y}{\partial x_i}
+=
+\lim_{h\to0}
+\frac{
+f(x_1,\ldots,x_i+h,\ldots,x_n)
+-f(x_1,\ldots,x_i,\ldots,x_n)
+}{h}.
+\]
+
+\subsection{梯度}
+
+若 $f:\mathbb{R}^{n}\to\mathbb{R}$，梯度是全部偏导组成的列向量：
 \[
 \nabla_{\bm{x}}f(\bm{x})
 =
 \begin{bmatrix}
-\frac{\partial f}{\partial x_1}&
-\cdots&
+\frac{\partial f}{\partial x_1}&\cdots&
 \frac{\partial f}{\partial x_n}
 \end{bmatrix}^{\mathsf T}.
 \]
+原书给出的常用结果包括
+\begin{align*}
+\nabla_{\bm{x}}\,\bm{A}\bm{x}&=\bm{A}^{\mathsf T},\\
+\nabla_{\bm{x}}\,\bm{x}^{\mathsf T}\bm{A}
+&=\bm{A},\\
+\nabla_{\bm{x}}\,\bm{x}^{\mathsf T}\bm{A}\bm{x}
+&=(\bm{A}+\bm{A}^{\mathsf T})\bm{x},\\
+\nabla_{\bm{x}}\|\bm{x}\|_2^2&=2\bm{x},\\
+\nabla_{\bm{X}}\|\bm{X}\|_F^2&=2\bm{X}.
+\end{align*}
 
-两个后续常用结果是
-\[
-\nabla_{\bm{x}}\lVert\bm{x}\rVert_2^2=2\bm{x},
-\qquad
-\nabla_{\bm{X}}\lVert\bm{X}\rVert_F^2=2\bm{X}.
-\]
-
-\subsubsection*{链式法则}
+\subsection{链式法则}
 
 若 $y=f(u)$ 且 $u=g(x)$，则
 \[
@@ -193,7 +340,7 @@ f'(x)=\lim_{h\to0}\frac{f(x+h)-f(x)}{h}.
 \frac{\mathrm{d}y}{\mathrm{d}u}
 \frac{\mathrm{d}u}{\mathrm{d}x}.
 \]
-若多个中间变量共同影响输出，各计算路径的贡献需要相加：
+若 $y$ 依赖 $u_1,\ldots,u_m$，而每个 $u_j$ 又依赖 $x_i$，则所有路径贡献相加：
 \[
 \frac{\partial y}{\partial x_i}
 =
@@ -201,127 +348,285 @@ f'(x)=\lim_{h\to0}\frac{f(x+h)-f(x)}{h}.
 \frac{\partial y}{\partial u_j}
 \frac{\partial u_j}{\partial x_i}.
 \]
-深层网络本质上是多层复合函数，反向传播正是链式法则的系统化应用。
+神经网络是复合函数，反向传播就是按计算图反向重复应用这条法则。
+
+\subsection{小结}
+
+导数描述单变量局部变化，偏导描述多变量函数沿单一坐标方向的变化，
+梯度汇总所有偏导，链式法则把复合函数各层导数连接起来。
+
+\subsection{练习}
+
+原书练习要求绘制函数及其切线，并对给定函数求导，用于验证解析导数的几何含义。
 
 \section{自动微分}
 
-PyTorch 在前向计算时记录计算图，在反向阶段沿图应用链式法则，
-把梯度写入叶子张量的 \code{grad} 属性。
+自动微分在前向计算时记录操作组成的计算图，在反向阶段逐节点应用链式法则。
+它计算的是实际程序所表示函数的数值导数，而不是对表达式做符号化简。
 
+\subsection{一个简单的例子}
+
+令
+\[
+y=2\bm{x}^{\mathsf T}\bm{x}
+=2\sum_i x_i^2.
+\]
+逐分量求导得到
+\[
+\frac{\partial y}{\partial x_i}=4x_i,
+\qquad
+\nabla_{\bm{x}}y=4\bm{x}.
+\]
+最小验证代码为：
 \begin{lstlisting}
-x = torch.arange(4.0)
-x.requires_grad_(True)
+x = torch.arange(4.0, requires_grad=True)
 y = 2 * torch.dot(x, x)
 y.backward()
-assert torch.allclose(x.grad, 4 * x)
+x.grad
 \end{lstlisting}
+PyTorch 默认累积梯度，因此再次反向传播前通常先清零已有梯度。
 
-标准流程是：
+\subsection{非标量变量的反向传播}
+
+当 $\bm{y}\in\mathbb{R}^{m}$、$\bm{x}\in\mathbb{R}^{n}$ 时，
+$\partial\bm{y}/\partial\bm{x}$ 自然是雅可比矩阵。
+训练通常不显式构造整个雅可比，而计算向量--雅可比积。
+若 $\bm{y}=\bm{x}\odot\bm{x}$，对输出求和后有
 \[
-\text{启用梯度追踪}\rightarrow\text{前向计算}
-\rightarrow\text{backward}\rightarrow\text{读取梯度}.
+\nabla_{\bm{x}}\sum_i y_i
+=
+\nabla_{\bm{x}}\sum_i x_i^2
+=2\bm{x}.
+\]
+因此 \code{y.sum().backward()} 等价于用全 $1$ 向量聚合各输出分量的梯度。
+
+\subsection{分离计算}
+
+设 $\bm{y}=\bm{x}\odot\bm{x}$，令 $\bm{u}$ 取与 $\bm{y}$ 相同的数值，
+但通过 \code{detach()} 与产生 $\bm{y}$ 的计算图断开。若
+\[
+z=\bm{u}^{\mathsf T}\bm{x},
+\]
+反向传播时 $\bm{u}$ 被视为常量，因此
+\[
+\nabla_{\bm{x}}z=\bm{u},
+\]
+而不会沿 $\bm{u}=\bm{x}\odot\bm{x}$ 的路径继续求导。
+
+\subsection{Python控制流的梯度计算}
+
+PyTorch 使用动态计算图。循环次数和条件分支可以依赖输入；
+反向传播只沿本次前向实际执行的可微路径进行。
+若某次执行路径上函数化为 $f(a)=ka$，则
+\[
+\frac{\mathrm{d}f}{\mathrm{d}a}=k=\frac{f(a)}{a},
+\qquad a\ne0.
 \]
 
-\subsubsection*{四个关键规则}
+\subsection{小结}
 
-\begin{enumerate}
-  \item \textbf{梯度会累积：}再次反向传播前通常调用 \code{x.grad.zero\_()}。
-  \item \textbf{非标量需先聚合：}例如 \code{y.sum().backward()}；
-        这等价于对各输出分量的梯度求和。
-  \item \textbf{分离计算：}\code{detach()} 保留数值但切断该路径的梯度传播。
-  \item \textbf{控制流可求导：}PyTorch 对实际执行的 \code{if}/\code{while}
-        路径中的可微运算求导，不对离散分支选择本身求导。
-\end{enumerate}
+自动微分的最小流程为：给变量启用梯度追踪，执行前向计算，
+把目标标量反向传播，最后读取梯度。其数学基础是计算图上的链式法则。
 
-\begin{notebox}
-\code{detach()} 不改变张量数值，只改变梯度流向。
-默认情况下，反向传播后计算图会释放；重复使用同一张图需明确保留，
-但普通训练循环通常每轮重新构建计算图。
-\end{notebox}
+\subsection{练习}
+
+原书练习围绕二阶导数开销、重复反向传播、非标量输入和控制流函数展开。
+
+\subsection{练习解答}
+
+\subsubsection{1. 为什么二阶导数的开销更大？}
+
+一阶反向传播本身形成新的导数计算。若继续求二阶导数，
+必须保留并再次遍历一阶导数的计算图，因此时间和内存开销均增加。
+
+\subsubsection{2. 连续运行两次反向传播}
+
+默认反向传播后计算图会释放，直接对同一图再次反向传播会失败。
+显式保留计算图可以再次反传，但梯度仍会累积，必须按需要清零。
+
+\subsubsection{3. 将控制流例子中的输入改成向量或矩阵}
+
+输入改为向量或矩阵后，若输出也非标量，需要先求和或提供外部梯度，
+把反向目标转化为向量--雅可比积。
+
+\subsubsection{4. 重新设计控制流梯度例子}
+
+可用依赖输入符号的条件分支构造分段函数。自动微分对被选中的分支求导，
+不对离散的分支选择操作求导。
 
 \section{概率}
 
-机器学习需要在信息不完整时做预测，概率提供描述不确定性的统一语言。
+概率用数值表达不确定性。机器学习模型预测的通常不是确定事实，
+而是给定观测后各结果的可信程度。
 
-\subsubsection*{样本空间、事件与随机变量}
+\subsection{基本概率论}
 
-样本空间 $\mathcal{S}$ 包含所有可能结果，事件 $\mathcal{A}$ 是
-$\mathcal{S}$ 的子集。概率满足
-\begin{align*}
-P(\mathcal{A})&\ge 0,\\
-P(\mathcal{S})&=1,\\
-P\left(\bigcup_i\mathcal{A}_i\right)
-  &=\sum_iP(\mathcal{A}_i)
-  \quad\text{（$\mathcal{A}_i$ 两两互斥）}.
-\end{align*}
-
-随机变量 $X$ 把随机结果映射为数值。离散变量可直接讨论
-$P(X=x)$；连续变量在单点处概率通常为零，需要通过密度和区间概率描述。
-
-\subsubsection*{联合、条件与贝叶斯公式}
-
-\begin{align*}
-P(A,B)&=P(B\mid A)P(A),\\
-P(B\mid A)&=\frac{P(A,B)}{P(A)},\\
-P(A\mid B)&=\frac{P(B\mid A)P(A)}{P(B)},\\
-P(B)&=\sum_A P(A,B).
-\end{align*}
-
-最后一式称为边际化：对未关注变量的所有可能取值求和。
-若 $A$ 与 $B$ 独立，则
+从分布中抽取结果称为采样。重复独立采样时，事件 $\mathcal{A}$ 的经验频率
 \[
-A\perp B
-\quad\Longleftrightarrow\quad
-P(A,B)=P(A)P(B).
+\widehat{P}_N(\mathcal{A})
+=
+\frac{1}{N}\sum_{i=1}^{N}
+\mathbf{1}\{X_i\in\mathcal{A}\}
 \]
-条件独立则要求在给定 $C$ 后可分解：
+随 $N$ 增大趋近真实概率 $P(\mathcal{A})$，这是大数定律在本节中的直观含义。
+
+\subsubsection{概率论公理}
+
+样本空间 $\mathcal{S}$ 包含全部可能结果，事件是 $\mathcal{S}$ 的子集。
+概率满足
+\begin{align*}
+P(\mathcal{A})&\ge0,\\
+P(\mathcal{S})&=1,\\
+P\left(\bigcup_{i=1}^{\infty}\mathcal{A}_i\right)
+&=\sum_{i=1}^{\infty}P(\mathcal{A}_i)
+\quad
+\text{（$\mathcal{A}_i$ 两两互斥）}.
+\end{align*}
+由此可得 $P(\varnothing)=0$。
+
+\subsubsection{随机变量}
+
+随机变量 $X$ 把样本空间中的结果映射到数值。离散变量可直接讨论
+$P(X=x)$；连续变量用密度描述，单点概率可以为 $0$，而区间概率仍可为正。
+
+\subsection{处理多个随机变量}
+
+多个变量之间的关系由联合分布描述，条件化和边际化分别表示
+“已知某变量”与“消去某变量”。
+
+\subsubsection{联合概率}
+
+联合概率 $P(A=a,B=b)$ 表示两个条件同时成立。因为联合事件包含于任一边际事件，
+\[
+P(A=a,B=b)\le P(A=a).
+\]
+
+\subsubsection{条件概率}
+
+当 $P(A=a)>0$ 时，
+\[
+P(B=b\mid A=a)
+=
+\frac{P(A=a,B=b)}{P(A=a)}.
+\]
+条件概率是在已知 $A=a$ 的子空间内重新归一化后的概率。
+
+\subsubsection{贝叶斯定理}
+
+由乘法法则
+\[
+P(A,B)=P(B\mid A)P(A)=P(A\mid B)P(B)
+\]
+得到
+\[
+P(A\mid B)
+=
+\frac{P(B\mid A)P(A)}{P(B)},
+\qquad P(B)>0.
+\]
+它把先验 $P(A)$ 与似然 $P(B\mid A)$ 合成为后验 $P(A\mid B)$。
+
+\subsubsection{边际化}
+
+若 $A$ 为离散变量，对它的全部取值求和即可得到 $B$ 的边际分布：
+\[
+P(B)=\sum_A P(A,B).
+\]
+连续变量对应的操作是积分。
+
+\subsubsection{独立性}
+
+若
+\[
+P(A,B)=P(A)P(B),
+\]
+则记为 $A\perp B$。给定 $C$ 后的条件独立定义为
 \[
 A\perp B\mid C
 \quad\Longleftrightarrow\quad
 P(A,B\mid C)=P(A\mid C)P(B\mid C).
 \]
 
-\subsubsection*{期望与方差}
+\subsubsection{应用}
 
-\begin{align*}
-\mathbb{E}[X]
-  &=\sum_x xP(X=x),\\
+原书以 HIV 检测说明先验的重要性。若感染率
+$P(H=1)=0.0015$，且第一次检测满足
+\[
+P(D_1=1\mid H=0)=0.01,
+\qquad
+P(D_1=1\mid H=1)=1,
+\]
+则
+\[
+P(D_1=1)
+=0.01(1-0.0015)+1(0.0015)
+=0.011485,
+\]
+因此一次阳性后的感染概率为
+\[
+P(H=1\mid D_1=1)
+=
+\frac{1\times0.0015}{0.011485}
+\approx0.1306.
+\]
+结论是：即使检测灵敏度高，低先验事件的一次阳性也不等于高后验概率。
+
+\subsection{期望和方差}
+
+离散随机变量的期望为
+\[
+\mathbb{E}[X]=\sum_x xP(X=x).
+\]
+对函数 $f$，
+\[
+\mathbb{E}_{x\sim P}[f(x)]
+=
+\sum_x f(x)P(x).
+\]
+方差衡量变量围绕期望的平方偏离：
+\[
 \operatorname{Var}(X)
-  &=\mathbb{E}\left[(X-\mathbb{E}[X])^2\right]
-   =\mathbb{E}[X^2]-\mathbb{E}[X]^2.
-\end{align*}
+=
+\mathbb{E}\left[(X-\mathbb{E}[X])^2\right]
+=
+\mathbb{E}[X^2]-\mathbb{E}[X]^2.
+\]
+标准差为方差平方根，与原变量具有相同量纲。
 
-期望描述分布中心，方差描述围绕期望的波动程度；标准差是方差的平方根，
-与原变量具有相同量纲。
+\subsection{小结}
 
-\begin{notebox}
-\begin{itemize}
-  \item 独立不等于互斥：独立指概率可分解，互斥指两个事件不能同时发生。
-  \item 联合概率只有在独立条件下才能直接写成边际概率之积。
-  \item 低先验概率事件即使检测呈阳性，后验概率也未必很高。
-\end{itemize}
-\end{notebox}
+概率从样本空间和事件出发，用联合、条件、边际和独立性处理多变量关系，
+再用期望和方差概括分布的位置与离散程度。
+
+\subsection{练习}
+
+原书练习要求分析抽样频率、条件概率、贝叶斯更新、独立性以及期望和方差。
 
 \section{查阅文档}
 
-学习框架的重点不是记住所有 API，而是能发现和核验所需接口。
+框架 API 会随版本变化，因此应掌握发现和核验接口的方法，而不是记忆完整函数表。
 
-\noindent\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{4.2cm}X}
-\toprule
-工具 & 用途 \\
-\midrule
-\code{dir(module)} & 列出模块中的函数、类和属性 \\
-\code{help(torch.ones)} & 查看函数签名、参数和文档字符串 \\
-\code{torch.ones?} & 在 Jupyter 中查看帮助 \\
-\code{torch.ones??} & 在可用时查看 Python 实现源码 \\
-\bottomrule
-\end{tabularx}
+\subsection{查找模块中的所有函数和类}
 
-双下划线包围的名称通常是 Python 特殊对象，单下划线开头的名称通常是内部实现。
-遇到版本差异时，应以当前版本的 PyTorch 官方文档为准。
+\code{dir(module)} 列出模块中的属性、函数和类。双下划线包围的名称通常属于
+Python 特殊机制，单下划线开头的名称通常是内部实现。
 
-\begin{summarybox}[title={本章最小闭环}]
-读入并清洗数据，将其变成张量；用线性代数完成前向计算；
-用损失函数度量误差；由自动微分得到梯度并更新参数；
-用概率解释预测的不确定性；遇到未知 API 时主动查阅官方文档。
+\subsection{查找特定函数和类的用法}
+
+\code{help(object)} 显示对象的文档字符串；Jupyter 中的 \code{?} 查看帮助，
+\code{??} 在可用时显示 Python 源码。最终应以当前安装版本的官方文档为准。
+
+\subsection{小结}
+
+查阅接口的顺序是：先用 \code{dir} 发现候选对象，再用 \code{help} 或
+Jupyter 帮助查看参数、返回值与示例。
+
+\subsection{练习}
+
+原书练习要求查询张量函数的官方文档并运行示例，以建立独立核验 API 的习惯。
+
+\begin{summarybox}[title={第二章结论}]
+数据经预处理后成为张量；线性代数定义前向计算；微积分给出参数变化对目标的影响；
+自动微分把链式法则落实到程序；概率刻画观测不足时的不确定性。
+这五部分共同构成后续模型训练的数学与计算基础。
 \end{summarybox}
