@@ -1,0 +1,90 @@
+\documentclass[UTF8,zihao=-4,openany]{ctexbook}
+
+\usepackage[a4paper,margin=2.45cm,headheight=15pt]{geometry}
+\usepackage{amsmath,amssymb,bm}
+\usepackage{booktabs,tabularx,array}
+\usepackage[dvipsnames]{xcolor}
+\usepackage[most]{tcolorbox}
+\usepackage{fancyhdr}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{Primary}{HTML}{355C7D}
+\definecolor{Accent}{HTML}{6C8EAD}
+\definecolor{SoftBlue}{HTML}{EDF4F8}
+\definecolor{SoftGold}{HTML}{FFF8E8}
+\definecolor{CodeBg}{HTML}{F6F7F8}
+
+\setlength{\parindent}{2em}
+\setlength{\parskip}{0.35em}
+\setlist[itemize]{leftmargin=2em,itemsep=0.2em,topsep=0.3em}
+\setlist[enumerate]{leftmargin=2.2em,itemsep=0.2em,topsep=0.3em}
+\renewcommand{\arraystretch}{1.25}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{《动手学深度学习》PyTorch版}
+\fancyhead[R]{提炼学习笔记（试作）}
+\fancyfoot[C]{\thepage}
+
+\hypersetup{
+  pdftitle={《动手学深度学习》PyTorch版学习笔记},
+  pdfauthor={learning-notes}
+}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{CodeBg},
+  frame=single,
+  rulecolor=\color{Accent},
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  language=Python
+}
+
+\newtcolorbox{summarybox}[1][]{
+  colback=SoftBlue,
+  colframe=Primary,
+  fonttitle=\bfseries,
+  title={核心摘要},
+  #1
+}
+
+\newtcolorbox{notebox}[1][]{
+  colback=SoftGold,
+  colframe=Goldenrod,
+  fonttitle=\bfseries,
+  title={易混淆点},
+  #1
+}
+
+\newcommand{\code}[1]{\texttt{#1}}
+
+\title{\heiti 《动手学深度学习》\\[0.4em]\Large PyTorch版学习笔记}
+\author{内容提炼试作}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\clearpage
+\pagenumbering{roman}
+
+\chapter*{试作说明}
+\addcontentsline{toc}{chapter}{试作说明}
+本 PDF 用于检验笔记的内容密度、排版和编译流程，仅提炼原书第二章“预备知识”。
+章内目录严格沿用 PyTorch 版原始顺序：
+数据操作、数据预处理、线性代数、微积分、自动微分、概率、查阅文档。
+正文只保留理解后续深度学习所需的概念、公式、PyTorch 操作和易混淆点。
+
+\tableofcontents
+
+\clearpage
+\pagenumbering{arabic}
+\setcounter{chapter}{1}
+\input{chapter-02-preliminaries}
+
+\end{document}
