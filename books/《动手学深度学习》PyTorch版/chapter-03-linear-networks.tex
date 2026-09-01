@@ -127,63 +127,68 @@ b
 p(x)=\frac{1}{\sqrt{2\pi\sigma^{2}}}
 \exp\Bigl(-\frac{1}{2\sigma^{2}}(x-\mu)^{2}\Bigr).
 \]
-输入是标量 $x$ 以及参数 $\mu,\sigma>0$；输出 $p(x)$ 是密度值，可以大于 $1$，不是事件概率。
-$\mu$ 是分布中心，$\sigma$ 是起伏尺度，二者与 $x$ 同量纲。
+输入是标量 $x$ 与参数 $(\mu,\sigma^{2})$，输出是该点上的密度值：可以大于 $1$，不是事件概率；真正的概率是密度在区间上的积分。
+$\mu$ 是分布中心，$\sigma$ 是起伏尺度，与 $x$ 同量纲。
+
 观测模型把标签写成点预测加噪声
 \[
 y=\bm{w}^{\mathsf T}\bm{x}+b+\epsilon,\qquad
 \epsilon\sim\mathcal{N}(0,\sigma^{2}).
 \]
 输入是特征 $\bm{x}$、参数 $(\bm{w},b)$ 与噪声 $\epsilon$；输出 $y$ 与点预测同量纲。
-$\epsilon$ 是观测误差，均值 $0$、方差 $\sigma^{2}$。
-因此给定 $\bm{x}$ 后 $y$ 仍是高斯，均值等于点预测：
-\[
-y\mid\bm{x}\sim\mathcal{N}(\bm{w}^{\mathsf T}\bm{x}+b,\sigma^{2}).
-\]
-单样本似然（likelihood）把已观测的 $(\bm{x},y)$ 固定，把 $(\bm{w},b)$ 当作变量：
+$\epsilon$ 是观测扰动：均值为 $0$ 表示无系统偏差，$\sigma^{2}$ 是扰动的平方起伏。
+由 $\epsilon=y-\bm{w}^{\mathsf T}\bm{x}-b$ 得条件密度
 \[
 P(y\mid\bm{x})
 =
 \frac{1}{\sqrt{2\pi\sigma^{2}}}
 \exp\Bigl(-\frac{1}{2\sigma^{2}}(y-\bm{w}^{\mathsf T}\bm{x}-b)^{2}\Bigr).
 \]
-输入是一对 $(\bm{x},y)$ 与参数 $(\bm{w},b,\sigma)$；输出是该点处的条件密度，残差越大则密度越小。
-它衡量“若参数真是这组 $(\bm{w},b)$，现在看到这个 $y$ 有多合理”，不是 $(\bm{w},b)$ 本身的后验概率。
-样本独立时整批似然是各样本密度的乘积
+输入是已观测的 $(\bm{x},y)$ 与待估参数 $(\bm{w},b)$；输出是 $y$ 处的密度，不是 $[0,1]$ 概率。
+均值 $\bm{w}^{\mathsf T}\bm{x}+b$ 是点预测；残差越大，该密度越小，表示这组参数越难解释该观测。
+固定数据而把上式看成 $(\bm{w},b)$ 的函数，就是单样本似然：它度量“参数有多合理”，不是 $P(\bm{w},b\mid\text{数据})$。
+
+独立同分布样本下，整批观测的联合密度是各样本密度之积
 \[
 P(\bm{y}\mid\bm{X})=\prod_{i=1}^{n}p(y^{(i)}\mid\bm{x}^{(i)}).
 \]
-输入是整表 $(\bm{X},\bm{y})$；输出是联合密度，表示这 $n$ 个观测同时出现有多合理。
-极大似然估计（maximum likelihood estimation）取
+输入是全部 $(\bm{X},\bm{y})$ 与 $(\bm{w},b)$；输出仍是联合密度。
+乘积成立的条件是各样本相互独立：独立事件同时发生的密度等于各自密度相乘。
+该量越大，表示当前 $(\bm{w},b)$ 越能同时解释整批标签。
+极大似然估计定义为
 \[
 \bm{w}^{\ast},b^{\ast}
 =
-\operatorname*{argmax}_{\bm{w},b}\,P(\bm{y}\mid\bm{X}),
+\operatorname*{argmax}_{\bm{w},b}\,
+P(\bm{y}\mid\bm{X}).
 \]
-即让已有数据最容易出现的那组权重与偏置。
-乘积不便求导，改为最小化负对数似然（negative log-likelihood）。
-把高斯密度代入并取 $-\log$：
+$(\bm{w}^{\ast},b^{\ast})$ 是使已观测数据最容易出现的权重与偏置，本身是参数，不是新样本上的 $\hat{y}$。
+
+乘积不便求导，且大量小于 $1$ 的密度相乘易下溢。对数严格递增，故
+\[
+\operatorname*{argmax}P(\bm{y}\mid\bm{X})
+=
+\operatorname*{argmax}\log P(\bm{y}\mid\bm{X})
+=
+\operatorname*{argmin}\bigl(-\log P(\bm{y}\mid\bm{X})\bigr).
+\]
+把乘积化为求和并改成最小化，不改变最优参数。代入高斯密度得负对数似然
 \begin{align*}
 -\log P(\bm{y}\mid\bm{X})
 &=
-\sum_{i=1}^{n}
-\Biggl[
-\frac{1}{2}\log(2\pi\sigma^{2})
-+
-\frac{1}{2\sigma^{2}}
-\bigl(y^{(i)}-\bm{w}^{\mathsf T}\bm{x}^{(i)}-b\bigr)^{2}
-\Biggr].
+\sum_{i=1}^{n}\frac{1}{2}\log(2\pi\sigma^{2})\\
+&\qquad
++\frac{1}{2\sigma^{2}}\bigl(y^{(i)}-\bm{w}^{\mathsf T}\bm{x}^{(i)}-b\bigr)^{2}.
 \end{align*}
-输入仍是 $(\bm{X},\bm{y},\bm{w},b,\sigma)$；输出是标量，单位是 nats。
-第一项与 $(\bm{w},b)$ 无关；$\sigma$ 固定时第二项与 $L(\bm{w},b)$ 只差正常数 $n/\sigma^{2}$。
-因此
+输入是全部残差与固定 $\sigma$；输出是非负标量。
+第一项与 $(\bm{w},b)$ 无关；第二项是残差平方和，再被 $2\sigma^{2}$ 缩放。
+$\sigma$ 固定时，后一项与经验风险 $L(\bm{w},b)$ 只差正常数，故
 \[
-\operatorname*{argmax}_{\bm{w},b}\,P(\bm{y}\mid\bm{X})
+\operatorname*{argmax}_{\bm{w},b}P(\bm{y}\mid\bm{X})
 =
-\operatorname*{argmin}_{\bm{w},b}\,L(\bm{w},b).
+\operatorname*{argmin}_{\bm{w},b}L(\bm{w},b).
 \]
-高斯噪声下极大似然与最小化均方误差得到同一组 $(\bm{w},b)$；
-最小化的仍是平方预测误差，不是在估计一个概率值。
+结论：高斯噪声下，极大似然与最小化均方误差给出同一组 $(\bm{w},b)$；最小化的仍是平方预测误差，不是在估计一个概率值。
 
 \subsection{从线性回归到深度网络}
 
@@ -216,64 +221,79 @@ $\bm{w}^{\mathsf T}\bm{x}+b$ 先算出一个实数打分，$\phi$ 再把它变�
 
 \subsection{练习}
 
-核验 $\sum_{i}(x_{i}-b)^{2}$ 对 $b$ 的驻点。
-令 $L(b)=\sum_{i}(x_{i}-b)^{2}$，则
+核验 $\sum_{i}(x_{i}-b)^{2}$ 对 $b$ 的驻点。对 $b$ 求导并令其为零得
 \[
-\frac{\mathrm{d}L}{\mathrm{d}b}=2nb-2\sum_{i}x_{i}=0
-\quad\Rightarrow\quad
-b^{\ast}=\frac{1}{n}\sum_{i}x_{i}.
+b^{\ast}=\frac{1}{n}\sum_{i=1}^{n}x_{i}.
 \]
-输入是一组标量观测 $\{x_i\}$；输出 $b^{\ast}$ 是样本均值，表示使平方偏离最小的常数水平，不是某一个 $x_i$。
-若 $x_i=b+\epsilon_i$ 且 $\epsilon_i\sim\mathcal{N}(0,\sigma^{2})$，该均值也是 $b$ 的极大似然估计。
-把 $b$ 并入 $\bm{X}$ 的全 $1$ 列后，正规方程
-$\bm{w}^{\ast}=(\bm{X}^{\mathsf T}\bm{X})^{-1}\bm{X}^{\mathsf T}\bm{y}$
-仍给出同一组权重；
+输入是标量样本 $\{x_i\}$，输出是样本均值：表示使平方偏离最小的常数水平，不是某一个观测。
+若 $x_i=b+\epsilon_i$ 且 $\epsilon_i\sim\mathcal{N}(0,\sigma^{2})$，则 $b$ 的极大似然估计就是该均值。
+
+把 $b$ 并入 $\bm{X}$ 的全 $1$ 列后，平方损失写成
+\[
+L(\bm{w})=\frac{1}{2}\|\bm{X}\bm{w}-\bm{y}\|_{2}^{2}.
+\]
+输入是 $\bm{X}\in\mathbb{R}^{n\times d}$、$\bm{w}\in\mathbb{R}^{d}$、$\bm{y}\in\mathbb{R}^{n}$；输出是非负标量，仍是均方误差型偏离。
+梯度为 $\nabla_{\bm{w}}L=\bm{X}^{\mathsf T}(\bm{X}\bm{w}-\bm{y})$，其第 $j$ 个分量是 $w_j$ 增加 $1$ 时损失大约增加多少。
+令梯度为零得正规方程 $\bm{X}^{\mathsf T}\bm{X}\bm{w}=\bm{X}^{\mathsf T}\bm{y}$；
+$\bm{X}^{\mathsf T}\bm{X}$ 可逆时 $\bm{w}^{\ast}=(\bm{X}^{\mathsf T}\bm{X})^{-1}\bm{X}^{\mathsf T}\bm{y}$。
 $\bm{X}^{\mathsf T}\bm{X}$ 奇异时解析解不存在，梯度法仍可沿减小均方误差的方向走。
 
-原书第三题把附加噪声改成指数分布（双边指数，Laplace）
+若附加噪声改为拉普拉斯（原书称指数）分布
 \[
-p(\epsilon)=\frac{1}{2}\exp(-|\epsilon|).
+p(\epsilon)=\frac{1}{2}\exp(-|\epsilon|),
 \]
-输入是标量残差 $\epsilon$；输出 $p(\epsilon)$ 是密度，在 $0$ 处最高、两侧按绝对值指数衰减。
-由 $y=\bm{w}^{\mathsf T}\bm{x}+b+\epsilon$ 得单样本条件密度
+输入是标量残差 $\epsilon$，输出是该点密度：在 $0$ 处最高，向两侧按绝对值指数衰减，积分仍为 $1$。
+由 $\epsilon^{(i)}=y^{(i)}-\bm{w}^{\mathsf T}\bm{x}^{(i)}-b$ 得单样本条件密度
 \[
-p(y\mid\bm{x})
+p(y^{(i)}\mid\bm{x}^{(i)})
 =
 \frac{1}{2}
-\exp\bigl(-|y-\bm{w}^{\mathsf T}\bm{x}-b|\bigr).
+\exp\bigl(-\bigl|y^{(i)}-\bm{w}^{\mathsf T}\bm{x}^{(i)}-b\bigr|\bigr).
 \]
-独立样本的负对数似然为
-\begin{align*}
+输入是已观测的 $(\bm{x}^{(i)},y^{(i)})$ 与 $(\bm{w},b)$；输出是 $y^{(i)}$ 处的密度。
+绝对值残差越小，密度越大，表示这组参数越能解释该观测。
+独立样本下联合似然为乘积
+\[
+P(\bm{y}\mid\bm{X})
+=
+\Bigl(\frac{1}{2}\Bigr)^{n}
+\exp\Biggl(
+-\sum_{i=1}^{n}
+\bigl|y^{(i)}-\bm{w}^{\mathsf T}\bm{x}^{(i)}-b\bigr|
+\Biggr).
+\]
+输入是全部残差；输出是联合密度。乘积同样要求样本独立。
+取负对数得
+\[
 -\log P(\bm{y}\mid\bm{X})
-&=
+=
 n\log 2
 +
 \sum_{i=1}^{n}
 \bigl|y^{(i)}-\bm{w}^{\mathsf T}\bm{x}^{(i)}-b\bigr|.
-\end{align*}
-输入是整表 $(\bm{X},\bm{y})$ 与参数 $(\bm{w},b)$；输出是标量（nats）。
-$n\log 2$ 与参数无关，故极大似然等价于最小化绝对误差
+\]
+输入是全部绝对残差；输出是非负标量。$n\log 2$ 与参数无关，故极大似然等价于
 \[
 \min_{\bm{w},b}
 \sum_{i=1}^{n}
 \bigl|y^{(i)}-\bm{w}^{\mathsf T}\bm{x}^{(i)}-b\bigr|.
 \]
-一般多元情形没有平方损失那样的闭式正规方程。
-令 $e^{(i)}=\bm{w}^{\mathsf T}\bm{x}^{(i)}+b-y^{(i)}$，次梯度为
-\begin{align*}
-\partial_{\bm{w}}L
-&=
-\sum_{i}\operatorname{sign}(e^{(i)})\,\bm{x}^{(i)},\\
-\partial_{b}L
-&=
-\sum_{i}\operatorname{sign}(e^{(i)}).
-\end{align*}
-$\operatorname{sign}(e^{(i)})$ 是残差的符号，$\pm 1$；在 $e^{(i)}=0$ 处可取 $0$。
-仅估计常数 $b$ 时，驻点要求 $b$ 两侧样本数平衡，最优值是中位数
-$b^{\ast}=\operatorname{median}(y)$，不是均值。
-小批量更新可沿该次梯度下降；
-绝对值在零点不可导且梯度不随残差缩小，学习率固定时参数会在最优点附近振荡。
-可用递减步长，或把 $|e|$ 换成平滑 $L_1$（Huber）损失。
+被最小化的是绝对误差之和，与 $y$ 同量纲，不是平方偏离，也不是概率。
+一般多元情形下符号函数 $\operatorname{sign}(\hat{y}-y)$ 依赖未知参数，没有与正规方程同类的闭式解；
+仅估计常数 $b$ 时，最优值是 $\{y^{(i)}\}$ 的中位数。
+小批量上可用次梯度
+\[
+\nabla_{\bm{w}}L
+=
+\sum_{i\in\mathcal{B}}
+\operatorname{sign}\bigl(\hat{y}^{(i)}-y^{(i)}\bigr)\bm{x}^{(i)},
+\qquad
+\frac{\partial L}{\partial b}
+=
+\sum_{i\in\mathcal{B}}
+\operatorname{sign}\bigl(\hat{y}^{(i)}-y^{(i)}\bigr).
+\]
+$\operatorname{sign}(\hat{y}-y)\in\{-1,0,1\}$ 只保留误差方向；残差接近 $0$ 时梯度不自动缩小，固定步长下参数可能在驻点附近振荡。
 
 \section{线性回归的从零开始实现}
 
