@@ -1,25 +1,27 @@
 \chapter{预备知识}
 
-本章给出后续深度学习所需的共同语言：先把数据做成张量，再用线性代数写出前向计算，
-用微积分说明参数如何影响目标，用自动微分把求导落到程序，最后用概率描述不确定预测。
-正文严格保留原书标题层级，只提取定义、成立条件、关键推导和结论。
+本章把后续计算写成同一套对象与映射：数据是张量，前向是线性映射，训练目标是可微标量，
+自动微分在计算图上实现链式法则，概率把预测写成分布。正文保留原书标题，内容以公式为主。
 
 \section{数据操作}
 
-张量是深度学习中统一的数据容器。零轴、一轴、二轴张量分别对应标量、向量和矩阵；
-更高阶张量可表示批量图像、视频或其他多轴数据。下面从创建形状开始，再讲运算、
-广播、索引，最后说明内存与互操作。
+记 $n$ 阶张量为 $\bm{X}\in\mathbb{R}^{d_1\times\cdots\times d_n}$。
+$n=0,1,2$ 分别对应标量、向量、矩阵；更高阶用于批量、通道或时间轴。下面先固定形状，再写运算。
 
 \subsection{入门}
 
-张量的形状为各轴长度组成的元组，元素总数为各轴长度之积：
+形状与元素总数为
 \[
-\operatorname{numel}(\bm{X})=\prod_{i=1}^{n}d_i,
+\operatorname{shape}(\bm{X})=(d_1,\ldots,d_n),
 \qquad
-\operatorname{shape}(\bm{X})=(d_1,\ldots,d_n).
+\operatorname{numel}(\bm{X})=\prod_{i=1}^{n}d_i.
 \]
-\code{reshape} 只改变张量的形状解释，不改变元素次序和总数。若其中一个轴写作 $-1$，
-该轴长度由元素总数和其余轴自动确定。
+\code{reshape} 只改变轴的划分，不改变元素值与存储次序。若
+\[
+\prod_{i=1}^{n}d_i=\prod_{j=1}^{m}d'_j,
+\]
+则存在把 $\mathbb{R}^{d_1\times\cdots\times d_n}$ 重新解释为 $\mathbb{R}^{d'_1\times\cdots\times d'_m}$ 的双射。
+某个 $d'_k=-1$ 时，由上式唯一确定该轴长度。
 
 \begin{lstlisting}
 x = torch.arange(12).reshape(3, 4)
@@ -28,99 +30,144 @@ x.shape, x.numel()
 
 \subsection{运算符}
 
-形状确定之后，就可以对同形状张量做运算。加、减、乘、除和幂默认逐元素执行。若
-$\bm{u},\bm{v}\in\mathbb{R}^{d}$，逐元素二元运算写为
+形状相同后，二元运算默认逐元素进行。若 $\bm{u},\bm{v}\in\mathbb{R}^{d}$，
 \[
-\bm{c}_i=f(u_i,v_i),\qquad i=1,\ldots,d.
+(f(\bm{u},\bm{v}))_i=f(u_i,v_i),\qquad i=1,\ldots,d,
 \]
-张量连接 \code{cat} 沿指定轴拼接数据；比较运算返回布尔张量；\code{sum}
-把指定范围内的元素相加。
+其中 $f$ 可取 $+,-,\odot,/,$ 或幂。沿轴 $k$ 连接要求除第 $k$ 轴外形状一致：
+\[
+\operatorname{cat}(\bm{A},\bm{B};k)
+\in
+\mathbb{R}^{d_1\times\cdots\times(d_k^{(A)}+d_k^{(B)})\times\cdots\times d_n}.
+\]
+比较返回 $\{0,1\}$ 值张量；求和是
+\[
+\sum(\bm{X})=\sum_{i_1=1}^{d_1}\cdots\sum_{i_n=1}^{d_n}X_{i_1\ldots i_n}.
+\]
 
 \subsection{广播机制}
 
-形状不完全相同也可以运算，前提是满足广播规则：从末轴向前比较，
-对应轴长度必须相等，或其中一个为 $1$。长度为 $1$ 的轴在逻辑上复制到目标长度。
-例如
+形状不同时，从末轴向前对齐。第 $i$ 轴可运算当且仅当
 \[
-\mathbb{R}^{3\times1}+\mathbb{R}^{1\times2}
-\longrightarrow \mathbb{R}^{3\times2}.
+d_i^{(X)}=d_i^{(Y)}
+\quad\text{或}\quad
+d_i^{(X)}=1
+\quad\text{或}\quad
+d_i^{(Y)}=1.
+\]
+长度为 $1$ 的轴在逻辑上复制到目标长度。于是
+\[
+\mathbb{R}^{3\times 1}+\mathbb{R}^{1\times 2}
+\longrightarrow
+\mathbb{R}^{3\times 2},
+\qquad
+(A+B)_{ij}=A_{i1}+B_{1j}.
 \]
 
 \subsection{索引和切片}
 
-运算之后需要取出或改写局部元素。索引从 $0$ 开始，$-1$ 表示最后一个位置；切片 $[a:b]$ 包含 $a$ 而不包含 $b$。
-多轴张量在各轴分别给出索引或切片，冒号表示保留该轴全部元素。
+对 $\bm{X}\in\mathbb{R}^{m\times n}$，下标从 $0$ 起算。切片 $[a:b]$ 取 $\{a,a+1,\ldots,b-1\}$，
+即半开区间 $[a,b)$，且 $-1$ 表示最后一个合法下标。多轴独立作用：
+\[
+\bm{X}[i,j]=X_{ij},\qquad
+\bm{X}[a:b,:]\in\mathbb{R}^{(b-a)\times n}.
+\]
 
 \subsection{节省内存}
 
-反复改写张量时，赋值方式会决定是否分配新内存。\code{Y = Y + X} 通常先创建新结果再改变变量引用；切片写回或原地运算尽量复用内存：
+记 $\operatorname{id}(\cdot)$ 为对象标识。赋值
 \[
-\operatorname{id}(\bm{Y})\ \text{在}\ \bm{Y}[:]=\bm{Y}+\bm{X}\ \text{前后保持不变}.
+\bm{Y}\leftarrow \bm{Y}+\bm{X}
 \]
-参数规模很大或同一计算反复执行时，避免无必要分配可减少内存压力。
+通常分配新存储后再改引用；切片写回
+\[
+\bm{Y}[:]\leftarrow \bm{Y}+\bm{X}
+\]
+保持 $\operatorname{id}(\bm{Y})$ 不变。参数规模大或同一映射反复求值时，减少分配等价于减少临时张量个数。
 
 \subsection{转换为其他Python对象}
 
-原地操作之所以会影响其他对象，是因为 PyTorch 张量与 NumPy 数组可共享底层内存。
-单元素张量可用 \code{item()} 转为 Python 标量；NumPy 数组可再转换回张量。
+PyTorch 张量与 NumPy 数组可共享同一块内存，因此对一侧的原地更新会改变另一侧。
+标量提取是映射
+\[
+\mathbb{R}^{1}\longrightarrow\mathbb{R},\qquad
+\bm{x}\mapsto x=\code{item}(\bm{x}).
+\]
 
 \subsection{小结}
 
-数据操作的核心是：用形状描述张量结构，用逐元素运算和广播组合数据，
-用索引定位数据，并在必要时通过原地操作控制内存分配。
+数据操作把 $\bm{X}$ 的结构写成 $\operatorname{shape}(\bm{X})$，把组合写成逐元素映射与广播，
+把局部访问写成索引，把存储控制写成是否保持 $\operatorname{id}(\bm{Y})$。
 
 \subsection{练习}
 
-原书练习集中检验三个能力：由元素数推断合法形状、说明广播后的结果形状、
-以及判断张量与 NumPy 对象是否共享内存。
+原书练习对应三条约束：由 $\operatorname{numel}(\bm{X})$ 反推合法 $(d_1,\ldots,d_n)$、
+由广播规则写出结果形状、以及判断共享内存是否蕴含 $\operatorname{id}$ 相同。
 
 \section{数据预处理}
 
-原始数据往往含有缺失项和非数值字段，不能直接送入上一节的张量运算。预处理把表格
-变成形状明确、数值类型一致的张量，顺序是：读取、填补或编码缺失、再转换为张量。
+原始表通常含缺失与非数值字段，不能直接作为上一节中的 $\bm{X}$。
+预处理的目标是构造数值张量 $(\bm{X},\bm{y})$。
 
 \subsection{读取数据集}
 
-CSV 表中通常一行对应一个样本，一列对应一个属性。读取后先划分输入属性与预测目标，
-再分别处理。缺失值在 pandas 中通常表示为 \code{NaN}。
+设表有 $n$ 行、$p$ 列。一行是一个样本，一列是一个属性。划分后
+\[
+\bm{x}^{(i)}\in\mathbb{R}^{p-1},\qquad y^{(i)}\in\mathbb{R},
+\qquad i=1,\ldots,n,
+\]
+缺失在 pandas 中记为 $\mathrm{NaN}$。
 
 \subsection{处理缺失值}
 
-读入之后先处理缺失。数值属性可用该列均值替代缺失值。若第 $j$ 列观测集合为 $\mathcal{I}_j$，均值为
+对数值列 $j$，令观测指标集 $\mathcal{I}_j=\{i:x_{ij}\text{ 非缺失}\}$。样本均值
 \[
-\bar{x}_j=\frac{1}{|\mathcal{I}_j|}\sum_{i\in\mathcal{I}_j}x_{ij},
+\bar{x}_j=\frac{1}{|\mathcal{I}_j|}\sum_{i\in\mathcal{I}_j}x_{ij}
 \]
-则缺失位置可暂以 $\bar{x}_j$ 填充。类别属性不能取算术均值，通常改为独热表示，
-并可把缺失本身编码为一个类别。
+用于填充：$i\notin\mathcal{I}_j$ 时令 $x_{ij}\leftarrow\bar{x}_j$。
+类别列取值于有限集 $\mathcal{C}$ 时，独热映射为
+\[
+c\mapsto \bm{e}_c\in\{0,1\}^{|\mathcal{C}|},\qquad
+(\bm{e}_c)_{c'}=[c=c'].
+\]
+缺失可并入一个额外类别，使编码落在 $\mathbb{R}^{|\mathcal{C}|+1}$。
 
 \subsection{转换为张量格式}
 
-缺失处理完成后，所有字段数值化且数据类型统一，表格才可转换为张量：
+全部字段数值化且类型一致后，
 \[
-\text{DataFrame}\longrightarrow\text{NumPy array}
-\longrightarrow\text{PyTorch Tensor}.
+(\bm{x}^{(i)},y^{(i)})_{i=1}^{n}
+\;\longrightarrow\;
+\bm{X}\in\mathbb{R}^{n\times d},
+\;
+\bm{y}\in\mathbb{R}^{n}.
 \]
+实现路径为 $\mathrm{DataFrame}\to\mathrm{ndarray}\to\mathrm{Tensor}$。
 
 \subsection{小结}
 
-预处理不是改变学习目标，而是把不完整、异质的原始字段变成模型能够计算的数值表示。
+预处理不改变学习目标 $y$，只把不完整字段映成模型可计算的 $(\bm{X},\bm{y})$。
 
 \subsection{练习}
 
-原书练习要求统计缺失最多的列并尝试删除它，用于理解“填充”与“删除”是两类不同策略。
+删除缺失最多的列对应投影 $\mathbb{R}^{d}\to\mathbb{R}^{d-1}$；均值填充则保持维度 $d$。
+二者是不同的缺失处理映射。
 
 \section{线性代数}
 
-张量已经可以存储数据；线性代数给出在这些对象上的运算语言。从标量、向量、矩阵
-逐步升到高阶张量，再由点积和矩阵乘法得到层间映射，最后用范数把误差写成可优化目标。
+张量给出对象；线性代数给出映射。从标量升到矩阵，再由点积与乘法得到层间变换，
+最后用范数把误差压成标量。
 
 \subsection{标量}
 
-标量是单个实数，记为 $x\in\mathbb{R}$。标量之间可进行通常的四则运算。
+标量 $x\in\mathbb{R}$ 满足域运算
+\[
+x+y,\quad xy,\quad x/y\ (y\neq 0),\quad x^{p}.
+\]
 
 \subsection{向量}
 
-把若干标量排成一列，就得到向量。本书按列向量书写：
+$n$ 个标量排成列向量
 \[
 \bm{x}=
 \begin{bmatrix}
@@ -131,73 +178,92 @@ x_1\\x_2\\\vdots\\x_n
 
 \subsubsection{长度、维度和形状}
 
-$\bm{x}\in\mathbb{R}^{n}$ 表示向量含 $n$ 个分量。一维张量的形状为 $(n,)$。
-这里向量的“维度”指分量数；张量语境中的“维度”还可能指轴数。
+$\bm{x}\in\mathbb{R}^{n}$ 表示分量数（向量维度）为 $n$，对应一维张量形状 $(n,)$。
+张量的“维数”还可指轴数 $k$，即 $\bm{X}\in\mathbb{R}^{d_1\times\cdots\times d_k}$ 的阶。
 
 \subsection{矩阵}
 
-再把若干等长向量并排放在一起，就得到矩阵 $\bm{A}\in\mathbb{R}^{m\times n}$，含 $m$ 行、$n$ 列：
+$m$ 个 $\mathbb{R}^{n}$ 中的行排成
 \[
 \bm{A}=
 \begin{bmatrix}
 a_{11}&\cdots&a_{1n}\\
 \vdots&\ddots&\vdots\\
 a_{m1}&\cdots&a_{mn}
-\end{bmatrix}.
+\end{bmatrix}
+\in\mathbb{R}^{m\times n}.
 \]
-转置交换行列，满足 $(\bm{A}^{\mathsf T})_{ij}=a_{ji}$。
-若 $\bm{A}=\bm{A}^{\mathsf T}$，则 $\bm{A}$ 为对称矩阵。
+转置定义为 $(\bm{A}^{\mathsf T})_{ij}=a_{ji}$，因而
+\[
+\bm{A}^{\mathsf T}\in\mathbb{R}^{n\times m}.
+\]
+若 $\bm{A}=\bm{A}^{\mathsf T}$，则 $\bm{A}$ 为对称矩阵，此时必有 $m=n$。
 
 \subsection{张量}
 
-向量和矩阵分别是一阶、二阶张量。继续增加轴，例如图像的高度、宽度和通道，
-或再加批量与时间轴，就形成更高阶张量。上一节的数据操作对象正是这些张量。
+向量、矩阵分别是 $1$ 阶、$2$ 阶张量。图像可写为 $\bm{X}\in\mathbb{R}^{H\times W\times C}$；
+加入批量后为 $\mathbb{R}^{B\times H\times W\times C}$。
 
 \subsection{张量算法的基本性质}
 
-对象定义之后看运算。同形状张量逐元素运算后形状不变。Hadamard 积定义为
+同形状逐元素运算保持形状。Hadamard 积
 \[
-\bm{A}\odot\bm{B}
-=
-[a_{ij}b_{ij}]_{m\times n},
+(\bm{A}\odot\bm{B})_{ij}=a_{ij}b_{ij},
+\qquad
+\bm{A},\bm{B}\in\mathbb{R}^{m\times n}
 \]
-它不同于矩阵乘法。张量与标量逐元素运算时，标量广播到每个位置。
+不同于下面的矩阵乘法。标量广播为
+\[
+(\alpha+\bm{A})_{ij}=\alpha+a_{ij},\qquad \alpha\in\mathbb{R}.
+\]
 
 \subsection{降维}
 
-逐元素运算不改变轴数；求和则把若干轴聚合掉。对 $\bm{A}\in\mathbb{R}^{m\times n}$，
+对 $\bm{A}\in\mathbb{R}^{m\times n}$，全求和得到标量
 \[
-\sum_{i=1}^{m}\sum_{j=1}^{n}a_{ij}
+\sum_{i=1}^{m}\sum_{j=1}^{n}a_{ij}.
 \]
-得到标量；沿轴 $0$ 求和得到长度为 $n$ 的向量，沿轴 $1$ 求和得到长度为 $m$ 的向量。
-平均值由总和除以参与计算的元素数得到。
+沿轴归约则降低阶：
+\[
+\Bigl(\sum_{i=1}^{m}\bm{A}\Bigr)_{j}=\sum_{i=1}^{m}a_{ij}\in\mathbb{R}^{n},
+\qquad
+\Bigl(\sum_{j=1}^{n}\bm{A}\Bigr)_{i}=\sum_{j=1}^{n}a_{ij}\in\mathbb{R}^{m}.
+\]
+均值为总和除以元素个数：
+\[
+\bar{A}=\frac{1}{mn}\sum_{i=1}^{m}\sum_{j=1}^{n}a_{ij}.
+\]
 
 \subsubsection{非降维求和}
 
-设置 \code{keepdim=True} 时，被聚合轴保留为长度 $1$，从而可借助广播做归一化。
-例如每行除以该行和：
+\code{keepdim=True} 把被求和轴保留为长度 $1$，从而可广播。行归一化
 \[
 \widetilde{a}_{ij}
 =
-\frac{a_{ij}}{\sum_{k=1}^{n}a_{ik}}.
+\frac{a_{ij}}{\sum_{k=1}^{n}a_{ik}}
+\quad
+\Bigl(\sum_{k}a_{ik}\neq 0\Bigr)
 \]
-累积和则保留原轴长度，输出当前位置之前的部分和。
+满足 $\sum_{j}\widetilde{a}_{ij}=1$。沿行的累积和保持长度：
+\[
+s_{ij}=\sum_{k=1}^{j}a_{ik}.
+\]
 
 \subsection{点积（Dot Product）}
 
-降维求和把矩阵压成向量或标量；两个等长向量的点积是更结构化的求和：
+等长向量的点积是加权求和
 \[
 \bm{x}^{\mathsf T}\bm{y}
 =
-\sum_{i=1}^{d}x_i y_i.
+\sum_{i=1}^{d}x_i y_i
+=
+\sum_{i=1}^{d}(\bm{x}\odot\bm{y})_{i}.
 \]
-它可解释为加权求和；当两个向量均为单位向量时，点积等于夹角余弦。
+若 $\|\bm{x}\|_2=\|\bm{y}\|_2=1$，则 $\bm{x}^{\mathsf T}\bm{y}=\cos\theta$。
 
 \subsection{矩阵-向量积}
 
-点积只作用于两个向量。把矩阵每一行都与同一向量做点积，就得到矩阵--向量积。
-令 $\bm{A}\in\mathbb{R}^{m\times n}$、$\bm{x}\in\mathbb{R}^{n}$，
-则
+把 $\bm{A}$ 的每一行与 $\bm{x}$ 做点积：对 $\bm{A}\in\mathbb{R}^{m\times n}$、$\bm{x}\in\mathbb{R}^{n}$，
 \[
 \bm{A}\bm{x}
 =
@@ -208,37 +274,43 @@ a_{m1}&\cdots&a_{mn}
 \end{bmatrix}
 \in\mathbb{R}^{m}.
 \]
-因此矩阵可视为从 $\mathbb{R}^{n}$ 到 $\mathbb{R}^{m}$ 的线性变换。
+该映射 $f(\bm{x})=\bm{A}\bm{x}$ 满足
+\[
+f(\alpha\bm{x}+\beta\bm{z})=\alpha f(\bm{x})+\beta f(\bm{z}),
+\]
+即 $\mathbb{R}^{n}\to\mathbb{R}^{m}$ 的线性变换。
 
 \subsection{矩阵-矩阵乘法}
 
-把多个矩阵--向量积并列，就是矩阵--矩阵乘法。
-若 $\bm{A}\in\mathbb{R}^{n\times k}$、$\bm{B}\in\mathbb{R}^{k\times m}$，
-则 $\bm{C}=\bm{A}\bm{B}\in\mathbb{R}^{n\times m}$，其中
+中间维相等时，矩阵乘法是多个矩阵--向量积并列。
+若 $\bm{A}\in\mathbb{R}^{n\times k}$、$\bm{B}\in\mathbb{R}^{k\times m}$，则
+$\bm{C}=\bm{A}\bm{B}\in\mathbb{R}^{n\times m}$ 且
 \[
 c_{ij}=\bm{a}_i^{\mathsf T}\bm{b}_j
 =
 \sum_{\ell=1}^{k}a_{i\ell}b_{\ell j}.
 \]
-中间维度 $k$ 必须相等；该运算可看作多个矩阵--向量积并列执行。
 
 \subsection{范数}
 
-前向计算得到向量或矩阵后，还需要一个标量来衡量“有多大”或“差多少”。
-范数把向量映射为非负标量，并满足绝对齐次性、三角不等式和正定性。
-$L_p$ 范数定义为
+范数 $f:\mathbb{R}^{n}\to\mathbb{R}_{\ge 0}$ 满足
+\begin{align*}
+f(\alpha\bm{x})&=|\alpha|f(\bm{x}),\\
+f(\bm{x}+\bm{y})&\le f(\bm{x})+f(\bm{y}),\\
+f(\bm{x})&\ge 0,\\
+f(\bm{x})=0&\iff \bm{x}=\bm{0}.
+\end{align*}
+$L_p$ 范数为
 \[
 \|\bm{x}\|_p
 =
-\left(\sum_{i=1}^{n}|x_i|^p\right)^{1/p}.
-\]
-常用形式为
-\[
+\Bigl(\sum_{i=1}^{n}|x_i|^p\Bigr)^{1/p},
+\qquad
 \|\bm{x}\|_1=\sum_i|x_i|,
 \qquad
 \|\bm{x}\|_2=\sqrt{\sum_i x_i^2}.
 \]
-矩阵的 Frobenius 范数为
+矩阵的 Frobenius 范数是把矩阵当作向量后的 $L_2$：
 \[
 \|\bm{X}\|_F
 =
@@ -247,106 +319,123 @@ $L_p$ 范数定义为
 
 \subsubsection{范数和目标}
 
-训练常把“预测接近真值”写成距离最小化。例如平方误差本质上使用
-$L_2$ 范数平方：
+“预测接近真值”写成距离最小化。平方误差使用 $L_2$ 范数平方：
 \[
 \min_{\bm{\theta}}
-\left\|
-\bm{y}-f_{\bm{\theta}}(\bm{X})
-\right\|_2^2.
+\bigl\|\bm{y}-f_{\bm{\theta}}(\bm{X})\bigr\|_2^2.
 \]
-因此范数把几何上的距离概念转化为可优化目标。
 
 \subsection{关于线性代数的更多信息}
 
-本节只保留阅读后续章节所需内容。矩阵分解、低秩结构和张量分解属于进一步学习范围。
+后续章节主要用到 $\bm{A}\bm{x}$、$\bm{A}\bm{B}$ 与 $\|\cdot\|_p$。
+矩阵分解、低秩与张量分解不在本章推导。
 
 \subsection{小结}
 
-线性代数用张量描述数据和参数，用点积及矩阵乘法描述层间映射，
-用范数把误差大小转成标量目标。
+线性代数把数据写成张量，把层写成 $\bm{A}\bm{x}$ 或 $\bm{A}\bm{B}$，把误差写成 $\|\cdot\|$。
 
 \subsection{练习}
 
-原书练习要求验证转置、求和、矩阵乘法和范数性质，重点是同时检查公式与输出形状。
+需要同时核验恒等式与形状，例如
+$(\bm{A}\bm{B})^{\mathsf T}=\bm{B}^{\mathsf T}\bm{A}^{\mathsf T}$ 蕴含
+$\mathbb{R}^{n\times m}$ 与 $\mathbb{R}^{m\times n}$ 的对应。
 
 \section{微积分}
 
-线性代数给出前向计算；微积分说明参数变化如何改变目标。优化研究怎样调整参数以降低训练目标；
-泛化研究所得模型能否在未见数据上保持效果。深度学习训练主要依赖微分而非积分。
+前向已写成映射 $f$；训练要知道参数扰动如何改变标量目标。
+优化关心 $\min_{\bm{\theta}}L(\bm{\theta})$，泛化关心所得 $\bm{\theta}$ 在未见样本上的 $L$。
+训练主要用微分。
 
 \subsection{导数和微分}
 
-函数 $f$ 在 $x$ 处的导数定义为
+若极限存在，
 \[
 f'(x)
 =
-\lim_{h\to0}\frac{f(x+h)-f(x)}{h},
+\lim_{h\to 0}\frac{f(x+h)-f(x)}{h}.
 \]
-前提是该极限存在。导数同时表示瞬时变化率和曲线切线斜率。
-
-对原书示例 $f(x)=3x^2-4x$，
+一阶展开为
 \[
-f'(x)=6x-4,\qquad f'(1)=2.
+f(x+\Delta x)=f(x)+f'(x)\Delta x+o(\Delta x).
 \]
-这说明在 $x=1$ 附近，输入增加一个很小的 $\Delta x$ 时，
-输出的一阶变化约为 $2\Delta x$。
-
-常用求导法则为
+等价记号
+\[
+f'(x)=y'=\frac{\mathrm{d}y}{\mathrm{d}x}=D_x f(x).
+\]
+对 $f(x)=3x^2-4x$，
+\[
+f'(x)=6x-4,\qquad f'(1)=2,
+\]
+故 $x=1$ 附近 $\Delta f\approx 2\Delta x$。常用法则：
 \begin{align*}
 (Cf)'&=Cf',\\
 (f+g)'&=f'+g',\\
 (fg)'&=f'g+fg',\\
-\left(\frac{f}{g}\right)'
-&=\frac{f'g-fg'}{g^2}.
+\Bigl(\frac{f}{g}\Bigr)'
+&=\frac{f'g-fg'}{g^2}\quad(g\neq 0).
 \end{align*}
 
 \subsection{偏导数}
 
-单变量导数只看一个自变量。对多元函数 $y=f(x_1,\ldots,x_n)$，关于 $x_i$ 的偏导把其余变量视为常数：
+多元函数 $y=f(x_1,\ldots,x_n)$ 沿第 $i$ 个坐标的变化率把其余变量视为常数：
 \[
 \frac{\partial y}{\partial x_i}
 =
-\lim_{h\to0}
+\lim_{h\to 0}
 \frac{
 f(x_1,\ldots,x_i+h,\ldots,x_n)
 -f(x_1,\ldots,x_i,\ldots,x_n)
 }{h}.
 \]
+等价记号：
+\[
+\frac{\partial y}{\partial x_i}
+=
+\frac{\partial f}{\partial x_i}
+=f_{x_i}=D_{x_i}f.
+\]
 
 \subsection{梯度}
 
-把全部偏导排成一列，就得到梯度。若 $f:\mathbb{R}^{n}\to\mathbb{R}$，
+把全部偏导排成列向量。若 $f:\mathbb{R}^{n}\to\mathbb{R}$，
 \[
 \nabla_{\bm{x}}f(\bm{x})
 =
 \begin{bmatrix}
-\frac{\partial f}{\partial x_1}&\cdots&
-\frac{\partial f}{\partial x_n}
-\end{bmatrix}^{\mathsf T}.
+\partial f/\partial x_1\\
+\vdots\\
+\partial f/\partial x_n
+\end{bmatrix}.
 \]
-原书给出的常用结果包括
+一阶展开为
+\[
+f(\bm{x}+\Delta\bm{x})
+=
+f(\bm{x})
++
+\nabla_{\bm{x}}f(\bm{x})^{\mathsf T}\Delta\bm{x}
++
+o(\|\Delta\bm{x}\|).
+\]
+原书常用结果：
 \begin{align*}
-\nabla_{\bm{x}}\,\bm{A}\bm{x}&=\bm{A}^{\mathsf T},\\
-\nabla_{\bm{x}}\,\bm{x}^{\mathsf T}\bm{A}
-&=\bm{A},\\
-\nabla_{\bm{x}}\,\bm{x}^{\mathsf T}\bm{A}\bm{x}
-&=(\bm{A}+\bm{A}^{\mathsf T})\bm{x},\\
+\nabla_{\bm{x}}(\bm{A}\bm{x})&=\bm{A}^{\mathsf T},\\
+\nabla_{\bm{x}}(\bm{x}^{\mathsf T}\bm{A})&=\bm{A},\\
+\nabla_{\bm{x}}(\bm{x}^{\mathsf T}\bm{A}\bm{x})&=(\bm{A}+\bm{A}^{\mathsf T})\bm{x},\\
 \nabla_{\bm{x}}\|\bm{x}\|_2^2&=2\bm{x},\\
 \nabla_{\bm{X}}\|\bm{X}\|_F^2&=2\bm{X}.
 \end{align*}
 
 \subsection{链式法则}
 
-神经网络由多层复合而成，不能对每个参数直接套用上述公式，而要把各层导数连起来。
-若 $y=f(u)$ 且 $u=g(x)$，则
+复合 $y=f(u)$、$u=g(x)$ 时
 \[
 \frac{\mathrm{d}y}{\mathrm{d}x}
 =
 \frac{\mathrm{d}y}{\mathrm{d}u}
 \frac{\mathrm{d}u}{\mathrm{d}x}.
 \]
-若 $y$ 依赖 $u_1,\ldots,u_m$，而每个 $u_j$ 又依赖 $x_i$，则所有路径贡献相加：
+若 $y$ 依赖 $u_1,\ldots,u_m$，而每个 $u_j$ 依赖 $x_i$，则路径求和：
 \[
 \frac{\partial y}{\partial x_i}
 =
@@ -354,280 +443,319 @@ f(x_1,\ldots,x_i+h,\ldots,x_n)
 \frac{\partial y}{\partial u_j}
 \frac{\partial u_j}{\partial x_i}.
 \]
-神经网络是复合函数，反向传播就是按计算图反向重复应用这条法则。
+神经网络是复合 $L=f_L\circ\cdots\circ f_1$，反向传播即沿计算图反向重复该式。
 
 \subsection{小结}
 
-导数描述单变量局部变化，偏导描述多变量函数沿单一坐标方向的变化，
-梯度汇总所有偏导，链式法则把复合函数各层导数连接起来。
+单变量用 $f'(x)$，多变量用 $\partial y/\partial x_i$，全部偏导组成 $\nabla_{\bm{x}}f$，
+复合函数用链式法则把各层 Jacobian 连乘（或按路径求和）。
 
 \subsection{练习}
 
-原书练习要求绘制函数及其切线，并对给定函数求导，用于验证解析导数的几何含义。
+几何上 $f'(x)$ 是切线斜率；代数上对给定 $f$ 求 $f'$，二者应一致。
 
 \section{自动微分}
 
-链式法则给出求导规则；自动微分把它落实到程序。前向计算时记录操作组成的计算图，
-反向阶段逐节点应用链式法则。它计算的是实际程序所表示函数的数值导数，而不是对表达式做符号化简。
+链式法则给出规则；自动微分对实际执行的程序求数值导数。
+前向记录计算图 $\mathcal{G}$，反向对每个节点应用
+\[
+\frac{\partial L}{\partial u}
+=
+\sum_{v:\,u\to v}
+\frac{\partial L}{\partial v}
+\frac{\partial v}{\partial u}.
+\]
 
 \subsection{一个简单的例子}
 
 令
 \[
-y=2\bm{x}^{\mathsf T}\bm{x}
-=2\sum_i x_i^2.
+y=2\bm{x}^{\mathsf T}\bm{x}=2\sum_i x_i^2.
 \]
-逐分量求导得到
+则
 \[
 \frac{\partial y}{\partial x_i}=4x_i,
 \qquad
 \nabla_{\bm{x}}y=4\bm{x}.
 \]
-最小验证代码为：
 \begin{lstlisting}
 x = torch.arange(4.0, requires_grad=True)
 y = 2 * torch.dot(x, x)
 y.backward()
 x.grad
 \end{lstlisting}
-PyTorch 默认累积梯度，因此再次反向传播前通常先清零已有梯度。
+默认累积：若连续两次反向且不清零，则
+\[
+\nabla_{\bm{x}}\leftarrow \nabla_{\bm{x}}+4\bm{x}.
+\]
 
 \subsection{非标量变量的反向传播}
 
-上例中 $y$ 是标量，可以直接 \code{backward()}。当 $\bm{y}\in\mathbb{R}^{m}$、$\bm{x}\in\mathbb{R}^{n}$ 时，
-$\partial\bm{y}/\partial\bm{x}$ 自然是雅可比矩阵。
-训练通常不显式构造整个雅可比，而计算向量--雅可比积。
-若 $\bm{y}=\bm{x}\odot\bm{x}$，对输出求和后有
+$\bm{y}\in\mathbb{R}^{m}$、$\bm{x}\in\mathbb{R}^{n}$ 时，完整导数是 Jacobian
 \[
-\nabla_{\bm{x}}\sum_i y_i
+J=\frac{\partial\bm{y}}{\partial\bm{x}}\in\mathbb{R}^{m\times n},
+\qquad
+J_{ij}=\frac{\partial y_i}{\partial x_j}.
+\]
+训练通常计算向量--Jacobian 积 $\bm{v}^{\mathsf T}J$，而不是显式形成 $J$。
+若 $\bm{y}=\bm{x}\odot\bm{x}$ 且取 $\bm{v}=\bm{1}$，
+\[
+\nabla_{\bm{x}}(\bm{1}^{\mathsf T}\bm{y})
 =
 \nabla_{\bm{x}}\sum_i x_i^2
 =2\bm{x}.
 \]
-因此 \code{y.sum().backward()} 等价于用全 $1$ 向量聚合各输出分量的梯度。
+故 \code{y.sum().backward()} 与用 $\bm{v}=\bm{1}$ 调用反向传播等价。
 
 \subsection{分离计算}
 
-有时只希望沿部分路径求导。设 $\bm{y}=\bm{x}\odot\bm{x}$，令 $\bm{u}$ 取与 $\bm{y}$ 相同的数值，
-但通过 \code{detach()} 与产生 $\bm{y}$ 的计算图断开。若
+设 $\bm{y}=\bm{x}\odot\bm{x}$，令 $\bm{u}=\mathrm{detach}(\bm{y})$，即数值相同但切断边 $\bm{x}\to\bm{y}$。
+对
 \[
-z=\bm{u}^{\mathsf T}\bm{x},
+z=\bm{u}^{\mathsf T}\bm{x}
 \]
-反向传播时 $\bm{u}$ 被视为常量，因此
+把 $\bm{u}$ 视为常向量，得
 \[
-\nabla_{\bm{x}}z=\bm{u},
+\nabla_{\bm{x}}z=\bm{u}=\bm{x}\odot\bm{x},
 \]
-而不会沿 $\bm{u}=\bm{x}\odot\bm{x}$ 的路径继续求导。
+而完整复合 $z=(\bm{x}\odot\bm{x})^{\mathsf T}\bm{x}=\sum_i x_i^3$ 的梯度本应为 $3\bm{x}\odot\bm{x}$。
 
 \subsection{Python控制流的梯度计算}
 
-计算图不必事先固定。PyTorch 使用动态计算图：循环次数和条件分支可以依赖输入；
-反向传播只沿本次前向实际执行的可微路径进行。
-若某次执行路径上函数化为 $f(a)=ka$，则
+动态图只沿本次前向实际执行的可微路径求导。若该路径上
 \[
-\frac{\mathrm{d}f}{\mathrm{d}a}=k=\frac{f(a)}{a},
-\qquad a\ne0.
+f(a)=ka\qquad(k\text{ 依赖本次分支，但对 }a\text{ 局部为常数}),
+\]
+则
+\[
+\frac{\mathrm{d}f}{\mathrm{d}a}=k=\frac{f(a)}{a},\qquad a\neq 0.
 \]
 
 \subsection{小结}
 
-自动微分的最小流程为：给变量启用梯度追踪，执行前向计算，
-把目标标量反向传播，最后读取梯度。其数学基础是计算图上的链式法则。
+流程是：对 $\bm{x}$ 启用追踪，计算标量 $L$，执行
+\[
+L.\mathrm{backward}()
+\quad\Longrightarrow\quad
+\bm{x}.\mathrm{grad}=\nabla_{\bm{x}}L.
+\]
 
 \subsection{练习}
 
-原书练习围绕二阶导数开销、重复反向传播、非标量输入和控制流函数展开。
+原书练习对应二阶导数、重复反向、非标量输入与控制流。
 
 \subsection{练习解答}
 
 \subsubsection{1. 为什么二阶导数的开销更大？}
 
-一阶反向传播本身形成新的导数计算。若继续求二阶导数，
-必须保留并再次遍历一阶导数的计算图，因此时间和内存开销均增加。
+一阶梯度 $\nabla L\in\mathbb{R}^{n}$。海森
+\[
+H_{ij}=\frac{\partial^2 L}{\partial x_i\partial x_j}
+\]
+最多含 $n^2$ 个元素，且需在一阶图上再反传一次，故时间与内存都更大。
 
 \subsubsection{2. 连续运行两次反向传播}
 
-默认反向传播后计算图会释放，直接对同一图再次反向传播会失败。
-显式保留计算图可以再次反传，但梯度仍会累积，必须按需要清零。
+默认第一次反传后释放 $\mathcal{G}$。保留图后可再求 $\nabla L$，但梯度累积：
+\[
+\bm{g}\leftarrow\bm{g}+\nabla_{\bm{x}}L.
+\]
 
 \subsubsection{3. 将控制流例子中的输入改成向量或矩阵}
 
-输入改为向量或矩阵后，若输出也非标量，需要先求和或提供外部梯度，
-把反向目标转化为向量--雅可比积。
+若输出 $\bm{f}(\bm{a})$ 非标量，反向目标改为
+\[
+\nabla_{\bm{a}}(\bm{1}^{\mathsf T}\bm{f}(\bm{a}))
+=
+J^{\mathsf T}\bm{1}.
+\]
+对路径 $f(\bm{a})=k\bm{a}$，有 $J=kI$，因而每个分量的梯度均为 $k$。
 
 \subsubsection{4. 重新设计控制流梯度例子}
 
-可用依赖输入符号的条件分支构造分段函数。自动微分对被选中的分支求导，
-不对离散的分支选择操作求导。
+分段
+\[
+g(x)=
+\begin{cases}
+x^{2}, & x>0,\\
+-x^{3}, & x\le 0,
+\end{cases}
+\qquad
+g'(x)=
+\begin{cases}
+2x, & x>0,\\
+-3x^{2}, & x<0.
+\end{cases}
+\]
+自动微分对选中分支求导，不对 $[x>0]$ 这一离散选择求导。
 
 \section{概率}
 
-训练给出点估计之后，还需要用数值表达不确定性。机器学习模型预测的通常不是确定事实，
-而是给定观测后各结果的可信程度。下面从单事件概率出发，再处理多变量和数字特征。
+点估计给出 $\hat{y}$；概率把不确定性写成 $P(\cdot\mid\text{观测})$。
 
 \subsection{基本概率论}
 
-从分布中抽取结果称为采样。重复独立采样时，事件 $\mathcal{A}$ 的经验频率
+独立重复抽样下，事件 $\mathcal{A}$ 的经验频率
 \[
 \widehat{P}_N(\mathcal{A})
 =
-\frac{1}{N}\sum_{i=1}^{N}
-\mathbf{1}\{X_i\in\mathcal{A}\}
+\frac{1}{N}\sum_{i=1}^{N}\mathbf{1}\{X_i\in\mathcal{A}\}
 \]
-随 $N$ 增大趋近真实概率 $P(\mathcal{A})$，这是大数定律在本节中的直观含义。
+满足 $\widehat{P}_N(\mathcal{A})\to P(\mathcal{A})$（大数定律）。
 
 \subsubsection{概率论公理}
 
-样本空间 $\mathcal{S}$ 包含全部可能结果，事件是 $\mathcal{S}$ 的子集。
-概率满足
+样本空间为 $\mathcal{S}$，事件为 $\mathcal{A}\subseteq\mathcal{S}$。公理：
 \begin{align*}
-P(\mathcal{A})&\ge0,\\
+P(\mathcal{A})&\ge 0,\\
 P(\mathcal{S})&=1,\\
-P\left(\bigcup_{i=1}^{\infty}\mathcal{A}_i\right)
+P\Bigl(\bigcup_{i=1}^{\infty}\mathcal{A}_i\Bigr)
 &=\sum_{i=1}^{\infty}P(\mathcal{A}_i)
-\quad
-\text{（$\mathcal{A}_i$ 两两互斥）}.
+\quad(\mathcal{A}_i\text{ 两两不交}).
 \end{align*}
-由此可得 $P(\varnothing)=0$。
+取 $\mathcal{A}_i=\varnothing$ 得 $P(\varnothing)=0$；互补事件满足
+$P(\mathcal{A}^{c})=1-P(\mathcal{A})$。
 
 \subsubsection{随机变量}
 
-随机变量 $X$ 把样本空间中的结果映射到数值。离散变量可直接讨论
-$P(X=x)$；连续变量用密度描述，单点概率可以为 $0$，而区间概率仍可为正。
+随机变量是 $X:\mathcal{S}\to\mathbb{R}$。离散时直接用 $P(X=x)$；连续时用密度 $p$，
+\[
+P(a\le X\le b)=\int_{a}^{b}p(x)\,\mathrm{d}x,
+\]
+因而单点可以有 $P(X=x)=0$。
 
 \subsection{处理多个随机变量}
 
-单个随机变量还不够：疾病与检测、图像与标签都成对出现。
-多个变量之间的关系由联合分布描述，条件化和边际化分别表示
-“已知某变量”与“消去某变量”。
+成对变量由联合分布 $P(A,B)$ 描述。条件化限制到 $\{A=a\}$，边际化消去 $A$。
 
 \subsubsection{联合概率}
 
-联合概率 $P(A=a,B=b)$ 表示两个条件同时成立。因为联合事件包含于任一边际事件，
 \[
-P(A=a,B=b)\le P(A=a).
+P(A=a,B=b)=P(\{A=a\}\cap\{B=b\})
+\le
+P(A=a).
 \]
 
 \subsubsection{条件概率}
 
-联合概率给出同时发生的程度。当 $P(A=a)>0$ 时，条件概率是在已知 $A=a$ 的子空间内重新归一化：
+当 $P(A=a)>0$，
 \[
 P(B=b\mid A=a)
 =
 \frac{P(A=a,B=b)}{P(A=a)}.
 \]
+乘法法则即 $P(A,B)=P(B\mid A)P(A)$。
 
 \subsubsection{贝叶斯定理}
 
-把条件概率的定义与乘法法则合在一起，就可以交换条件方向。由
-\[
-P(A,B)=P(B\mid A)P(A)=P(A\mid B)P(B)
-\]
-得到
+由 $P(B\mid A)P(A)=P(A\mid B)P(B)$ 交换条件方向：
 \[
 P(A\mid B)
 =
 \frac{P(B\mid A)P(A)}{P(B)},
 \qquad P(B)>0.
 \]
-它把先验 $P(A)$ 与似然 $P(B\mid A)$ 合成为后验 $P(A\mid B)$。
+其中 $P(A)$ 为先验，$P(B\mid A)$ 为似然，$P(A\mid B)$ 为后验。
 
 \subsubsection{边际化}
 
-贝叶斯公式的分母 $P(B)$ 往往未知，需要对未观测变量求和得到。若 $A$ 为离散变量，
+分母由全概率公式得到。$A$ 离散时
 \[
-P(B)=\sum_A P(A,B).
+P(B)=\sum_{A}P(A,B)=\sum_{A}P(B\mid A)P(A);
 \]
-连续变量对应的操作是积分。
+连续时把求和换成 $\int p(a,b)\,\mathrm{d}a$。
 
 \subsubsection{独立性}
 
-若
 \[
-P(A,B)=P(A)P(B),
+A\perp B
+\iff
+P(A,B)=P(A)P(B)
+\iff
+P(A\mid B)=P(A)\quad(P(B)>0).
 \]
-则记为 $A\perp B$。给定 $C$ 后的条件独立定义为
+条件独立：
 \[
 A\perp B\mid C
-\quad\Longleftrightarrow\quad
+\iff
 P(A,B\mid C)=P(A\mid C)P(B\mid C).
 \]
 
 \subsubsection{应用}
 
-原书以 HIV 检测说明先验的重要性。若感染率
-$P(H=1)=0.0015$，且第一次检测满足
+令 $H\in\{0,1\}$ 表示感染，$D_1\in\{0,1\}$ 表示检测阳性。已知
 \[
+P(H=1)=0.0015,
+\qquad
 P(D_1=1\mid H=0)=0.01,
 \qquad
-P(D_1=1\mid H=1)=1,
+P(D_1=1\mid H=1)=1.
 \]
-则
+边际
 \[
 P(D_1=1)
-=0.01(1-0.0015)+1(0.0015)
+=
+0.01(1-0.0015)+1\cdot 0.0015
 =0.011485,
 \]
-因此一次阳性后的感染概率为
+后验
 \[
 P(H=1\mid D_1=1)
 =
-\frac{1\times0.0015}{0.011485}
-\approx0.1306.
+\frac{1\cdot 0.0015}{0.011485}
+\approx 0.1306.
 \]
-结论是：即使检测灵敏度高，低先验事件的一次阳性也不等于高后验概率。
+因此高灵敏度并不蕴含高后验：先验 $P(H=1)$ 过小时，一次阳性仍不足。
 
 \subsection{期望和方差}
 
-概率描述事件；期望和方差把分布压缩成数字特征。离散随机变量的期望为
+离散期望
 \[
-\mathbb{E}[X]=\sum_x xP(X=x).
+\mathbb{E}[X]=\sum_x xP(X=x),
+\qquad
+\mathbb{E}_{x\sim P}[f(x)]=\sum_x f(x)P(x).
 \]
-对函数 $f$，
-\[
-\mathbb{E}_{x\sim P}[f(x)]
-=
-\sum_x f(x)P(x).
-\]
-方差衡量变量围绕期望的平方偏离：
+方差
 \[
 \operatorname{Var}(X)
 =
-\mathbb{E}\left[(X-\mathbb{E}[X])^2\right]
+\mathbb{E}\bigl[(X-\mathbb{E}[X])^2\bigr]
 =
-\mathbb{E}[X^2]-\mathbb{E}[X]^2.
+\mathbb{E}[X^2]-\mathbb{E}[X]^2,
 \]
-标准差为方差平方根，与原变量具有相同量纲。
+标准差 $\sqrt{\operatorname{Var}(X)}$ 与 $X$ 同量纲。函数值的离散程度为
+\[
+\operatorname{Var}[f(x)]
+=
+\mathbb{E}\bigl[(f(x)-\mathbb{E}[f(x)])^2\bigr].
+\]
 
 \subsection{小结}
 
-概率从样本空间和事件出发，用联合、条件、边际和独立性处理多变量关系，
-再用期望和方差概括分布的位置与离散程度。
+公理给出 $P$，联合/条件/边际给出多变量关系，贝叶斯给出
+$P(A\mid B)\propto P(B\mid A)P(A)$，期望与方差概括位置与分散。
 
 \subsection{练习}
 
-原书练习要求分析抽样频率、条件概率、贝叶斯更新、独立性以及期望和方差。
+对应 $\widehat{P}_N$、条件化、贝叶斯更新、$A\perp B$ 以及 $\mathbb{E},\operatorname{Var}$。
 
 \section{查阅文档}
 
-前面各节用到的接口会随框架版本变化，因此应掌握发现和核验方法，而不是记忆完整函数表。
-先列出模块内容，再查看单个对象的用法。
+接口随版本变化，核验对象本身，而不是记忆映射表。
 
 \subsection{查找模块中的所有函数和类}
 
-\code{dir(module)} 列出模块中的属性、函数和类。双下划线包围的名称通常属于
-Python 特殊机制，单下划线开头的名称通常是内部实现。
+\code{dir(module)} 列出属性。名称 $\_\_\cdot\_\_$ 属语言机制，$_\cdot$ 通常为内部实现。
 
 \subsection{查找特定函数和类的用法}
 
-从列表中选定对象后，\code{help(object)} 显示文档字符串；Jupyter 中的 \code{?} 查看帮助，
-\code{??} 在可用时显示 Python 源码。最终应以当前安装版本的官方文档为准。
+\code{help(object)} 给出文档字符串。Jupyter 中 $?$ 查看帮助，?? 在可用时给出源码。
+最终以当前安装版本的官方签名为准。
 
 \subsection{小结}
 
-查阅接口的顺序是：先用 \code{dir} 发现候选对象，再用 \code{help} 或
-Jupyter 帮助查看参数、返回值与示例。
+先 $\mathrm{dir}$ 得到候选集合，再 $\mathrm{help}$ 读取参数与返回值。
 
 \subsection{练习}
 
-原书练习要求查询张量函数的官方文档并运行示例，以建立独立核验 API 的习惯。
+对选定张量函数核对其数学定义与实现签名是否一致。
