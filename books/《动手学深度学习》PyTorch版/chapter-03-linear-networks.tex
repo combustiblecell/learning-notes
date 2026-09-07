@@ -569,6 +569,19 @@ l(\bm{y},\hat{\bm{y}})
 $\partial l/\partial o_{j}$ 是打分 $o_j$ 增加 $1$ 时交叉熵大约增加多少，
 数值上等于“预测的类 $j$ 概率减去真实独热标签”。
 因此反向传播中，$\nabla_{\bm{o}}l=\hat{\bm{y}}-\bm{y}$。
+再经 $\bm{o}=\bm{W}\bm{x}+\bm{b}$ 链式法则，
+\[
+\nabla_{\bm{W}}l=(\hat{\bm{y}}-\bm{y})\bm{x}^{\mathsf T},
+\qquad
+\nabla_{\bm{b}}l=\hat{\bm{y}}-\bm{y}.
+\]
+左边每个条目是对应权重或偏置增大时交叉熵大约增加多少。
+批量 $\bm{X}\in\mathbb{R}^{B\times d}$、$\hat{\bm{Y}},\bm{Y}\in\mathbb{R}^{B\times q}$ 时
+\[
+\nabla_{\bm{W}}L=\frac{1}{B}\bm{X}^{\mathsf T}(\hat{\bm{Y}}-\bm{Y}).
+\]
+与线性回归对照：回归用标量残差 $(\hat{y}-y)$ 乘 $\bm{x}$；这里用向量残差 $(\hat{\bm{y}}-\bm{y})$ 乘 $\bm{x}$。
+指数出现在 $\mathrm{softmax}$ 的 $e^{o_j}$ 上，不是把权重 $\bm{W}$ 指数化。
 
 \subsubsection{交叉熵损失}
 

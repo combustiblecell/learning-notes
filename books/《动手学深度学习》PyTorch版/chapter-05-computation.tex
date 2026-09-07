@@ -31,6 +31,8 @@ $\bm{h}$ 的每个分量是该隐单元对输入的非线性响应（负半轴�
 $\bm{o}$ 的每个分量是一类的未归一化打分，与标签同索引，不是概率。
 复合 $f=\ell_2\circ\operatorname{ReLU}\circ\ell_1$ 允许 $f(\bm{x})\in\mathbb{R}^{10}$ 与 $\bm{x}\in\mathbb{R}^{20}$ 形状不同。
 反向传播给出的 $\nabla_{\bm{W}_1}L$、$\nabla_{\bm{W}_2}L$、$\nabla_{\bm{x}}L$ 中，每个条目是对应参数或输入增大时标量损失大约增加多少。
+并非所有块都是纯顺序复合：残差块在前向里做 $\bm{Y}\leftarrow F(\bm{X})+\bm{X}$，稠密块做通道维连结 $\bm{X}\leftarrow[\bm{X},F(\bm{X})]$。
+二者都必须写在自定义前向中；$\operatorname{Seq}$ 不会自动相加或拼接。相加要求形状相同，连结只增加通道个数。
 
 \subsection{顺序块}
 
