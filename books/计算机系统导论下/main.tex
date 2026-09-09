@@ -1,0 +1,97 @@
+\documentclass[UTF8,zihao=-4,openany]{ctexbook}
+
+\usepackage[a4paper,margin=2.45cm,headheight=15pt]{geometry}
+\usepackage{amsmath,amssymb,bm}
+\usepackage{booktabs,tabularx,array}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{fancyhdr}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage[
+  unicode,
+  colorlinks=true,
+  linkcolor=Primary,
+  urlcolor=Accent,
+  bookmarksopen=true,
+  bookmarksnumbered=true,
+  bookmarksdepth=1
+]{hyperref}
+
+\definecolor{Primary}{HTML}{355C7D}
+\definecolor{Accent}{HTML}{6C8EAD}
+\definecolor{CodeBg}{HTML}{F6F7F8}
+
+\setlength{\parindent}{2em}
+\setlength{\parskip}{0.35em}
+\setlist[itemize]{leftmargin=2em,itemsep=0.2em,topsep=0.3em}
+\setlist[enumerate]{leftmargin=2.2em,itemsep=0.2em,topsep=0.3em}
+\renewcommand{\arraystretch}{1.25}
+\setcounter{secnumdepth}{3}
+\setcounter{tocdepth}{1}
+\allowdisplaybreaks[4]
+\emergencystretch=3em
+\hfuzz=5pt
+\vfuzz=5pt
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{计算机系统导论下}
+\fancyhead[R]{\hyperlink{contents}{返回目录}}
+\fancyfoot[C]{\thepage}
+
+\hypersetup{
+  pdftitle={计算机系统导论下学习笔记},
+  pdfauthor={learning-notes}
+}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{CodeBg},
+  frame=single,
+  rulecolor=\color{Accent},
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  showspaces=false,
+  showstringspaces=false,
+  language=C
+}
+
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\pending}{%
+本节标题依 \emph{Computer Systems: A Programmer's Perspective} 第三版目录保留。
+正文待后续课堂补充，此处不编造结论。}
+
+\title{\heiti 计算机系统导论下\\[0.4em]\Large 学习笔记}
+\author{内容提炼}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\frontmatter
+
+\chapter*{说明}
+\addcontentsline{toc}{chapter}{说明}
+本笔记对应卡内基梅隆大学 15-213 所用教材
+\emph{Computer Systems: A Programmer's Perspective}（Bryant \& O'Hallaron，第三版）
+的第二部分与第三部分，即第~7--12~章。
+中文章名、节名与子节名按机械工业出版社《深入理解计算机系统》第三版译名，层级与顺序与英文原书一致。
+试作版只充实第~7~章中已课堂讲授的内容（至静态库扫描）；
+其余节保留原书标题。
+正文以公式陈述定义、成立条件、关键推导与结论。
+每一公式后写明：数学上如何由输入算出输出，以及得到的数在问题中的实际含义。
+
+\hypertarget{contents}{}
+\tableofcontents
+
+\mainmatter
+\setcounter{chapter}{6}
+\input{chapter-07-linking}
+\input{chapter-08-ecf}
+\input{chapter-09-vm}
+\input{chapter-10-io}
+\input{chapter-11-network}
+\input{chapter-12-concurrent}
+
+\end{document}

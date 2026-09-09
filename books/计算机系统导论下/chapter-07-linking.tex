@@ -1,0 +1,290 @@
+\chapter{链接}
+
+链接（linking）把多个代码与数据片段收集并组合成一个可被加载到内存并执行的文件。
+它可发生在编译时（compile time）、加载时（load time）或运行时（runtime）。
+静态链接器（linker）\code{ld} 在生成可执行文件时完成前一种；动态链接器在后两种完成。
+
+\section{编译器驱动程序}
+
+贯穿本章的示例由 \code{main.c} 与 \code{sum.c} 组成：
+前者定义全局数组 \code{array} 并调用 \code{sum}，后者定义求和函数。
+\code{gcc} 是编译器驱动程序（compiler driver），按需调用预处理器 \code{cpp}、编译器 \code{cc1}、汇编器 \code{as} 与链接器 \code{ld}。
+
+\begin{lstlisting}
+linux> gcc -Og -o prog main.c sum.c
+linux> ./prog
+\end{lstlisting}
+
+翻译链写成
+\[
+\texttt{main.c}
+\xrightarrow{\mathrm{cpp}}
+\texttt{main.i}
+\xrightarrow{\mathrm{cc1}}
+\texttt{main.s}
+\xrightarrow{\mathrm{as}}
+\texttt{main.o},
+\]
+对 \code{sum.c} 同样得到 \code{sum.o}，最后
+\[
+(\texttt{main.o},\texttt{sum.o},\text{系统目标文件})
+\xrightarrow{\mathrm{ld}}
+\texttt{prog}.
+\]
+每个箭头的输入是上一阶段的 ASCII 或二进制文件，输出是下一阶段的文件；
+\code{prog} 是可执行目标文件，不是源文件。
+\code{-Og} 只改变优化程度，不改变上述阶段划分。
+
+运行 \code{./prog} 时，shell 调用加载器（loader）把 \code{prog} 映射进内存并把控制转到入口。
+加载器的输入是磁盘上的 ELF 可执行文件，输出是进程的虚拟地址空间中一段可执行映像。
+
+\section{静态链接}
+
+静态链接（static linking）指在生成 \code{prog} 时就把所需目标模块的代码与数据拷入可执行文件，运行时不再依赖那些 \code{.o} 或静态库 \code{.a}。
+它不是「运行时指令不能改」，也不是把操作系统、堆、栈一并拷进 \code{prog}。
+
+链接器对输入的可重定位目标文件做两步。
+符号解析（symbol resolution）把每个引用绑定到恰好一个定义：
+\[
+\operatorname{Resolve}(r)=d,
+\qquad
+r\in R,\ d\in D,\ |\{d\}|=1.
+\]
+输入是引用集合 $R$ 与定义集合 $D$；输出是从引用到定义的函数。
+$\operatorname{Resolve}(r)$ 表示「名字 $r$ 最终用哪一份实体」，不是内存地址。
+找不到或强符号冲突则链接失败。
+
+重定位（relocation）在合并节之后，把相对位置改成最终虚拟地址，并改写引用处的字节。
+若符号 $s$ 被分配到运行时地址 $\operatorname{ADDR}(s)$，则指令或数据中的占位字段被换成由 $\operatorname{ADDR}(s)$ 算出的立即数或位移。
+$\operatorname{ADDR}(s)$ 是虚拟地址（无量纲的字节编号），取值在用户空间可映射范围内，例如本讲示例中代码约从 $0\texttt{x}400000$ 起。
+
+分开编译的成立条件：只改一个 \code{.c} 时，重编该文件得到新 \code{.o}，再与未改的 \code{.o} 重新链接即可，不必重编全部源文件。
+
+\section{目标文件}
+
+链接器处理三类目标文件（object file）。
+可重定位目标文件 \code{.o} 由恰好一个 \code{.c} 汇编得到，地址未定死，用于再与其它模块合并。
+可执行目标文件（传统名 \code{a.out}）含可直接拷入内存执行的代码与数据。
+共享目标文件 \code{.so} 是可在加载时或运行时动态链接的特殊可重定位文件，Windows 上称为 DLL。
+
+\section{可重定位目标文件}
+
+Linux 上三类目标文件共用 ELF（Executable and Linkable Format）。
+文件从偏移 $0$ 起依次为 ELF 头、（可执行文件需要的）段头表、各节、节头表。
+
+节头表给出每个节在文件中的偏移与大小，供链接器按节合并。
+节标志（如是否含指令、是否可写、是否占用运行时内存）是给链接器的分类标签，用来决定哪些节打进同一加载段。
+段头表给出加载时 \code{mmap} 的虚拟地址、长度与页权限 $r/w/x$；进程真正生效的内存保护看段标志，不看节标志。
+同一段文件字节可以被两套索引描述：节头说「这是 \code{.text}」，段头说「映射到虚拟地址 $V$、权限 $r$-$x$」。
+
+常用节：\code{.text} 为机器指令；\code{.rodata} 为只读数据；\code{.data} 为已初始化全局/静态变量；\code{.bss} 为未初始化或按零初始化的全局/静态变量。
+若未初始化全局对象的运行时长度为 $n$ 字节，则
+\[
+\lvert\text{\texttt{.bss}}\rvert_{\text{file}}\approx 0,
+\qquad
+\lvert\text{\texttt{.bss}}\rvert_{\text{mem}}=n.
+\]
+左边是磁盘占用（节头记下大小，不存 $n$ 个零），右边是加载后在数据段中留出的字节数，内容为 $0$。
+$n$ 是字节计数，不是变量的值。
+
+\code{.symtab} 是符号表：函数名、全局/静态变量名，以及该符号所在节与节内偏移。
+它回答「名为 \code{sum} 的对象在哪一节、多大」，不能替代节头表；ELF 头先指向节头表，节头表再指出 \code{.symtab} 的文件偏移。
+\code{.rel.text} 与 \code{.rel.data}（或带加数的 \code{.rela.*}）分别记录代码中的指令与数据中的指针哪些字节需要在链接时改写。
+\code{.debug} 在 \code{gcc -g} 时生成，供调试，不参与取指。
+
+\section{符号和符号表}
+
+对模块 $m$（一个 \code{.o}），链接符号分三类。
+全局符号由 $m$ 定义且可被其它模块引用，对应无 \code{static} 的函数与全局变量。
+外部符号是 $m$ 引用、定义在其它模块的全局符号。
+局部链接符号仅由 $m$ 定义与引用，对应带 \code{static} 的函数与全局变量。
+局部链接符号不是函数内自动变量：\code{main} 里的 \code{val}、\code{sum} 里的 \code{i} 与 \code{s} 在栈上，链接器不处理它们。
+
+函数内 \code{static} 变量存储在 \code{.data} 或 \code{.bss}，进程内一份，函数返回后仍在。
+若 $f$ 与 $g$ 各有 \code{static int x}，编译器为每个定义分配独立存储，并在符号表中写成互异局部名（如 \code{x.1}、\code{x.2}）。
+这些名字对其它 \code{.o} 不可见。
+
+在示例中，\code{main.o} 定义 \code{main}、\code{array} 并引用 \code{sum}；\code{sum.o} 定义 \code{sum}。
+解析把前者对 \code{sum} 的引用接到后者的定义。
+
+\section{符号解析}
+
+解析把每个引用与输入模块符号表中恰好一个定义关联。
+模块内局部符号由编译器保证唯一；全局符号可能跨模块重名，须按下一小节的强弱规则处理。
+若引用在全部输入中都无定义，链接器报 \code{undefined reference} 并终止。
+
+\subsection{链接器如何解析多重定义的全局符号}
+
+编译器把每个全局符号标为强（strong）或弱（weak），汇编器写入符号表。
+函数与已初始化全局变量是强符号；未初始化全局变量（如文件作用域 \code{int foo;}）是弱符号。
+\code{int foo=0;} 有初值，是强符号。
+
+Linux 链接器规则：
+不允许多个同名强符号，否则报错；
+一个强符号与若干弱符号同名则选强符号，弱引用接到该定义；
+多个弱符号同名则任意选一个（可用 \code{gcc -fno-common} 改为遇多重定义即报错）。
+
+若模块 $1$ 有强符号 $x$ 而模块 $2$ 有弱符号 $x$，则
+\[
+\operatorname{REF}(x.2)\to\operatorname{DEF}(x.1).
+\]
+箭头左边是引用所在模块，右边是被选中的定义所在模块。
+输出不是「两个变量」，而是全程序共用一份 $x$。
+
+若一边是 \code{int x; int y;}、另一边是 \code{double x;}，弱符号合并后两边对 $\lvert x\rvert$ 的看法不同：
+$x86$-$64$ 上 $\lvert\texttt{int}\rvert=4$、$\lvert\texttt{double}\rvert=8$，对 $x$ 的 $8$ 字节写可能覆盖相邻的 $y$。
+若 $x$、$y$ 已初始化而为强符号，布局已定，对接到 \code{int x} 上的 \code{double} 写入会覆盖 $y$。
+
+实践：能不用全局则不用；仅本文件用则加 \code{static}；跨文件定义时初始化以得到强符号；引用别处的定义用 \code{extern}。
+
+\subsection{与静态库链接}
+
+静态库（static library）是带索引的归档（archive）\code{.a}，由 \code{ar} 把许多 \code{.o} 打包而成。
+链接器只把当前未解析引用所需要的那些成员拷进可执行文件，不是把整个归档拷进去。
+生成 \code{prog} 之后运行不再需要该 \code{.a}；重新链接时仍需提供 \code{.a}。
+
+不用库时的两种极端都不合适：把全部标准函数放进一个巨大 \code{.o} 会浪费空间与重编时间；每个函数一个 \code{.o} 则要求程序员显式列出依赖。
+归档把「一函数一 \code{.o}」装进一个文件，由链接器按符号抽取。
+
+课堂数据（2015 年演示系统）：\code{libc.a} 约 $4.6\,\mathrm{MB}$、$1496$ 个成员；\code{libm.a} 约 $2\,\mathrm{MB}$、$444$ 个成员。
+这些数是归档体积与成员个数，不是某个函数的运行时间。
+
+向量库示例：\code{addvec.c} 与 \code{multvec.c} 经
+\begin{lstlisting}
+ar rcs libvector.a addvec.o multvec.o
+\end{lstlisting}
+打成 \code{libvector.a}。
+\code{main2.c} 调用 \code{addvec} 与 \code{printf}。
+\code{\#include <stdio.h>} 按系统路径找头文件；\code{\#include "vector.h"} 通常先搜当前目录。
+头文件只提供声明，不把库代码链进程序。
+链接时抽出 \code{addvec.o} 以及 \code{libc.a} 中的 \code{printf.o} 及其依赖；不抽 \code{multvec.o}。
+可执行文件常命名为 \code{prog2c}，其中 \code{c} 表示 compile-time 静态链接。
+
+\subsection{链接器如何使用静态库来解析引用}
+
+从左到右扫描命令行上的 \code{.o} 与 \code{.a}。
+维护三个集合，初值皆空：
+$E$ 为将并入可执行文件的目标文件集合，$U$ 为尚未定义的引用符号集合，$D$ 为已经见到定义的符号集合。
+
+对每个输入 $f$：若 $f$ 是目标文件，则
+\[
+E\leftarrow E\cup\{f\},
+\quad
+U\leftarrow (U\cup\operatorname{Ref}(f))\setminus\operatorname{Def}(f),
+\quad
+D\leftarrow D\cup\operatorname{Def}(f).
+\]
+$\operatorname{Ref}(f)$、$\operatorname{Def}(f)$ 分别是 $f$ 中的引用名与定义名。
+$U$ 中剩下的是「还没有定义的名字」，不是地址。
+
+若 $f$ 是归档，则反复查找能定义 $U$ 中某个符号的成员 $m$，把 $m$ 当作目标文件加入 $E$ 并更新 $U$、$D$，直到不再变化；未被选中的成员丢弃。
+扫描结束时若 $U\neq\emptyset$，报错。
+
+因此库只解析「当时 $U$ 里已有的名字」。
+\code{gcc -L. libtest.o -lmine} 先让 \code{libfun} 进入 $U$，再扫 \code{libmine.a} 抽出定义；
+\code{gcc -L. -lmine libtest.o} 扫库时 $U=\emptyset$，一个成员都不抽，随后出现的引用无法解析。
+准则：把库放在命令行末尾；若 $A$ 依赖 $B$，写 \code{-lA -lB}；循环依赖可重复写某个库。
+
+共享库 \code{.so} 不按成员抽取拷贝，链接时通常只记录依赖；但 GNU 链接器在 \code{--as-needed} 下仍按从左到右消当前未解析符号，故 \code{-l} 仍宜放在程序 \code{.o} 之后。
+运行时需要能找到 \code{.so}，这与静态 \code{.a} 不同。
+
+\section{重定位}
+
+符号解析完成后，链接器合并各 \code{.o} 的同类节，为每个符号选定 $\operatorname{ADDR}(s)$，再按重定位条目改写引用。
+
+\subsection{重定位条目}
+
+汇编器遇到最终位置未知的对象时生成重定位条目，代码条目在 \code{.rel.text}，数据指针条目在 \code{.rel.data}。
+ELF 条目含偏移 $r.\mathit{offset}$、符号 $r.\mathit{symbol}$、类型 $r.\mathit{type}$ 与加数 $r.\mathit{addend}$。
+
+对 \code{main.o} 中 \code{sum(array,2)}，\code{objdump -r -d} 可见两处占位零。
+\code{mov \$0,\%edi} 对应类型 \code{R\_X86\_64\_32}、符号 \code{array}：把 \code{array} 的 $32$ 位绝对地址写入立即数。
+\code{call} 的 \code{e8 00 00 00 00} 对应类型 \code{R\_X86\_64\_PC32}、符号 \code{sum}、加数 $-4$：写入相对下一条指令的 $32$ 位位移。
+常数 $2$ 编 \code{main.o} 时已确定，无重定位条目。
+
+\subsection{重定位符号引用}
+
+链接器已选定节地址 $\operatorname{ADDR}(s)$ 与符号地址 $\operatorname{ADDR}(r.\mathit{symbol})$。
+对节 $s$ 中每条条目 $r$，令 $\mathit{refptr}=s+r.\mathit{offset}$ 指向待改的 $4$ 字节。
+
+PC 相对（\code{R\_X86\_64\_PC32}）：
+\begin{align*}
+\mathit{refaddr}&=\operatorname{ADDR}(s)+r.\mathit{offset},\\
+\ast\mathit{refptr}
+&=\operatorname{ADDR}(r.\mathit{symbol})+r.\mathit{addend}-\mathit{refaddr}.
+\end{align*}
+$\mathit{refaddr}$ 是这 $4$ 字节字段自己的运行时地址；
+$\ast\mathit{refptr}$ 是写入指令的有符号位移，单位字节，使 CPU 用「下一条指令地址加位移」落到目标。
+
+示例：$\operatorname{ADDR}(\texttt{.text})=0\mathrm{x}4004\mathrm{d}0$，$r.\mathit{offset}=0\mathrm{x}f$，
+$\operatorname{ADDR}(\texttt{sum})=0\mathrm{x}4004\mathrm{e}8$，$r.\mathit{addend}=-4$，则
+\[
+\mathit{refaddr}=0\mathrm{x}4004\mathrm{df},
+\qquad
+\ast\mathit{refptr}=0\mathrm{x}5.
+\]
+$0\mathrm{x}5$ 不是 \code{sum} 的绝对地址。
+执行 \code{call} 时 PC 为下一条指令地址 $0\mathrm{x}4004\mathrm{e}3$，
+\[
+0\mathrm{x}4004\mathrm{e}3+0\mathrm{x}5=0\mathrm{x}4004\mathrm{e}8=\operatorname{ADDR}(\texttt{sum}).
+\]
+
+绝对寻址（\code{R\_X86\_64\_32}）：
+\[
+\ast\mathit{refptr}=\operatorname{ADDR}(r.\mathit{symbol})+r.\mathit{addend}.
+\]
+对 \code{array}，$r.\mathit{addend}=0$，$\operatorname{ADDR}(\texttt{array})=0\mathrm{x}601018$，立即数即该虚拟地址，送入 \code{\%edi} 作为指针实参。
+
+\section{可执行目标文件}
+
+可执行 ELF 含 ELF 头、段头表、已合并的 \code{.init}/\code{.text}/\code{.rodata}/\code{.data}，以及运行时展开的 \code{.bss}。
+\code{.symtab} 与 \code{.debug} 可保留供调试，加载执行不必依赖它们。
+静态链接后 \code{main} 与 \code{sum} 出现在同一 \code{.text} 中，带最终虚拟地址。
+
+\section{加载可执行目标文件}
+
+加载器按段头 \code{mmap} 可执行文件。
+典型布局（本讲示例）：只读可执行段从 $0\texttt{x}400000$ 起，含 \code{.init}、\code{.text}、\code{.rodata}；
+其后为可读可写数据段，含 \code{.data} 与清零后的 \code{.bss}；
+再往上是堆（\code{brk}）、共享库映射区、向下增长的用户栈（\code{\%rsp}），最高处为用户不可见的内核虚拟内存。
+
+未初始化的全局/\code{static} 变量在加载之后、\code{main} 之前被置 $0$（\code{.bss}）。
+函数内非 \code{static} 局部变量在栈上，加载不清零，使用前必须自行赋值。
+
+\section{动态链接共享库}
+
+\pending
+
+\section{从应用程序中加载和链接共享库}
+
+\pending
+
+\section{位置无关代码}
+
+\pending
+
+\section{库打桩机制}
+
+\pending
+
+\subsection{编译时打桩}
+
+\pending
+
+\subsection{链接时打桩}
+
+\pending
+
+\subsection{运行时打桩}
+
+\pending
+
+\section{处理目标文件的工具}
+
+\pending
+
+\section{小结}
+
+静态链接在生成可执行文件时完成符号解析与重定位，把用到的 \code{.o} 及静态库成员拷入 \code{prog}。
+解析是引用到定义的单值映射；重定位用 $\operatorname{ADDR}$ 与加数填写绝对地址或 PC 相对位移。
+静态库按命令行顺序用集合 $E,U,D$ 抽取成员，故库应放在引用它们的目标文件之后。
