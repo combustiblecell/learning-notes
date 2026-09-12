@@ -321,7 +321,7 @@ $\bm{H}$ 的每一行是该样本的隐激活；$\bm{O}$ 的每一行是词表�
 \end{align*}
 其中 $\bm{X}_t\in\mathbb{R}^{n\times d}$，$\bm{H}_t\in\mathbb{R}^{n\times h}$，
 $\bm{O}_t\in\mathbb{R}^{n\times q}$。
-$\bm{H}_t$ 的第 $i$ 行是第 $i$ 条序列到时刻 $t$ 的压缩摘要：它混合了当前输入 $\bm{X}_t$ 与上一摘要 $\bm{H}_{t-1}$。
+$\bm{H}_t$ 的第 $i$ 行是第 $i$ 条序列到时刻 $t$ 的压缩摘要：当前 $\bm{X}_t$ 与上一摘要 $\bm{H}_{t-1}$ 各经线性变换后相加，不是 $\bm{H}$ 直接乘在 $\bm{X}$ 上。
 $\bm{O}_t$ 的第 $i$ 行是在该摘要下对词表各词元的线性打分，经 softmax 后才是概率。
 同一套 $(\bm{W}_{xh},\bm{W}_{hh},\bm{W}_{hq})$ 在所有 $t$ 上共享。
 
@@ -377,17 +377,31 @@ $(\bm{e}_i)_j=[i=j]$。
 第 $j$ 个分量是 $1$ 表示“该词元就是类 $j$”，$0$ 表示不是；各分量互斥，和为 $1$。
 小批量时间步 $\bm{X}_t$ 的每一行都是某个 $\bm{e}_{x}$，
 因而 $\bm{X}_t\in\mathbb{R}^{n\times N}$，且 $\bm{X}_t\bm{W}_{xh}$ 选出 $\bm{W}_{xh}$ 的第 $x$ 行，即该类的嵌入式线性特征。
+实现里先把词元编号矩阵 $\bm{X}\in\mathbb{Z}^{n\times n_{\mathrm{steps}}}$ 转置再独热，得到
+\[
+\operatorname{one\_hot}(\bm{X}^{\top})
+\in\mathbb{R}^{n_{\mathrm{steps}}\times n\times N}.
+\]
+输入是整数下标；输出第三维是独热，第一维是时间。
+沿时间切开后每步仍是 $n\times N$，不是 $n_{\mathrm{steps}}\times N$：
+一步同时吃 $n$ 条样本各自的一个符号，再循环 $n_{\mathrm{steps}}$ 次。
+字符级《时光机器》上常见取值是 $n=32$、$n_{\mathrm{steps}}=35$、$N\approx 28$。
 
 \subsection{初始化模型参数}
 
-隐藏宽度 $h$ 与词表大小 $N$ 决定
+隐藏宽度 $h$ 与词表大小 $N$ 决定可训练的五块
 \[
 \bm{W}_{xh}\in\mathbb{R}^{N\times h},\
 \bm{W}_{hh}\in\mathbb{R}^{h\times h},\
-\bm{W}_{hq}\in\mathbb{R}^{h\times N}
+\bm{b}_h\in\mathbb{R}^{h},\
+\bm{W}_{hq}\in\mathbb{R}^{h\times N},\
+\bm{b}_q\in\mathbb{R}^{N}.
 \]
-及偏置。这些形状中的 $N,h$ 是轴长度：$N$ 是词表有多大，$h$ 是摘要向量有几维。
+这些形状中的 $N,h$ 是轴长度：$N$ 是词表有多大，$h$ 是摘要向量有几维。
 输入层与输出层共用同一词表，故两边维度都是 $N$。
+$h$ 是容量超参数，与 $n$、$n_{\mathrm{steps}}$、$N$ 无公式关系；实验取 $h=512$。
+权重用 $\mathcal{N}(0,0.01^{2})$ 初始化，偏置为零。
+$\bm{H}$ 不在此列：它是状态，不是参数。
 
 \subsection{循环神经网络模型}
 
@@ -402,44 +416,85 @@ $(\bm{e}_i)_j=[i=j]$。
 &=
 \bm{H}_t\bm{W}_{hq}+\bm{b}_q.
 \end{align*}
+$\bm{X}_t\bm{W}_{xh}$ 与 $\bm{H}_{t-1}\bm{W}_{hh}$ 都是 $n\times h$，再相加；
+$\bm{H}$ 并不直接乘在 $\bm{X}$ 上。
 $\tanh$ 把摘要各维限制在 $(-1,1)$；$\bm{H}_t$ 仍是到 $t$ 为止的压缩摘要。
-$\bm{O}_t$ 是词表上的 logits。
-最外层按 $t=1,\ldots,n_{\text{steps}}$ 循环，把全部 $\bm{O}_t$ 拼成输出；$n_{\text{steps}}$ 是展开的时间步数。
+$\bm{O}_t\in\mathbb{R}^{n\times N}$ 是词表上的 logits，尚未是概率。
+第 $i$ 行只由第 $i$ 条样本的 $\bm{X}_t$ 与 $\bm{H}_{t-1}$ 决定，行与行不混合；
+$n\times h$ 是 $n$ 份彼此独立的 $h$ 维记忆。
+代码用同一变量覆盖 $\bm{H}$：留下的只有最新 $\bm{H}_t$，
+$H_{t-1}$ 已被 $W_{hh}$ 压进 $H_t$，模型不并排保存两份。
+最外层按 $t=1,\ldots,n_{\mathrm{steps}}$ 循环，把全部 $\bm{O}_t$ 在第 $0$ 维拼接，
+得到 $n_{\mathrm{steps}}n\times N$ 的打分矩阵。
+一层循环只有这一套共享权重：展开 $n_{\mathrm{steps}}$ 次、梯度加 $n_{\mathrm{steps}}$ 次、参数改一次。
 
 \subsection{预测}
 
-给定前缀。预热期只更新 $h_t$ 不采样，目的是先把前缀压进摘要。
+生成时批量大小为 $1$，$\bm{H}\in\mathbb{R}^{1\times h}$，每步输入是 $1\times 1$ 的词元编号。
+给定前缀。预热期把前缀中已有字符依次送入只更新 $h_t$，丢掉 $\bm{O}_t$，
+目的是先把前缀压进摘要；$\operatorname{outputs}$ 追加的是前缀里真正的下一字符。
+预热结束时 $H$ 已读过前缀除最后一词外的部分。
 之后每步取
 \[
 \hat{x}_{t+1}=\operatorname*{argmax}_{x}P(x \mid h_t)
 \]
 或按该分布抽样，再把 $\hat{x}_{t+1}$ 作为下一输入。
-$P(x\mid h_t)$ 是在当前摘要下各词元的概率；argmax 得到的是概率最大的那个词元编号，不是概率值本身。
+$P(x\mid h_t)$ 由 $\bm{O}_t$ 经 softmax 得到，各分量在 $[0,1]$ 且和为 $1$；
+argmax 得到的是概率最大的那个词元编号，不是概率值本身。
+生成路径不算梯度。
 
 \subsection{梯度裁剪}
 
-若 $f$ 是 $L$ 利普希茨的，则
+若目标函数 $f$ 是 $L$-利普希茨连续的，则
 \[
 \bigl|f(\bm{x})-f(\bm{y})\bigr|\le L\|\bm{x}-\bm{y}\|.
 \]
-$L$ 是利普希茨常数：输入距离增加 $1$，输出最多变 $L$。
+此处 $L$ 是利普希茨常数（输入距离增加 $1$，输出最多变 $L$），
+不是训练损失，也不是要调的超参数。
 沿梯度走一步后
 \[
 \bigl|f(\bm{x})-f(\bm{x}-\eta\bm{g})\bigr|\le L\eta\|\bm{g}\|.
 \]
-$\|\bm{g}\|$ 是梯度向量的欧氏长度，表示参数敏感度整体有多大；$\eta\|\bm{g}\|$ 是这一步参数移动的尺度。
-阈值 $\theta$ 下的裁剪
+$\|\bm{g}\|$ 是把全部参数梯度拼成一个向量后的欧氏长度；
+$\eta\|\bm{g}\|$ 是这一步参数移动的尺度。
+真正裁剪用的超参数是半径 $\theta$（实现里取 $1$）：
 \[
-\bm{g}\leftarrow\min\Bigl(1,\frac{\theta}{\|\bm{g}\|}\Bigr)\bm{g}
+\bm{g}\leftarrow\min\Bigl(1,\frac{\theta}{\|\bm{g}\|}\Bigr)\bm{g}.
 \]
-把 $\|\bm{g}\|$ 限制在 $\theta$ 以内：若原本已经小于 $\theta$ 则不动，否则按比例缩小。
-用来抑制爆炸，但不修复消失。$\theta$ 与 $\|\bm{g}\|$ 同量纲（损失对参数的敏感度的范数）。
+若 $\|\bm{g}\|\le\theta$ 则不动，否则按比例缩短，方向不变。
+位置在一次 $\operatorname{backward}$ 之后、改参数之前。
+用来抑制爆炸，不修复消失。$\theta$ 与 $\|\bm{g}\|$ 同量纲。
 
 \subsection{训练}
 
-一个迭代周期内：随机采样则每批量重置 $h$（空摘要）；顺序分区则延续 $h$ 但截断梯度。
-更新前执行上式裁剪，并用困惑度汇总不同长度序列的交叉熵。
-困惑度仍是有效分支数的几何平均。
+一个迭代周期内：随机采样则每批量重置 $h$（空摘要）；
+顺序分区则延续 $h$ 的数值，但 $\operatorname{detach}$ 切断对上一批量的计算图。
+最后一个批量若 $n$ 对不上当前 $H$ 的行数，也重新 $\operatorname{begin\_state}$。
+标签 $\bm{Y}$ 转置拉平后与拼接的 $\hat{\bm{Y}}$ 对齐，共 $n_{\mathrm{steps}}n$ 个位置。
+逐步损失是交叉熵：对一行 logits 先 softmax 得 $p$，再 $l=-\log p_{\text{真}}$。
+对打分的梯度是
+\[
+\frac{\partial l}{\partial\bm{o}}=p-\mathrm{onehot}(y).
+\]
+输入是该行概率与真类编号；输出与 $\bm{o}$ 同形。
+真类维为 $p_k-1\le 0$（应抬高该分），其余维为 $p_i\ge 0$（应压低）。
+批量上再对 $n_{\mathrm{steps}}n$ 行取平均得到标量 $L$，然后 $\operatorname{backward}$ 一次、裁剪一次、更新一次，
+不是按 $n$ 或 $n_{\mathrm{steps}}$ 更新多次。
+从输出层回到隐藏层：
+\[
+\frac{\partial L}{\partial\bm{W}_{hq}}
+=\sum_t\bm{H}_t^{\top}\frac{\partial L}{\partial\bm{O}_t},
+\qquad
+\frac{\partial L}{\partial\bm{H}_t}
+=\frac{\partial L}{\partial\bm{O}_t}\,\bm{W}_{hq}^{\top}.
+\]
+左边分别是共享输出权重的梯度，以及该步摘要各维对 $L$ 的敏感度。
+$\partial L/\partial\bm{H}_t$ 再穿过 $\tanh$ 与 $W_{hh}$ 沿时间倒走，这才是 BPTT。
+困惑度把全周期平均交叉熵再指数化：
+\[
+\operatorname{ppl}=\exp\Bigl(\overline{-\log p_{\text{真}}}\Bigr).
+\]
+它是有效分支数的几何平均，下限为 $1$，均匀乱猜约为 $N$。
 
 \subsection{小结}
 
@@ -545,7 +600,23 @@ c_t&=\frac{\partial f(x_t,h_{t-1},w_h)}{\partial h_{t-1}},
 \[
 a_t=b_t+\sum_{i=1}^{t-1}\Biggl(\prod_{j=i+1}^{t}c_j\Biggr)b_i.
 \]
-$c_j$ 是摘要对上一摘要的雅可比；乘积 $\prod c_j$ 是从步 $i$ 传到步 $t$ 的总放大倍数，绝对值大于 $1$ 则爆炸、小于 $1$ 则消失。
+$c_j$ 是摘要对上一摘要的雅可比矩阵：
+第 $(p,q)$ 元是 $\partial (h_t)_p/\partial (h_{t-1})_q$。
+带 $\tanh$ 时
+\[
+J_t=\operatorname{diag}(1-H_t^{2})\,W_{hh}^{\top},
+\]
+输入是上一摘要，输出是本步摘要对它的全部偏导，形状 $h\times h$。
+链式法则把向量对向量的敏感度写成雅可比相乘，故
+\[
+\frac{\partial L}{\partial H_k}
+=
+\frac{\partial L}{\partial H_t}
+\prod_{i=k+1}^{t}J_i.
+\]
+左边是早期摘要各维对总损失的梯度；连乘约 $n_{\mathrm{steps}}$ 次同一类 $J$。
+$W_{hh}$ 最大奇异值 $\sigma>1$ 则 $\|J\|^{n_{\mathrm{steps}}}$ 爆炸，$\sigma<1$ 或 $\tanh$ 饱和（$1-H^{2}\approx 0$）则消失。
+这与批量大小 $n$ 无关，发生在时间维。
 代回原变量，
 \begin{align*}
 \frac{\partial h_t}{\partial w_h}
@@ -569,13 +640,23 @@ $c_j$ 是摘要对上一摘要的雅可比；乘积 $\prod c_j$ 是从步 $i$ �
 
 \subsubsection{截断时间步}
 
-在 $\tau$ 步后切断求和，即把 $\partial h_{t-\tau}/\partial w_h$ 视为常数。
-$\tau$ 是反传的最大时间跨度（步数）。
-这给出真实梯度的近似，使模型更关注短程依赖，并对应实现里对隐状态的分离。
+在 $\tau$ 步后切断求和，即把 $\partial h_{t-\tau}/\partial w_h$ 视为 $0$。
+$\tau$ 是反传的最大时间跨度，实现里等于 $n_{\mathrm{steps}}$。
+前向仍可把 $H$ 的数值带入下一批量；$\operatorname{detach}$ 只剪断计算图，
+因此一次 $\operatorname{backward}$ 最多穿过当前窗口，不会穿过整个迭代周期。
+这给出真实梯度的近似，使模型更关注短程依赖。
+它限制的是回传链有多长，与把 $\bm{g}$ 缩短到半径 $\theta$ 的梯度裁剪不是同一操作。
 
 \subsubsection{随机截断}
 
-用伯努利变量 $\xi_t$ 随机决定是否把梯度传向 $t-1$：
+每步用随机变量 $\xi_t$ 决定是否把梯度传向 $t-1$。
+取 $0\le\pi_t\le 1$，令
+\[
+P(\xi_t=0)=1-\pi_t,
+\qquad
+P(\xi_t=\pi_t^{-1})=\pi_t,
+\]
+则 $\mathbb{E}[\xi_t]=1$。替换递推中的循环项：
 \[
 z_t
 =
@@ -585,8 +666,9 @@ z_t
 \frac{\partial f(x_t,h_{t-1},w_h)}{\partial h_{t-1}}
 \frac{\partial h_{t-1}}{\partial w_h}.
 \]
-$\xi_t\in\{0,1\}$：$1$ 表示本步把敏感度传给上一摘要，$0$ 表示切断。
-$z_t$ 是对 $\partial h_t/\partial w_h$ 的随机估计；$\mathbb{E}[z_t]$ 可与完全梯度一致，但方差更大。
+$\xi_t=0$ 时在该步切断；$\xi_t=\pi_t^{-1}$ 时链继续并把该段放大，以补上少见长链。
+$z_t$ 是对 $\partial h_t/\partial w_h$ 的无偏随机估计，但方差更大。
+片段长度不再固定为 $\tau$。
 
 \subsubsection{比较策略}
 
@@ -675,6 +757,14 @@ b_t+\sum_{i<t}\Biggl(\prod_{j=i+1}^{t}c_j\Biggr)b_i,
 
 \subsection{练习}
 
-核验对称矩阵 $\bm{M}$ 满足 $\bm{M}^{k}$ 的特征值为 $\lambda_i^{k}$，
-以及 $\bm{W}_{hh}^{T-t}$ 与主导特征向量对齐如何对应爆炸方向。
-$\lambda_i^{k}$ 是把第 $i$ 个特征值连乘 $k$ 次后的放大系数。
+对称 $\bm{M}\bm{v}_i=\lambda_i\bm{v}_i$ 则 $\bm{M}^{k}\bm{v}_i=\lambda_i^{k}\bm{v}_i$，
+故 $\bm{M}^{k}$ 的特征值是 $\lambda_i^{k}$：把第 $i$ 个放大系数连乘 $k$ 次。
+随机 $\bm{x}=\sum c_i\bm{v}_i$ 且 $c_1\neq 0$、$|\lambda_1|>|\lambda_2|$ 时，
+\[
+\bm{M}^{k}\bm{x}
+=\lambda_1^{k}\Biggl(c_1\bm{v}_1+\sum_{i\ge 2}c_i\Bigl(\frac{\lambda_i}{\lambda_1}\Bigr)^{k}\bm{v}_i\Biggr)
+\]
+与主导特征向量 $\bm{v}_1$ 渐近共线。
+BPTT 中雅可比连乘类似 $\bm{M}^{k}$：
+$|\lambda_1|>1$ 爆炸，$|\lambda_1|<1$ 消失，梯度被主导特征方向吞没。
+除裁剪外，还可用截断时间步、约束 $W_{hh}$ 的谱半径、减小学习率，或换 GRU/LSTM 与残差以缩短有效连乘。
