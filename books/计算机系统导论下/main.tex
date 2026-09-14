@@ -2,7 +2,18 @@
 
 \usepackage[a4paper,margin=2.45cm,headheight=15pt]{geometry}
 \usepackage{amsmath,amssymb,bm}
+\usepackage{graphicx}
 \usepackage{booktabs,tabularx,array}
+\graphicspath{{figures/}}
+\newcommand{\bookfig}[4]{%
+  \begin{center}
+    \includegraphics[width=0.92\linewidth,height=0.42\textheight,keepaspectratio]{#1}%
+  \end{center}
+  \noindent{\heiti 图~#2}\quad #3\par
+  \vspace{0.35em}
+  \noindent 符号：#4\par
+  \vspace{0.6em}%
+}
 \usepackage[dvipsnames]{xcolor}
 \usepackage{fancyhdr}
 \usepackage{enumitem}
@@ -81,6 +92,7 @@
 其余节保留原书标题。
 正文以公式陈述定义、成立条件、关键推导与结论。
 每一公式后写明：数学上如何由输入算出输出，以及得到的数在问题中的实际含义。
+已充实章节中有信息量的示意图随文插入，图号沿用原书，并在图下注释符号。
 
 \hypertarget{contents}{}
 \tableofcontents

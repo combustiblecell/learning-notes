@@ -6,6 +6,15 @@ GoogLeNet 用并行 Inception，BatchNorm 稳定深层分布，ResNet 用 $\bm{x
 
 \section{深度卷积神经网络（AlexNet）}
 
+% BOOKFIG-BEGIN filters.png
+\bookfig{filters.png}{7.1.1}{AlexNet第一层学习到的特征抽取器。}{见图中标注；各块含义见题注。}
+% BOOKFIG-END filters.png
+
+% BOOKFIG-BEGIN alexnet.pdf
+\bookfig{alexnet.pdf}{7.1.2}{从LeNet（左）到AlexNet（右）}{卷积组：特征提取；全连接：分类；$1000$：ImageNet 类别}
+% BOOKFIG-END alexnet.pdf
+
+
 小数据上卷积早已有效，但在更大真实图像上，神经网络曾长期不敌支持向量机（support vector machine）。
 记一张图为 $\mathsf{X}$、标签为 $y$。传统视觉把图映成固定特征向量再接线性分类器：
 \[
@@ -306,6 +315,11 @@ $L$ 是标量平均损失；$4096,6400$ 是矩阵的行列维。
 
 \section{使用块的网络（VGG）}
 
+% BOOKFIG-BEGIN vgg.pdf
+\bookfig{vgg.pdf}{7.2.1}{从AlexNet到VGG，它们本质上都是块设计。}{VGG 块：若干卷积后接汇聚；深度由块重复次数决定}
+% BOOKFIG-END vgg.pdf
+
+
 AlexNet 证明深度有效，但未给出可复用的设计单元。
 VGG 把“卷积--激活--汇聚”抽象成块，用重复块堆出不同深度。
 
@@ -352,6 +366,11 @@ VGG-11 由可复用块 $\mathrm{VGG\text{-}block}(\,\cdot\,;n,c)$ 串联；更�
 代入后得到的整数是各块特征图的空间高宽。
 
 \section{网络中的网络（NiN）}
+
+% BOOKFIG-BEGIN nin.pdf
+\bookfig{nin.pdf}{7.3.1}{对比 VGG 和 NiN 及它们的块之间主要架构差异。}{NiN 块：$1\times 1$ 卷积代替全连接做通道混合}
+% BOOKFIG-END nin.pdf
+
 
 LeNet、AlexNet、VGG 都是卷积提取空间特征再接全连接。
 NiN 在每个空间位置的通道上再放多层感知机，即 $1\times 1$ 卷积，而不在早期展平。
@@ -415,6 +434,15 @@ NiN 用 $k\times k$ 后接两个 $1\times 1$ 的块提供逐像素 MLP（非线�
 全局平均汇聚把每张类别图在空间上平均成一个 logit，不把 $10$ 个通道加总成一张图。
 
 \section{含并行连结的网络（GoogLeNet）}
+
+% BOOKFIG-BEGIN inception.pdf
+\bookfig{inception.pdf}{7.4.1}{Inception块的架构。}{四条支路：不同核尺寸的卷积/汇聚，输出在通道维拼接}
+% BOOKFIG-END inception.pdf
+
+% BOOKFIG-BEGIN inception-full.pdf
+\bookfig{inception-full.pdf}{7.4.2}{GoogLeNet架构。}{Inception 块堆叠成 GoogLeNet；辅分类器：中间监督}
+% BOOKFIG-END inception-full.pdf
+
 
 不同任务上“最佳”核宽并不唯一。Inception 在同一层并行使用多种窗口，再沿通道连结。
 
@@ -576,6 +604,23 @@ $\bm{\beta}$ 已经是标准化后的加性偏移，与 $\bm{b}$ 角色重叠。
 
 \section{残差网络（ResNet）}
 
+% BOOKFIG-BEGIN functionclasses.pdf
+\bookfig{functionclasses.pdf}{7.6.1}{对于非嵌套函数类，较复杂（由较大区域表示）的函数类不能保证更接近“真”函数（ $f^*$ ）。这种现象在嵌套函数类中不会发生。}{$f^*$：目标函数；嵌套类：更大的函数族包含更小的}
+% BOOKFIG-END functionclasses.pdf
+
+% BOOKFIG-BEGIN residual-block.pdf
+\bookfig{residual-block.pdf}{7.6.2}{一个正常块（左图）和一个残差块（右图）。}{$f(\bm{x})$：残差支路；$\bm{x}$：快捷连接；输出：$f(\bm{x})+\bm{x}$}
+% BOOKFIG-END residual-block.pdf
+
+% BOOKFIG-BEGIN resnet-block.pdf
+\bookfig{resnet-block.pdf}{7.6.3}{包含以及不包含 $1 \times 1$ 卷积层的残差块。}{$1\times 1$：通道匹配；实线：空间尺寸不变；虚线：下采样}
+% BOOKFIG-END resnet-block.pdf
+
+% BOOKFIG-BEGIN resnet18.pdf
+\bookfig{resnet18.pdf}{7.6.4}{ResNet-18 架构}{conv1：首卷积；stage：残差阶段；GAP：全局平均汇聚}
+% BOOKFIG-END resnet18.pdf
+
+
 加深时必须保证新层不会把已有函数类变差。残差连接把恒等映射作为默认分量。
 
 \subsection{函数类}
@@ -646,6 +691,15 @@ $\phi$ 通常是 ReLU，输出每个条目仍是“校正后的信号再经非�
 连结拼的是通道，相加要求形状相同并把对应位置的响应加在一起。
 
 \section{稠密连接网络（DenseNet）}
+
+% BOOKFIG-BEGIN densenet-block.pdf
+\bookfig{densenet-block.pdf}{7.7.1}{ResNet（左）与 DenseNet（右）在跨层连接上的主要区别：使用相加和使用连结。}{ResNet：相加；DenseNet：拼接；$x$：输入特征}
+% BOOKFIG-END densenet-block.pdf
+
+% BOOKFIG-BEGIN densenet.pdf
+\bookfig{densenet.pdf}{7.7.2}{稠密连接。}{稠密块：特征在通道维拼接；过渡层：压缩通道并下采样}
+% BOOKFIG-END densenet.pdf
+
 
 DenseNet 把残差的加法换成通道维连结，使第 $\ell$ 层看见之前所有层的特征。
 

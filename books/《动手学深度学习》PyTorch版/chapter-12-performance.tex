@@ -6,6 +6,11 @@
 
 \section{编译器和解释器}
 
+% BOOKFIG-BEGIN computegraph.pdf
+\bookfig{computegraph.pdf}{12.1.1}{命令式编程中的数据流}{见图中标注；各块含义见题注。}
+% BOOKFIG-END computegraph.pdf
+
+
 命令式编程按语句改状态。Python 解释执行，每步都经过前端。
 
 \subsection{符号式编程}
@@ -69,6 +74,19 @@ $\bm{\theta}$ 仍是原来的权重；序列化的是编译后的图与这些数
 
 \section{异步计算}
 
+% BOOKFIG-BEGIN frontends.png
+\bookfig{frontends.png}{12.2.1}{编程语言前端和深度学习框架后端}{见图中标注；各块含义见题注。}
+% BOOKFIG-END frontends.png
+
+% BOOKFIG-BEGIN asyncgraph.pdf
+\bookfig{asyncgraph.pdf}{12.2.2}{后端跟踪计算图中各个步骤之间的依赖关系}{见图中标注；各块含义见题注。}
+% BOOKFIG-END asyncgraph.pdf
+
+% BOOKFIG-BEGIN threading.pdf
+\bookfig{threading.pdf}{12.2.3}{前端和后端的交互}{见图中标注；各块含义见题注。}
+% BOOKFIG-END threading.pdf
+
+
 GPU 核函数默认异步：前端插入任务后立即返回，后端在设备上执行。
 
 \subsection{通过后端异步处理}
@@ -112,6 +130,11 @@ $N$ 是重复次数，不是学习率。
 
 \section{自动并行}
 
+% BOOKFIG-BEGIN twogpu.pdf
+\bookfig{twogpu.pdf}{12.3.1}{在一个CPU和两个GPU上的两层的多层感知机的计算图及其依赖关系}{见图中标注；各块含义见题注。}
+% BOOKFIG-END twogpu.pdf
+
+
 框架根据计算图上的依赖决定哪些算子可并行。
 无依赖的子图可同时占用不同设备。
 
@@ -141,6 +164,43 @@ $\operatorname{copy}(\texttt{non\_blocking})$ 允许尚未完成的后续核与�
 核验：无依赖的多个小算子是否被自动并行，以及 CPU–GPU 同时计算加拷贝的总时延。
 
 \section{硬件}
+
+% BOOKFIG-BEGIN latencynumbers.png
+\bookfig{latencynumbers.png}{12.4.1}{每个程序员都应该知道的延迟数字}{见图中标注；各块含义见题注。}
+% BOOKFIG-END latencynumbers.png
+
+% BOOKFIG-BEGIN mobo-symbol.pdf
+\bookfig{mobo-symbol.pdf}{12.4.2}{计算机组件的连接}{见图中标注；各块含义见题注。}
+% BOOKFIG-END mobo-symbol.pdf
+
+% BOOKFIG-BEGIN skylake.pdf
+\bookfig{skylake.pdf}{12.4.3}{Intel Skylake消费级四核CPU}{见图中标注；各块含义见题注。}
+% BOOKFIG-END skylake.pdf
+
+% BOOKFIG-BEGIN a77.pdf
+\bookfig{a77.pdf}{12.4.4}{ARM Cortex A77微体系结构}{见图中标注；各块含义见题注。}
+% BOOKFIG-END a77.pdf
+
+% BOOKFIG-BEGIN neon128.pdf
+\bookfig{neon128.pdf}{12.4.5}{128位NEON矢量化}{见图中标注；各块含义见题注。}
+% BOOKFIG-END neon128.pdf
+
+% BOOKFIG-BEGIN falsesharing.pdf
+\bookfig{falsesharing.pdf}{12.4.6}{错误共享（图片由英特尔提供）}{见图中标注；各块含义见题注。}
+% BOOKFIG-END falsesharing.pdf
+
+% BOOKFIG-BEGIN turing-processing-block.png
+\bookfig{turing-processing-block.png}{12.4.7}{NVIDIA Turing处理块（图片由英伟达提供）}{见图中标注；各块含义见题注。}
+% BOOKFIG-END turing-processing-block.png
+
+% BOOKFIG-BEGIN turing.png
+\bookfig{turing.png}{12.4.8}{NVIDIA Turing架构（图片由英伟达提供）}{见图中标注；各块含义见题注。}
+% BOOKFIG-END turing.png
+
+% BOOKFIG-BEGIN tensorcore.jpg
+\bookfig{tensorcore.jpg}{12.4.9}{NVIDIA Turing架构中的张量核心（图片由英伟达提供）}{见图中标注；各块含义见题注。}
+% BOOKFIG-END tensorcore.jpg
+
 
 算法决定统计效率；硬件决定一次 $\nabla f$ 要多久。
 延迟差几个数量级就会使可训练与不可训练对换。
@@ -242,6 +302,19 @@ NVLink 卡间带宽高于 PCIe；以太网跨机约 $10\,\mathrm{GB/s}$ 量级�
 溢出指中间和超出该格式能表示的范围，结果不再是正确的点积。
 
 \section{多GPU训练}
+
+% BOOKFIG-BEGIN alexnet-original.pdf
+\bookfig{alexnet-original.pdf}{12.5.1}{由于GPU显存有限，原有AlexNet设计中的模型并行}{见图中标注；各块含义见题注。}
+% BOOKFIG-END alexnet-original.pdf
+
+% BOOKFIG-BEGIN splitting.pdf
+\bookfig{splitting.pdf}{12.5.2}{在多个GPU上并行化。从左到右：原始问题、网络并行、分层并行、数据并行}{见图中标注；各块含义见题注。}
+% BOOKFIG-END splitting.pdf
+
+% BOOKFIG-BEGIN data-parallel.pdf
+\bookfig{data-parallel.pdf}{12.5.3}{利用两个GPU上的数据，并行计算小批量随机梯度下降}{数据并行：各卡一份模型、一批数据；梯度再同步}
+% BOOKFIG-END data-parallel.pdf
+
 
 $k$ 张 GPU 增加显存与算力。需把一次小批量上的 $\nabla f$ 拆开再聚合。
 
@@ -347,6 +420,39 @@ $\eta\bm{g}$ 仍是每个权重的位移；更大有效批量需要相应调整�
 核验：更多卡、更大 $b$ 与 $\eta$ 的组合，以及 CPU 与 GPU 算力不均时如何划分前后向。
 
 \section{参数服务器}
+
+% BOOKFIG-BEGIN ps.pdf
+\bookfig{ps.pdf}{12.7.1}{左图是单GPU训练；右图是多GPU训练的一个变体：（1）计算损失和梯度，（2）所有梯度聚合在一个GPU上，（3）发生参数更新，并将参数重新广播给所有GPU}{GPU：算梯度；参数服务器：聚合并广播新权重}
+% BOOKFIG-END ps.pdf
+
+% BOOKFIG-BEGIN bw-hierarchy.pdf
+\bookfig{bw-hierarchy.pdf}{12.7.2}{一个4路GPU服务器}{见图中标注；各块含义见题注。}
+% BOOKFIG-END bw-hierarchy.pdf
+
+% BOOKFIG-BEGIN ps-distributed.pdf
+\bookfig{ps-distributed.pdf}{12.7.3}{参数同步策略}{见图中标注；各块含义见题注。}
+% BOOKFIG-END ps-distributed.pdf
+
+% BOOKFIG-BEGIN nvlink.pdf
+\bookfig{nvlink.pdf}{12.7.4}{在8台V100 GPU服务器上连接NVLink（图片由英伟达提供）}{见图中标注；各块含义见题注。}
+% BOOKFIG-END nvlink.pdf
+
+% BOOKFIG-BEGIN nvlink-twoloop.pdf
+\bookfig{nvlink-twoloop.pdf}{12.7.5}{将NVLink网络分解为两个环。}{见图中标注；各块含义见题注。}
+% BOOKFIG-END nvlink-twoloop.pdf
+
+% BOOKFIG-BEGIN ringsync.pdf
+\bookfig{ringsync.pdf}{12.7.6}{跨4个节点的环同步。每个节点开始向其左邻居发送部分梯度，直到在其右邻居中找到聚合的梯度}{见图中标注；各块含义见题注。}
+% BOOKFIG-END ringsync.pdf
+
+% BOOKFIG-BEGIN ps-multimachine.pdf
+\bookfig{ps-multimachine.pdf}{12.7.7}{多机多GPU分布式并行训练}{见图中标注；各块含义见题注。}
+% BOOKFIG-END ps-multimachine.pdf
+
+% BOOKFIG-BEGIN ps-multips.pdf
+\bookfig{ps-multips.pdf}{12.7.8}{上图：单参数服务器是一个瓶颈，因为它的带宽是有限的；下图：多参数服务器使用聚合带宽存储部分参数}{见图中标注；各块含义见题注。}
+% BOOKFIG-END ps-multips.pdf
+
 
 从单机多卡到多机时，互连带宽从 NVLink、PCIe 降到以太网，同步算法必须适配拓扑。
 

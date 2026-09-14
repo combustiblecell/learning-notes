@@ -5,6 +5,19 @@
 
 \section{门控循环单元（GRU）}
 
+% BOOKFIG-BEGIN gru-1.pdf
+\bookfig{gru-1.pdf}{9.1.1}{在门控循环单元模型中计算重置门和更新门}{$R_t$：重置门；$Z_t$：更新门；$\bm{h}_{t-1}$：上一隐状态}
+% BOOKFIG-END gru-1.pdf
+
+% BOOKFIG-BEGIN gru-2.pdf
+\bookfig{gru-2.pdf}{9.1.2}{在门控循环单元模型中计算候选隐状态}{见图中标注；各块含义见题注。}
+% BOOKFIG-END gru-2.pdf
+
+% BOOKFIG-BEGIN gru-3.pdf
+\bookfig{gru-3.pdf}{9.1.3}{计算门控循环单元模型中的隐状态}{见图中标注；各块含义见题注。}
+% BOOKFIG-END gru-3.pdf
+
+
 普通循环中 $\prod_j\partial h_j/\partial h_{j-1}$ 容易消失或爆炸。
 若早期词元必须影响很晚的预测，就需要能够长期保存 $h$ 的机制；
 若中间词元无关，则应学会跳过更新。GRU 用重置门与更新门实现这两种行为。
@@ -104,6 +117,23 @@ $\bm{H}_t$ 仍是迄今序列的压缩摘要。两门全开或全关时分别覆
 长期记忆应对应 $\bm{Z}\approx\bm{1}$（少改写摘要），忽略一段历史应对应 $\bm{R}\approx\bm{0}$。
 
 \section{长短期记忆网络（LSTM）}
+
+% BOOKFIG-BEGIN lstm-0.pdf
+\bookfig{lstm-0.pdf}{9.2.1}{长短期记忆模型中的输入门、遗忘门和输出门}{$I_t,F_t,O_t$：输入/遗忘/输出门；$\tilde{C}_t$：候选记忆}
+% BOOKFIG-END lstm-0.pdf
+
+% BOOKFIG-BEGIN lstm-1.pdf
+\bookfig{lstm-1.pdf}{9.2.2}{长短期记忆模型中的候选记忆元}{见图中标注；各块含义见题注。}
+% BOOKFIG-END lstm-1.pdf
+
+% BOOKFIG-BEGIN lstm-2.pdf
+\bookfig{lstm-2.pdf}{9.2.3}{在长短期记忆网络模型中计算记忆元}{见图中标注；各块含义见题注。}
+% BOOKFIG-END lstm-2.pdf
+
+% BOOKFIG-BEGIN lstm-3.pdf
+\bookfig{lstm-3.pdf}{9.2.4}{在长短期记忆模型中计算隐状态}{见图中标注；各块含义见题注。}
+% BOOKFIG-END lstm-3.pdf
+
 
 LSTM 在隐状态之外再设记忆元 $\bm{C}_t$，用三扇门分别控制写入、遗忘与读出。
 
@@ -217,6 +247,11 @@ $\bm{H}_t$ 是迄今序列的压缩摘要。从而缓解梯度消失。
 
 \section{深度循环神经网络}
 
+% BOOKFIG-BEGIN deep-rnn.pdf
+\bookfig{deep-rnn.pdf}{9.3.1}{深度循环神经网络结构}{见图中标注；各块含义见题注。}
+% BOOKFIG-END deep-rnn.pdf
+
+
 单层循环的 $\phi$ 可能不够灵活。把若干循环层堆叠，使不同层刻画不同时间尺度。
 
 \subsection{函数依赖关系}
@@ -270,6 +305,15 @@ $\bm{H}_t^{(\ell)}$ 是第 $\ell$ 层对迄今历史的压缩摘要。
 下层摘要是上层的输入特征，不是词表概率。
 
 \section{双向循环神经网络}
+
+% BOOKFIG-BEGIN hmm.pdf
+\bookfig{hmm.pdf}{9.4.1}{隐马尔可夫模型}{见图中标注；各块含义见题注。}
+% BOOKFIG-END hmm.pdf
+
+% BOOKFIG-BEGIN birnn.pdf
+\bookfig{birnn.pdf}{9.4.2}{双向循环神经网络架构}{前向 $\overrightarrow{\bm{h}}$；后向 $\overleftarrow{\bm{h}}$；拼接为上下文}
+% BOOKFIG-END birnn.pdf
+
 
 单向循环只能看过去。填空、标注等任务需要未来上下文，因此再设一条反向循环。
 
@@ -413,6 +457,11 @@ $(\bm{x},\bm{y})$，低频率词并入未知词元以控制 $|\mathcal{V}|$。
 
 \section{编码器-解码器架构}
 
+% BOOKFIG-BEGIN encoder-decoder.pdf
+\bookfig{encoder-decoder.pdf}{9.6.1}{编码器-解码器架构}{Encoder：源序列→状态；Decoder：状态→目标词}
+% BOOKFIG-END encoder-decoder.pdf
+
+
 输入长度 $T$ 与输出长度 $T'$ 都可以变。编码器把变长输入压成固定形状的状态，
 解码器再把该状态展开成变长输出。
 
@@ -467,6 +516,19 @@ $\bm{c}$ 是源句摘要，$y_{1:T'}$ 是目标词元序列。
 接口约束的是输入输出对象，不是内部用卷积还是循环。
 
 \section{序列到序列学习（seq2seq）}
+
+% BOOKFIG-BEGIN seq2seq.pdf
+\bookfig{seq2seq.pdf}{9.7.1}{使用循环神经网络编码器和循环神经网络解码器的序列到序列学习}{$\bm{h}$：编码器隐状态；$\bm{s}$：解码器状态；$y_t$：输出词}
+% BOOKFIG-END seq2seq.pdf
+
+% BOOKFIG-BEGIN seq2seq-details.pdf
+\bookfig{seq2seq-details.pdf}{9.7.2}{循环神经网络编码器-解码器模型中的层}{见图中标注；各块含义见题注。}
+% BOOKFIG-END seq2seq-details.pdf
+
+% BOOKFIG-BEGIN seq2seq-predict.pdf
+\bookfig{seq2seq-predict.pdf}{9.7.3}{使用循环神经网络编码器-解码器逐词元地预测输出序列。}{见图中标注；各块含义见题注。}
+% BOOKFIG-END seq2seq-predict.pdf
+
 
 用循环神经网络实现上一节的两个映射：编码器消费 $\bm{x}_{1:T}$，
 解码器生成 $\bm{y}_{1:T'}$。
@@ -553,6 +615,19 @@ seq2seq 用
 填充位置的交叉熵不对应真实词，会把平均损失这一标量拉偏。
 
 \section{束搜索}
+
+% BOOKFIG-BEGIN s2s-prob1.pdf
+\bookfig{s2s-prob1.pdf}{9.8.1}{在每个时间步，贪心搜索选择具有最高条件概率的词元}{见图中标注；各块含义见题注。}
+% BOOKFIG-END s2s-prob1.pdf
+
+% BOOKFIG-BEGIN s2s-prob2.pdf
+\bookfig{s2s-prob2.pdf}{9.8.2}{在时间步2，选择具有第二高条件概率的词元“C”（而非最高条件概率的词元）}{见图中标注；各块含义见题注。}
+% BOOKFIG-END s2s-prob2.pdf
+
+% BOOKFIG-BEGIN beam-search.pdf
+\bookfig{beam-search.pdf}{9.8.3}{束搜索过程（束宽：2，输出序列的最大长度：3）。候选输出序列是$A$、$C$、$AB$、$CE$、$ABD$和$CED$}{$k$：束宽；每步保留分数最高的 $k$ 条部分序列}
+% BOOKFIG-END beam-search.pdf
+
 
 解码要在词表 $\mathcal{Y}$ 上找一条序列最大化
 $P(y_1,\ldots,y_{T'}\mid\bm{c})$。

@@ -6,6 +6,11 @@
 
 \section{多层感知机}
 
+% BOOKFIG-BEGIN mlp.pdf
+\bookfig{mlp.pdf}{4.1.1}{一个单隐藏层的多层感知机，具有5个隐藏单元}{$\bm{x}$：输入；隐层：$h$；$\bm{o}$：输出 logits}
+% BOOKFIG-END mlp.pdf
+
+
 softmax 回归是一次仿射再归一化。多层感知机在仿射之间加入隐藏层与逐元素非线性。
 
 \subsection{隐藏层}
@@ -209,6 +214,11 @@ $L$ 是本批平均惊讶，不是均方误差，也不是精度。
 比较的是交叉熵（nats）与测试判对比例，不是点预测均方误差。
 
 \section{模型选择、欠拟合和过拟合}
+
+% BOOKFIG-BEGIN capacity-vs-error.pdf
+\bookfig{capacity-vs-error.pdf}{4.4.1}{模型复杂度对欠拟合和过拟合的影响}{横轴：模型容量；纵轴：误差；训练/泛化两条曲线}
+% BOOKFIG-END capacity-vs-error.pdf
+
 
 目标是降低来自同一 $P$ 的新样本上的风险，而不是只把训练集误差打到零。
 
@@ -419,6 +429,11 @@ $\|\bm{w}\|_{2}^{2}=\bm{w}^{\mathsf T}\bm{w}$ 在矩阵参数上对应 Frobenius
 
 \section{暂退法（Dropout）}
 
+% BOOKFIG-BEGIN dropout2.pdf
+\bookfig{dropout2.pdf}{4.6.1}{dropout前后的多层感知机}{实心：保留单元；虚线/空心：按概率丢弃的单元}
+% BOOKFIG-END dropout2.pdf
+
+
 暂退法在训练时随机将隐藏活性置零并重标定，降低对单一隐藏单元的依赖。
 
 \subsection{重新审视过拟合}
@@ -491,6 +506,11 @@ ReLU 先给出保留的非负激活，dropout 再按掩码把一部分置 $0$（
 同时使用 $\lambda\|\bm{w}\|^{2}$ 与暂退时，验证误差（平均损失或错误率）是否可加。
 
 \section{前向传播、反向传播和计算图}
+
+% BOOKFIG-BEGIN forward.pdf
+\bookfig{forward.pdf}{4.7.1}{前向传播的计算图}{$x$：输入；$y$：输出；$L$：损失；箭头：前向计算图}
+% BOOKFIG-END forward.pdf
+
 
 以带 $L_{2}$ 的单隐层 MLP 为例，把梯度写成计算图上的反向复合。
 
@@ -719,6 +739,19 @@ Xavier 取 $\sigma=\sqrt{2/(n_{\mathrm{in}}+n_{\mathrm{out}})}$，
 矩阵乘积特征值界对 $\prod\bm{M}^{(\ell)}$ 尺度的含义：特征值大于 $1$ 则敏感度连乘爆炸。
 
 \section{环境和分布偏移}
+
+% BOOKFIG-BEGIN cat-dog-train.pdf
+\bookfig{cat-dog-train.pdf}{4.9.1}{区分猫和狗的训练数据}{见图中标注；各块含义见题注。}
+% BOOKFIG-END cat-dog-train.pdf
+
+% BOOKFIG-BEGIN cat-dog-test.pdf
+\bookfig{cat-dog-test.pdf}{4.9.2}{区分猫和狗的测试数据}{见图中标注；各块含义见题注。}
+% BOOKFIG-END cat-dog-test.pdf
+
+% BOOKFIG-BEGIN popvssoda.png
+\bookfig{popvssoda.png}{4.9.3}{美国软饮名称的概念偏移}{见图中标注；各块含义见题注。}
+% BOOKFIG-END popvssoda.png
+
 
 部署时样本来自 $p_{T}$，训练来自 $p_{S}$。二者不同则经验风险最小解不必在测试上最优。
 

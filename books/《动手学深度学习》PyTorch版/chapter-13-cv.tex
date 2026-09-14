@@ -55,6 +55,11 @@ $0$ 表示该通道最暗，$1$ 表示最亮，不是“属于某类的概率”
 
 \section{微调}
 
+% BOOKFIG-BEGIN finetune.pdf
+\bookfig{finetune.pdf}{13.2.1}{微调。}{源域预训练权重；目标域：替换输出层后继续训练}
+% BOOKFIG-END finetune.pdf
+
+
 源数据集大、目标数据集小。微调把源模型的特征层参数当目标模型的初值。
 
 \subsection{步骤}
@@ -135,6 +140,15 @@ $(x_2,y_2)$ 是右下角；$(x,y)$ 是中心位置，$w,h$ 是宽和高，单位
 这 $4$ 个数全是位置，不要把其中一维误当成类别编号。
 
 \section{锚框}
+
+% BOOKFIG-BEGIN iou.pdf
+\bookfig{iou.pdf}{13.4.1}{交并比是两个边界框相交面积与相并面积之比。}{见图中标注；各块含义见题注。}
+% BOOKFIG-END iou.pdf
+
+% BOOKFIG-BEGIN anchor-label.pdf
+\bookfig{anchor-label.pdf}{13.4.2}{将真实边界框分配给锚框。}{见图中标注；各块含义见题注。}
+% BOOKFIG-END anchor-label.pdf
+
 
 以像素为中心放置多尺度、多宽高比的候选框，再预测其类别与偏移。
 
@@ -268,6 +282,11 @@ $m$ 为每图最大目标数，每条为 $(\text{类},x_1,y_1,x_2,y_2)$。
 
 \section{单发多框检测（SSD）}
 
+% BOOKFIG-BEGIN ssd.pdf
+\bookfig{ssd.pdf}{13.7.1}{单发多框检测模型主要由一个基础网络块和若干多尺度特征块串联而成。}{多尺度特征图：预测不同大小目标的类别与框}
+% BOOKFIG-END ssd.pdf
+
+
 SSD 用基础网络加若干多尺度特征块，一次前向预测所有锚的类与偏移。
 
 \subsection{模型}
@@ -366,6 +385,27 @@ $f(x)$ 中的 $x$ 是偏移残差（位置误差）；$p_j\in[0,1]$ 是预测为
 
 \section{区域卷积神经网络（R-CNN）系列}
 
+% BOOKFIG-BEGIN r-cnn.pdf
+\bookfig{r-cnn.pdf}{13.8.1}{R-CNN模型}{见图中标注；各块含义见题注。}
+% BOOKFIG-END r-cnn.pdf
+
+% BOOKFIG-BEGIN fast-rcnn.pdf
+\bookfig{fast-rcnn.pdf}{13.8.2}{Fast R-CNN模型}{见图中标注；各块含义见题注。}
+% BOOKFIG-END fast-rcnn.pdf
+
+% BOOKFIG-BEGIN roi.pdf
+\bookfig{roi.pdf}{13.8.3}{一个 $2\times 2$ 的兴趣区域汇聚层}{见图中标注；各块含义见题注。}
+% BOOKFIG-END roi.pdf
+
+% BOOKFIG-BEGIN faster-rcnn.pdf
+\bookfig{faster-rcnn.pdf}{13.8.4}{Faster R-CNN 模型}{见图中标注；各块含义见题注。}
+% BOOKFIG-END faster-rcnn.pdf
+
+% BOOKFIG-BEGIN mask-rcnn.pdf
+\bookfig{mask-rcnn.pdf}{13.8.5}{Mask R-CNN 模型}{见图中标注；各块含义见题注。}
+% BOOKFIG-END mask-rcnn.pdf
+
+
 R-CNN 先提区域再分类；后续工作共享卷积并学习提议。
 
 \subsection{R-CNN}
@@ -405,6 +445,11 @@ Faster：RPN 学提议。Mask：对齐加像素掩码。
 二者都要同时给出位置与类别，不要把坐标维解释成 softmax 概率。
 
 \section{语义分割和数据集}
+
+% BOOKFIG-BEGIN segmentation.pdf
+\bookfig{segmentation.pdf}{13.9.1}{语义分割中图像有关狗、猫和背景的标签}{见图中标注；各块含义见题注。}
+% BOOKFIG-END segmentation.pdf
+
 
 语义分割给每个像素一个类别，边界是像素级的，不是框。
 
@@ -450,6 +495,15 @@ $X_{c,h,w}$ 是强度；$Y_{h,w}$ 是位置 $(h,w)$ 的类编号。
 
 \section{转置卷积}
 
+% BOOKFIG-BEGIN trans_conv.pdf
+\bookfig{trans_conv.pdf}{13.10.1}{卷积核为 $2\times 2$ 的转置卷积。阴影部分是中间张量的一部分，也是用于计算的输入和卷积核张量元素。}{见图中标注；各块含义见题注。}
+% BOOKFIG-END trans_conv.pdf
+
+% BOOKFIG-BEGIN trans_conv_stride2.pdf
+\bookfig{trans_conv_stride2.pdf}{13.10.2}{卷积核为$2\times 2$，步幅为2的转置卷积。阴影部分是中间张量的一部分，也是用于计算的输入和卷积核张量元素。}{见图中标注；各块含义见题注。}
+% BOOKFIG-END trans_conv_stride2.pdf
+
+
 普通卷积缩小空间。转置卷积把特征图放大，便于像素级输出。
 
 \subsection{基本操作}
@@ -486,6 +540,11 @@ $\bm{W}$ 的条目是核权重按滑动位置展开后的系数。
 通常不相同：形状是几何尺寸，数值是特征响应。
 
 \section{全卷积网络}
+
+% BOOKFIG-BEGIN fcn.pdf
+\bookfig{fcn.pdf}{13.11.1}{全卷积网络}{卷积骨干：特征；转置卷积：上采样到像素类别}
+% BOOKFIG-END fcn.pdf
+
 
 FCN 把分类网改成像素分类：特征、 $1\times 1$ 卷积改通道、转置卷积恢复 $H\times W$。
 
@@ -531,6 +590,15 @@ $\hat Y_{k,h,w}$ 是像素 $(h,w)$ 上类 $k$ 的 logit。
 精度仍是像素正确比例。
 
 \section{风格迁移}
+
+% BOOKFIG-BEGIN style-transfer.pdf
+\bookfig{style-transfer.pdf}{13.12.1}{输入内容图像和风格图像，输出风格迁移后的合成图像}{见图中标注；各块含义见题注。}
+% BOOKFIG-END style-transfer.pdf
+
+% BOOKFIG-BEGIN neural-style.pdf
+\bookfig{neural-style.pdf}{13.12.2}{基于卷积神经网络的风格迁移。实线箭头和虚线箭头分别表示前向传播和反向传播}{见图中标注；各块含义见题注。}
+% BOOKFIG-END neural-style.pdf
+
 
 内容图 $\mathsf{X}_c$ 与风格图 $\mathsf{X}_s$。合成图 $\mathsf{X}$ 是唯一优化变量；预训练 CNN 只抽特征。
 

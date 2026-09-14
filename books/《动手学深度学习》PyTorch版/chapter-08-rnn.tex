@@ -6,6 +6,15 @@ $P(x_1,\ldots,x_T)$，循环神经网络用共享参数的隐状态压缩历史�
 
 \section{序列模型}
 
+% BOOKFIG-BEGIN ftse100.png
+\bookfig{ftse100.png}{8.1.1}{近30年的富时100指数}{见图中标注；各块含义见题注。}
+% BOOKFIG-END ftse100.png
+
+% BOOKFIG-BEGIN sequence-model.pdf
+\bookfig{sequence-model.pdf}{8.1.2}{隐变量自回归模型}{$x_t$：序列值；$\hat{x}_{t+1}$：下一步预测}
+% BOOKFIG-END sequence-model.pdf
+
+
 记观测序列为 $x_1,\ldots,x_T$。每个时间步的合法预测只能依赖已经发生的历史，
 而不能依赖未来。下面先固定条件分布，再写成可训练的特征--标签对。
 
@@ -163,6 +172,11 @@ $|\mathcal{V}|$ 变大表示词表更宽，输出层要预测的类别数随之�
 
 \section{语言模型和数据集}
 
+% BOOKFIG-BEGIN timemachine-5gram.pdf
+\bookfig{timemachine-5gram.pdf}{8.3.1}{分割文本时，不同的偏移量会导致不同的子序列}{见图中标注；各块含义见题注。}
+% BOOKFIG-END timemachine-5gram.pdf
+
+
 语言模型的对象是词元序列的联合分布
 \[
 P(x_1,x_2,\ldots,x_T).
@@ -283,6 +297,15 @@ $6$ 和 $3$ 都是条数或批次数（计数），不是词元编号。
 $10^5$ 是 $|\mathcal{V}|$，计数规模是需要记住的 $n$ 元组个数。
 
 \section{循环神经网络}
+
+% BOOKFIG-BEGIN rnn.pdf
+\bookfig{rnn.pdf}{8.4.1}{具有隐状态的循环神经网络}{$\bm{x}_t$：时刻 $t$ 输入；$\bm{h}_t$：隐状态；$\bm{o}_t$：输出}
+% BOOKFIG-END rnn.pdf
+
+% BOOKFIG-BEGIN rnn-train.pdf
+\bookfig{rnn-train.pdf}{8.4.2}{基于循环神经网络的字符级语言模型：输入序列和标签序列分别为“machin”和“achine”}{输入：前缀字符；标签：下一字符；$\bm{h}$：跨步共享隐状态}
+% BOOKFIG-END rnn-train.pdf
+
 
 用一个隐状态压缩全部历史，把变长条件改成固定形状的递推：
 \[
@@ -552,6 +575,15 @@ $\bm{O}_t$ 的每个分量是该词元的线性打分。
 更深只改变摘要的层数，不改变“$h_t$ 概括迄今历史”这一含义。
 
 \section{通过时间反向传播}
+
+% BOOKFIG-BEGIN truncated-bptt.pdf
+\bookfig{truncated-bptt.pdf}{8.7.1}{比较RNN中计算梯度的策略，3行自上而下分别为：随机截断、常规截断、完整计算}{截断长度：反向传播的时间步数；阴影：本段求梯度的边}
+% BOOKFIG-END truncated-bptt.pdf
+
+% BOOKFIG-BEGIN rnn-bptt.pdf
+\bookfig{rnn-bptt.pdf}{8.7.2}{上图表示具有三个时间步的循环神经网络模型依赖关系的计算图。未着色的方框表示变量，着色的方框表示参数，圆表示运算符}{白箭头：前向；灰箭头：反向；圆：变量节点}
+% BOOKFIG-END rnn-bptt.pdf
+
 
 损失对共享参数 $w_h$ 的梯度必须沿 $h_T\to h_{T-1}\to\cdots\to h_1$ 反传，
 这称为通过时间反向传播（BPTT）。

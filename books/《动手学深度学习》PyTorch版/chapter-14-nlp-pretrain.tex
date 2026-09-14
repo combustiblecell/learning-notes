@@ -6,6 +6,15 @@ Softmax 给出的 $P(w_o\mid w_c)$ 是“附近出现某词”的概率；负采
 
 \section{词嵌入（word2vec）}
 
+% BOOKFIG-BEGIN skip-gram.pdf
+\bookfig{skip-gram.pdf}{14.1.1}{跳元模型考虑了在给定中心词的情况下生成周围上下文词的条件概率}{中心词：条件；上下文词：被预测的周围词}
+% BOOKFIG-END skip-gram.pdf
+
+% BOOKFIG-BEGIN cbow.pdf
+\bookfig{cbow.pdf}{14.1.2}{连续词袋模型考虑了给定周围上下文词生成中心词条件概率}{上下文词：条件；中心词：被预测}
+% BOOKFIG-END cbow.pdf
+
+
 词向量 $\bm{v}\in\mathbb{R}^{d}$ 是词的特征。词嵌入是映射 $w\mapsto\bm{v}_w$。
 $\bm{v}_w$ 的各分量没有单独的类含义，整体用来通过内积表达共现。
 
@@ -138,6 +147,11 @@ Softmax 分母扫过整个 $\mathcal{V}$。
 内积是打分；除以范数后才是 $[-1,1]$ 的余弦相似度。
 
 \section{近似训练}
+
+% BOOKFIG-BEGIN hi-softmax.pdf
+\bookfig{hi-softmax.pdf}{14.2.1}{用于近似训练的分层softmax，其中树的每个叶节点表示词表中的一个词}{见图中标注；各块含义见题注。}
+% BOOKFIG-END hi-softmax.pdf
+
 
 精确 Softmax 每步求和 $|\mathcal{V}|$ 项。负采样与层序 Softmax 把代价降到常数或对数。
 
@@ -436,6 +450,15 @@ $\bm{v}_c+\bm{v}_b-\bm{v}_a$ 是向量算术：在嵌入空间里“从 $a$ 到 
 核验：词表很大时如何用近似近邻代替全表扫描。
 
 \section{来自Transformers的双向编码器表示（BERT）}
+
+% BOOKFIG-BEGIN elmo-gpt-bert.pdf
+\bookfig{elmo-gpt-bert.pdf}{14.8.1}{ELMo、GPT和BERT的比较}{见图中标注；各块含义见题注。}
+% BOOKFIG-END elmo-gpt-bert.pdf
+
+% BOOKFIG-BEGIN bert-input.pdf
+\bookfig{bert-input.pdf}{14.8.2}{BERT输入序列的嵌入是词元嵌入、片段嵌入和位置嵌入的和}{token/segment/position：三种嵌入求和为 BERT 输入}
+% BOOKFIG-END bert-input.pdf
+
 
 word2vec/GloVe 的 $\bm{v}_w$ 与上下文无关。BERT 用双向 Transformer 编码器，使表示依赖整句。
 

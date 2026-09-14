@@ -7,6 +7,19 @@
 
 \section{线性回归}
 
+% BOOKFIG-BEGIN fit-linreg.pdf
+\bookfig{fit-linreg.pdf}{3.1.1}{用线性模型拟合数据。}{$x$：特征；$y$：观测；直线：$\hat{y}=wx+b$}
+% BOOKFIG-END fit-linreg.pdf
+
+% BOOKFIG-BEGIN singleneuron.pdf
+\bookfig{singleneuron.pdf}{3.1.2}{线性回归是一个单层神经网络。}{$x_i$：特征；$w_i$：权重；$b$：偏置；$\hat{y}$：点预测}
+% BOOKFIG-END singleneuron.pdf
+
+% BOOKFIG-BEGIN neuron.pdf
+\bookfig{neuron.pdf}{3.1.3}{真实的神经元。}{树突：输入；胞体：加权求和；轴突：输出激活}
+% BOOKFIG-END neuron.pdf
+
+
 回归估计 $y\in\mathbb{R}$。给定特征 $\bm{x}\in\mathbb{R}^{d}$，模型输出一个实数预测 $\hat{y}$。
 $\hat{y}$ 与 $y$ 同量纲，是点预测，不是概率。
 
@@ -459,6 +472,11 @@ $|y-y'|$ 是绝对误差，与 $y$ 同量纲；中间段的平方项仍是误差
 $\sigma$ 是分段阈值，与残差同量纲。
 
 \section{softmax回归}
+
+% BOOKFIG-BEGIN softmaxreg.pdf
+\bookfig{softmaxreg.pdf}{3.4.1}{softmax回归是一种单层神经网络}{$\bm{x}$：输入；$\bm{o}$：线性分数；$\hat{\bm{y}}$：类别概率}
+% BOOKFIG-END softmaxreg.pdf
+
 
 分类不估计“多少”，而估计“哪一类”。线性层输出 $q$ 个分数，再用 $\mathrm{softmax}$ 变成单纯形上的概率。
 

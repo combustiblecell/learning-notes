@@ -145,6 +145,15 @@ CUDA 版本号是软件标识，需与 PyTorch 构建匹配，否则核函数无
 
 \section{选择服务器和GPU}
 
+% BOOKFIG-BEGIN flopsvsprice.pdf
+\bookfig{flopsvsprice.pdf}{A.4.1}{浮点计算能力和价格比较}{见图中标注；各块含义见题注。}
+% BOOKFIG-END flopsvsprice.pdf
+
+% BOOKFIG-BEGIN wattvsprice.pdf
+\bookfig{wattvsprice.pdf}{A.4.2}{浮点计算能力和能耗}{见图中标注；各块含义见题注。}
+% BOOKFIG-END wattvsprice.pdf
+
+
 训练受 GPU 小时约束。单机可到数张卡；再多通常用云，因供电与散热。
 GPU 小时是“卡数 $\times$ 时间”，用来估计预算，不是准确率。
 

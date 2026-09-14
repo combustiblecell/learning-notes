@@ -5,6 +5,15 @@
 
 \section{从全连接层到卷积}
 
+% BOOKFIG-BEGIN where-wally-walker-books.jpg
+\bookfig{where-wally-walker-books.jpg}{6.1.1}{沃尔多游戏示例图。}{见图中标注；各块含义见题注。}
+% BOOKFIG-END where-wally-walker-books.jpg
+
+% BOOKFIG-BEGIN waldo-mask.jpg
+\bookfig{waldo-mask.jpg}{6.1.2}{发现沃尔多。}{见图中标注；各块含义见题注。}
+% BOOKFIG-END waldo-mask.jpg
+
+
 表格数据中特征无预定空间结构，多层感知机合适。
 对高维图像，若像素数为 $10^{6}$、隐单元为 $10^{3}$，单层参数已达
 \[
@@ -119,6 +128,11 @@ $\Delta=0$ 时 $H_{ijd}$ 仍是通道混合后的分数，只是窗口缩成单�
 
 \section{图像卷积}
 
+% BOOKFIG-BEGIN correlation.pdf
+\bookfig{correlation.pdf}{6.2.1}{二维互相关运算。阴影部分是第一个输出元素，以及用于计算输出的输入张量元素和核张量元素：$0\times0+1\times1+3\times2+4\times3=19$.}{$X$：输入；$K$：卷积核；$Y$：互相关输出；阴影格：当前窗口}
+% BOOKFIG-END correlation.pdf
+
+
 上节给出原理；本节把二维互相关写成可学习层，并用于边缘检测。
 
 \subsection{互相关运算}
@@ -203,6 +217,15 @@ $19$ 这个分数只由那四个输入强度与核共同决定。
 
 \section{填充和步幅}
 
+% BOOKFIG-BEGIN conv-pad.pdf
+\bookfig{conv-pad.pdf}{6.3.1}{带填充的二维互相关。}{$p$：填充格数；$X$：输入；$Y$：输出}
+% BOOKFIG-END conv-pad.pdf
+
+% BOOKFIG-BEGIN conv-stride.pdf
+\bookfig{conv-stride.pdf}{6.3.2}{垂直步幅为 $3$，水平步幅为 $2$ 的二维互相关运算。}{$s_h,s_w$：垂直/水平步幅；$X$：输入；$K$：核}
+% BOOKFIG-END conv-stride.pdf
+
+
 无填充时输出为 $(n_h-k_h+1)\times(n_w-k_w+1)$，这两个整数是特征图的空间高与宽。
 连续卷积会快速缩小空间尺寸。
 填充（padding）与步幅（stride）是另外两个控制输出形状的量。
@@ -249,6 +272,15 @@ $s_h=s_w=2$ 时空间尺寸大约减半，意思是高、宽上的位置个数�
 音频里该整数是时间维上的帧数（有几个时间位置），不是采样点的振幅。
 
 \section{多输入多输出通道}
+
+% BOOKFIG-BEGIN conv-multi-in.pdf
+\bookfig{conv-multi-in.pdf}{6.4.1}{两个输入通道的互相关计算。}{$c_i$：输入通道；$X$：多通道输入；$K$：各通道核}
+% BOOKFIG-END conv-multi-in.pdf
+
+% BOOKFIG-BEGIN conv-1x1.pdf
+\bookfig{conv-1x1.pdf}{6.4.2}{互相关计算使用了具有3个输入通道和2个输出通道的 $1\times 1$ 卷积核。其中，输入和输出具有相同的高度和宽度。}{$1\times 1$ 核：跨通道线性组合，不改变空间高宽}
+% BOOKFIG-END conv-1x1.pdf
+
 
 彩色输入形状为 $c_i\times h\times w$，通道维长度为 $c_i$（例如 RGB 中 $c_i=3$）。
 $c_i,h,w$ 都是轴长度：$c_i$ 是有几条通道，$h,w$ 是空间高宽。
@@ -323,6 +355,11 @@ $c_o\,c_i\,k_h\,k_w\,n_h'\,n_w'$ 随 $c_i,c_o$ 加倍如何变化。
 
 \section{汇聚层}
 
+% BOOKFIG-BEGIN pooling.pdf
+\bookfig{pooling.pdf}{6.5.1}{汇聚窗口形状为 $2\times 2$ 的最大汇聚层。着色部分是第一个输出元素，以及用于计算这个输出的输入元素: $\max(0, 1, 3, 4)=4$.}{窗口 $2\times 2$；输出：窗口内最大（或平均）值}
+% BOOKFIG-END pooling.pdf
+
+
 需要逐渐降低空间分辨率、增大感受野，使顶层对整图敏感。
 汇聚（pooling）在窗口上聚合，并减轻卷积响应对精确位置的敏感。
 
@@ -385,6 +422,15 @@ c_o=c_i.
 $\operatorname{softmax}$ 权在 $[0,1]$ 且和为 $1$，得到的是窗口内响应的加权平均，介于最大与均匀平均之间。
 
 \section{卷积神经网络（LeNet）}
+
+% BOOKFIG-BEGIN lenet.pdf
+\bookfig{lenet.pdf}{6.6.1}{LeNet中的数据流。输入是手写数字，输出为10种可能结果的概率。}{输入：手写数字；$C1/C3$：卷积；$S2/S4$：汇聚；$F5/F6$：全连接；$10$：类别分数}
+% BOOKFIG-END lenet.pdf
+
+% BOOKFIG-BEGIN lenet-vert.pdf
+\bookfig{lenet-vert.pdf}{6.6.2}{LeNet 的简化版。}{自上而下：卷积—汇聚—卷积—汇聚—全连接—输出}
+% BOOKFIG-END lenet-vert.pdf
+
 
 不再把 $28\times 28$ 图像展成 $\mathbb{R}^{784}$，而在空间上保留二维结构。
 卷积替代全连接可大幅减少参数。LeNet 是早期完整卷积网络。

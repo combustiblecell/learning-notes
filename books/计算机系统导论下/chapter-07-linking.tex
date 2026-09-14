@@ -6,6 +6,11 @@
 
 \section{编译器驱动程序}
 
+% BOOKFIG-BEGIN fig-7.2-driver.png
+\bookfig{fig-7.2-driver.png}{7.2}{编译器驱动程序调用预处理器、编译器、汇编器与链接器。}{\texttt{main.c}/\texttt{sum.c}：源文件；\texttt{cpp,cc1,as,ld}：各阶段；\texttt{prog}：可执行文件}
+% BOOKFIG-END fig-7.2-driver.png
+
+
 贯穿本章的示例由 \code{main.c} 与 \code{sum.c} 组成：
 前者定义全局数组 \code{array} 并调用 \code{sum}，后者定义求和函数。
 \code{gcc} 是编译器驱动程序（compiler driver），按需调用预处理器 \code{cpp}、编译器 \code{cc1}、汇编器 \code{as} 与链接器 \code{ld}。
@@ -68,6 +73,11 @@ $\operatorname{ADDR}(s)$ 是虚拟地址（无量纲的字节编号），取值�
 共享目标文件 \code{.so} 是可在加载时或运行时动态链接的特殊可重定位文件，Windows 上称为 DLL。
 
 \section{可重定位目标文件}
+
+% BOOKFIG-BEGIN fig-7.4-elf.png
+\bookfig{fig-7.4-elf.png}{7.4}{ELF 可重定位目标文件的节布局。}{ELF header：类型与机器；\texttt{.text/.rodata/.data/.bss}：代码与数据；\texttt{.symtab}：符号表；section header table：节索引}
+% BOOKFIG-END fig-7.4-elf.png
+
 
 Linux 上三类目标文件共用 ELF（Executable and Linkable Format）。
 文件从偏移 $0$ 起依次为 ELF 头、（可执行文件需要的）段头表、各节、节头表。
@@ -139,6 +149,11 @@ $x86$-$64$ 上 $\lvert\texttt{int}\rvert=4$、$\lvert\texttt{double}\rvert=8$，
 
 \subsection{与静态库链接}
 
+% BOOKFIG-BEGIN fig-7.6-archive.png
+\bookfig{fig-7.6-archive.png}{7.6}{归档器把多个 	exttt{.o} 打成静态库 	exttt{.a}。}{\texttt{ar}：归档器；\texttt{libc.a}：静态库；成员：被按需抽出的 \texttt{.o}}
+% BOOKFIG-END fig-7.6-archive.png
+
+
 静态库（static library）是带索引的归档（archive）\code{.a}，由 \code{ar} 把许多 \code{.o} 打包而成。
 链接器只把当前未解析引用所需要的那些成员拷进可执行文件，不是把整个归档拷进去。
 生成 \code{prog} 之后运行不再需要该 \code{.a}；重新链接时仍需提供 \code{.a}。
@@ -161,6 +176,11 @@ ar rcs libvector.a addvec.o multvec.o
 可执行文件常命名为 \code{prog2c}，其中 \code{c} 表示 compile-time 静态链接。
 
 \subsection{链接器如何使用静态库来解析引用}
+
+% BOOKFIG-BEGIN fig-7.7-static-link.png
+\bookfig{fig-7.7-static-link.png}{7.7}{与静态库链接时只抽出解析当前未定义引用所需的成员。}{\texttt{main2.o}：程序模块；\texttt{libvector.a}/\texttt{libc.a}：静态库；$U$：尚未定义的符号集}
+% BOOKFIG-END fig-7.7-static-link.png
+
 
 从左到右扫描命令行上的 \code{.o} 与 \code{.a}。
 维护三个集合，初值皆空：
@@ -189,6 +209,11 @@ $U$ 中剩下的是「还没有定义的名字」，不是地址。
 运行时需要能找到 \code{.so}，这与静态 \code{.a} 不同。
 
 \section{重定位}
+
+% BOOKFIG-BEGIN fig-7.8-reloc.png
+\bookfig{fig-7.8-reloc.png}{7.8}{重定位把各模块的代码与数据节合并到可执行文件。}{\texttt{main.o}/\texttt{sum.o}：可重定位模块；\texttt{.text/.data}：被合并的节；最终地址：\texttt{ADDR}(s)}
+% BOOKFIG-END fig-7.8-reloc.png
+
 
 符号解析完成后，链接器合并各 \code{.o} 的同类节，为每个符号选定 $\operatorname{ADDR}(s)$，再按重定位条目改写引用。
 
@@ -242,6 +267,11 @@ $0\mathrm{x}5$ 不是 \code{sum} 的绝对地址。
 静态链接后 \code{main} 与 \code{sum} 出现在同一 \code{.text} 中，带最终虚拟地址。
 
 \section{加载可执行目标文件}
+
+% BOOKFIG-BEGIN fig-7.11-load.png
+\bookfig{fig-7.11-load.png}{7.11}{加载可执行文件后的典型虚拟内存布局。}{$0\texttt{x}400000$：只读代码段起点；\texttt{.data/.bss}：数据段；heap/stack：堆与用户栈}
+% BOOKFIG-END fig-7.11-load.png
+
 
 加载器按段头 \code{mmap} 可执行文件。
 典型布局（本讲示例）：只读可执行段从 $0\texttt{x}400000$ 起，含 \code{.init}、\code{.text}、\code{.rodata}；

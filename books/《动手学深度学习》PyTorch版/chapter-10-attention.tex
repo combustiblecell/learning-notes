@@ -7,6 +7,19 @@
 
 \section{注意力提示}
 
+% BOOKFIG-BEGIN eye-coffee.pdf
+\bookfig{eye-coffee.pdf}{10.1.1}{由于突出性的非自主性提示（红杯子），注意力不自主地指向了咖啡杯}{见图中标注；各块含义见题注。}
+% BOOKFIG-END eye-coffee.pdf
+
+% BOOKFIG-BEGIN eye-book.pdf
+\bookfig{eye-book.pdf}{10.1.2}{依赖于任务的意志提示（想读一本书），注意力被自主引导到书上}{见图中标注；各块含义见题注。}
+% BOOKFIG-END eye-book.pdf
+
+% BOOKFIG-BEGIN qkv.pdf
+\bookfig{qkv.pdf}{10.1.3}{注意力机制通过注意力汇聚将*查询*（自主性提示）和*键*（非自主性提示）结合在一起，实现对*值*（感官输入）的选择倾向}{$q$：查询；$k_i$：键；$v_i$：值；输出：值的加权和}
+% BOOKFIG-END qkv.pdf
+
+
 注意力是有限资源。神经网络若只有汇聚或全连接，选择不依赖当前任务；
 加入查询后，权可以随任务改变。
 
@@ -152,6 +165,11 @@ $n$ 是训练点数；尖锐指少数权接近 $1$、其余接近 $0$。
 
 \section{注意力评分函数}
 
+% BOOKFIG-BEGIN attention-output.pdf
+\bookfig{attention-output.pdf}{10.3.1}{计算注意力汇聚的输出为值的加权和}{见图中标注；各块含义见题注。}
+% BOOKFIG-END attention-output.pdf
+
+
 一般地，
 \begin{align*}
 f(\bm{q},(\bm{k}_1,\bm{v}_1),\ldots,(\bm{k}_m,\bm{v}_m))
@@ -217,6 +235,11 @@ $\bm{q}^{\top}\bm{k}/\sqrt{d}$ 更省计算；评分本身不是权。
 
 \section{Bahdanau 注意力}
 
+% BOOKFIG-BEGIN seq2seq-attention-details.pdf
+\bookfig{seq2seq-attention-details.pdf}{10.4.1}{一个带有Bahdanau注意力的循环神经网络编码器-解码器模型}{见图中标注；各块含义见题注。}
+% BOOKFIG-END seq2seq-attention-details.pdf
+
+
 seq2seq 里每个解码步都使用同一个 $\bm{c}$。Bahdanau 注意力让上下文随解码状态变化，
 在源隐状态上做加性汇聚。
 
@@ -267,6 +290,11 @@ $\alpha_t\in[0,1]$ 且求和为 $1$，表示从源隐状态（值）$\bm{h}_t$ �
 
 \section{多头注意力}
 
+% BOOKFIG-BEGIN multi-head-attention.pdf
+\bookfig{multi-head-attention.pdf}{10.5.1}{多头注意力：多个头连结然后线性变换}{头：独立的 $Q,K,V$ 投影；拼接后再线性变换}
+% BOOKFIG-END multi-head-attention.pdf
+
+
 同一组 $(\bm{q},\bm{k},\bm{v})$ 经 $h$ 组不同线性投射，得到 $h$ 种汇聚，再拼起来。
 
 \subsection{模型}
@@ -315,6 +343,11 @@ $(\bm{W}_{i}^{(q)},\bm{W}_{i}^{(k)},\bm{W}_{i}^{(v)})$
 不同对齐表现为各头的 $\alpha$ 把质量分给不同的值下标。
 
 \section{自注意力和位置编码}
+
+% BOOKFIG-BEGIN cnn-rnn-self-attention.pdf
+\bookfig{cnn-rnn-self-attention.pdf}{10.6.1}{比较卷积神经网络（填充词元被忽略）、循环神经网络和自注意力三种架构}{见图中标注；各块含义见题注。}
+% BOOKFIG-END cnn-rnn-self-attention.pdf
+
 
 若查询、键、值来自同一组输入，就得到自注意力。它本身置换等变，必须另加位置编码才能感知次序。
 
@@ -412,6 +445,11 @@ p_{i+\delta,2j+1}
 可学习的 $P_{ij}$ 仍是位置 $i$、维 $j$ 上的加性特征，不是 $\alpha$。
 
 \section{Transformer}
+
+% BOOKFIG-BEGIN transformer.pdf
+\bookfig{transformer.pdf}{10.7.1}{transformer架构}{多头自注意力；前馈；残差+层归一化；位置编码}
+% BOOKFIG-END transformer.pdf
+
 
 Transformer 是编码器--解码器，但子层只有多头注意力与位置前馈网络，不含卷积或循环。
 

@@ -6,6 +6,11 @@
 
 \section{层和块}
 
+% BOOKFIG-BEGIN blocks.pdf
+\bookfig{blocks.pdf}{5.1.1}{多个层被组合成块，形成更大的模型}{层：基本运算；块：层的组合；模型：块的堆叠}
+% BOOKFIG-END blocks.pdf
+
+
 单输出线性模型是映射 $f:\mathbb{R}^{d}\to\mathbb{R}$，带参数 $\bm{\theta}$。
 一层接受向量、产生向量、并由可训练参数描述；整个多层感知机仍是同一类对象。
 块（block）是可嵌套的计算单元：输入进前向映射，输出可改形状，梯度由反向传播给出。
@@ -335,6 +340,11 @@ $\operatorname{save}/\operatorname{load}$ 作用于张量，读写的是数值�
 形状相容指轴长度一致，使矩阵乘有定义。
 
 \section{GPU}
+
+% BOOKFIG-BEGIN copyto.pdf
+\bookfig{copyto.pdf}{5.6.1}{复制数据以在同一设备上执行操作}{CPU/GPU：设备；箭头：张量拷贝到同一设备再运算}
+% BOOKFIG-END copyto.pdf
+
 
 张量带有设备（device）。默认在主机内存由 CPU 计算；
 GPU 把同一线性代数核放到高吞吐器件上。
