@@ -7,86 +7,171 @@
 
 中心思想：三角形组 $O(n^2)$ 可解，所以先把 $A$ 变成 $LU$；
 工具是 Gauss 变换——用一个乘数向量把一列下方打成零，而其逆几乎不花代价。
+$L_k$ 与 $A^{(k)}$ 都不需要按满阵去乘，由同一条秩~$1$ 公式一次写出。
 
 \subsection{三角形方程组的解法}
 
-非奇异下三角组 $Ly=b$（$l_{ii}\neq 0$）由前代从上往下解出 $y$；
-上三角组 $Ux=y$ 由回代从下往上解出 $x$。
+方阵非奇异（nonsingular）指可逆：存在 $B$ 使 $AB=BA=I$，等价于 $\det A\neq 0$。
+下三角阵 $L$ 非奇异当且仅当对角元 $l_{ii}\neq 0$（$i=1,\ldots,n$）。
+
+非奇异下三角组
+\begin{equation}
+Ly=b
+\end{equation}
+中 $L=[l_{ij}]\in\mathbf{R}^{n\times n}$ 与 $b\in\mathbf{R}^{n}$ 已知，$y\in\mathbf{R}^{n}$ 未知。
+由第 $i$ 个方程解出
+\begin{equation}
+y_i=\Bigl(b_i-\sum_{j=1}^{i-1}l_{ij}y_j\Bigr)\big/l_{ii},\qquad i=1,\ldots,n.
+\end{equation}
+输入已求得的 $y_1,\ldots,y_{i-1}$ 与第 $i$ 行，输出标量 $y_i$。
+这就是前代法（forward substitution）。
 
 \bookfig{fig-11-lower-L.png}{第11页}{下三角组 $Ly=b$：$L$ 已知且对角非零，$y$ 未知，$b$ 已知。}{$L$：非奇异下三角；$y$：未知量；$b$：右端}
 
-前代的第 $i$ 个分量是
-\begin{equation}
-y_i=\Bigl(b_i-\sum_{j=1}^{i-1}l_{ij}y_j\Bigr)\big/l_{ii}.
-\end{equation}
-输入已求得的 $y_1,\ldots,y_{i-1}$ 与第 $i$ 行，输出标量 $y_i$。
-就地写回右端，即原书算法~1.1.1；回代是算法~1.1.2。两式运算量都是 $n^2$。
+将 $y_i$ 就地写回 $b_i$，即原书算法~1.1.1。运算量
+\[
+\sum_{i=1}^{n}(2i-1)=n^{2}.
+\]
+$n^2$ 是四则次数，不是解的某个分量。
 
 \bookfig{fig-11-alg-111.png}{第12页}{前代：用第 $j$ 个已求出的分量去改它下面尚未求解的分量。}{$b$：右端（就地覆盖为 $y$）；$L(j,j)$：对角主元}
 
+非奇异上三角组 $Ux=y$（$u_{ii}\neq 0$）由最后一个方程倒着解，称为回代法（back substitution）：
+\begin{equation}
+x_i=\Bigl(y_i-\sum_{j=i+1}^{n}u_{ij}x_j\Bigr)\big/u_{ii},\qquad i=n,n-1,\ldots,1.
+\end{equation}
+输入已求得的 $x_{i+1},\ldots,x_n$ 与第 $i$ 行，输出标量 $x_i$。运算量同样是 $n^2$。
+
 \bookfig{fig-11-alg-112.png}{第13页}{回代：从最后一个未知量倒着做，运算量同样是 $n^2$。}{$y$：右端（就地覆盖为 $x$）；$U(j,j)$：对角主元}
 
-因此只要 $A=LU$，则 $Ax=b$ 化为 $Ly=b$ 再 $Ux=y$。
-本节剩下的事只有一件：如何构造 $L$ 与 $U$。
+于是，对一般的
+\begin{equation}
+Ax=b,
+\end{equation}
+若能写成 $A=LU$（$L$ 下三角、$U$ 上三角），则先解 $Ly=b$ 得中间量 $y$，再解 $Ux=y$ 得未知量 $x$。
+两次三角形求解共 $2n^2$ 次运算。本节剩下的事只有一件：如何构造 $L$ 与 $U$。
 
 \subsection{Gauss 变换}
 
-要把 $A$ 逐步变成上三角，同时让变换本身保持下三角：
-对向量 $x$，用最简单的单位下三角把第 $k+1$ 至 $n$ 个分量变成 $0$。
+要把 $A$ 逐步变成上三角，同时让变换本身保持下三角。
+对给定 $x=(x_1,\ldots,x_n)^{\mathsf T}$，用最简单的单位下三角把第 $k+1$ 至 $n$ 个分量变成 $0$。
 这样的矩阵是
 \begin{equation}
-L_k=I-l_k e_k^{\mathsf T}.
+L_k=I-l_k e_k^{\mathsf T},
 \end{equation}
+其中 Gauss 向量
+\[
+l_k=(0,\ldots,0,l_{k+1,k},\ldots,l_{nk})^{\mathsf T}.
+\]
 
 \bookfig{fig-11-gauss-Lk.png}{第14页}{Gauss 变换：第 $k$ 列对角下方是乘数的相反数，其余同单位阵。}{$L_k$：Gauss 变换；$l_{ik}$：乘数}
 
-$l_k=(0,\ldots,0,l_{k+1,k},\ldots,l_{nk})^{\mathsf T}$ 称为 Gauss 向量。
-若 $x_k\neq 0$ 且 $l_{ik}=x_i/x_k$（$i>k$），则 $L_k x$ 的第 $k$ 个分量之后全为 $0$。
-$l_{ik}$ 是无量纲比值。
+成立条件 $x_k\neq 0$。取无量纲比值
+\begin{equation}
+l_{ik}=\frac{x_i}{x_k},\qquad i=k+1,\ldots,n,
+\end{equation}
+则
+\begin{equation}
+L_k x=(x_1,\ldots,x_k,0,\ldots,0)^{\mathsf T}.
+\end{equation}
+输入 $x$ 与主元 $x_k$，输出前 $k$ 个分量不变、其后全为 $0$ 的向量。
 
-因为 $e_k^{\mathsf T}l_k=0$，立即有 $L_k^{-1}=I+l_k e_k^{\mathsf T}$：逆就是把乘数改号。
-作用在矩阵上是秩 $1$ 修正 $L_k A=A-l_k(e_k^{\mathsf T}A)$，即用第 $k$ 行去改它下面的行。
+因为 $e_k^{\mathsf T}l_k=0$，
+\[
+(I-l_k e_k^{\mathsf T})(I+l_k e_k^{\mathsf T})=I,
+\]
+故
+\begin{equation}
+L_k^{-1}=I+l_k e_k^{\mathsf T}.
+\end{equation}
+逆就是把乘数改号，不必另做求逆。
+
+作用在矩阵上是秩~$1$ 修正：
+\begin{equation}
+L_k A=A-l_k(e_k^{\mathsf T}A).
+\end{equation}
+$e_k^{\mathsf T}A$ 是 $A$ 的第 $k$ 行（$1\times n$）；$l_k$ 与之相乘得到 $n\times n$ 的秩~$1$ 矩阵。
+这就是用第 $k$ 行去改它下面的行，不必把 $L_k$ 当成稠密阵去乘。
 
 \subsection{三角分解的计算}
 
-$A=LU$ 称为三角分解，亦称 LU 分解。
-做法是对 $A^{(0)}=A$ 接连左乘 $L_1,\ldots,L_{n-1}$。
+$A=LU$ 称为三角分解，亦称 LU 分解，其中 $L$ 为下三角、$U$ 为上三角。
+记 $A^{(0)}=A$，目标是求 $n-1$ 个 Gauss 变换，使
+\begin{equation}
+A^{(k)}=L_k A^{(k-1)}=L_k\cdots L_1 A
+\end{equation}
+逐步变成上三角。
 
 \bookfig{fig-11-block-Ak.png}{第16页}{前 $k-1$ 步之后，左上已是上三角，右下 $A_{22}^{(k-1)}$ 是待消的块。}{$A^{(k-1)}$：当前矩阵；$A_{11}^{(k-1)}$：已完成的上三角；$A_{22}^{(k-1)}$：尚未消去的主子块}
 
-主元 $a_{kk}^{(k-1)}\neq 0$ 时，乘数 $l_{ik}=a_{ik}^{(k-1)}/a_{kk}^{(k-1)}$ 唯一确定 $L_k$，并把当前第 $k$ 列下方消成 $0$。
+\textbf{快速求 $L_k$。}
+成立条件：主元 $a_{kk}^{(k-1)}\neq 0$。输入 $A^{(k-1)}$ 的第 $k$ 列，输出 $n-k$ 个乘数
+\begin{equation}
+l_{ik}=\frac{a_{ik}^{(k-1)}}{a_{kk}^{(k-1)}},\qquad i=k+1,\ldots,n,
+\end{equation}
+从而 $L_k=I-l_k e_k^{\mathsf T}$ 唯一确定。
+独立数据只有这 $n-k$ 个数，不必生成满的 $n\times n$ 阵。
+
+\textbf{快速求 $A^{(k)}$。}
+由秩~$1$ 公式，前 $k$ 行不变；第 $k$ 列下方变成 $0$；尾块按元素更新为
+\begin{equation}
+a_{ij}^{(k)}=a_{ij}^{(k-1)}-l_{ik}\,a_{kj}^{(k-1)},
+\qquad i,j=k+1,\ldots,n.
+\end{equation}
+输入 $A^{(k-1)}$ 的第 $k$ 行与乘数 $l_k$，输出阶为 $n-k$ 的新尾块 $A_{22}^{(k)}$。
+第 $k$ 步运算量是 $(n-k)+2(n-k)^2$，不是一次 $O(n^3)$ 的稠密乘法。
 
 \bookfig{fig-11-block-Ak-step.png}{第16页}{再乘 $L_k$ 后，上三角块扩大一阶。}{$A^{(k)}$：第 $k$ 步结果；$k$ 与 $n-k$：块的阶}
 
-$n-1$ 步后 $U=A^{(n-1)}$，且
+若前 $n-1$ 个主元全非零，则 $U=A^{(n-1)}$ 为上三角，且
+\begin{equation}
+A=L_1^{-1}\cdots L_{n-1}^{-1}U=LU,
+\end{equation}
+其中
 \[
-L=(L_{n-1}\cdots L_1)^{-1}=L_1^{-1}\cdots L_{n-1}^{-1}.
+L=L_1^{-1}\cdots L_{n-1}^{-1}.
 \]
-各 $L_k^{-1}$ 只是把乘数写回对角下方，乘在一起仍是单位下三角：乘数按列直接填进 $L$。
+各 $L_k^{-1}$ 只是把乘数写回对角下方；因 $j<i$ 时 $e_j^{\mathsf T}l_i=0$，乘积仍是单位下三角，乘数按列填进 $L$：
+\begin{equation}
+L=I+[l_1,\ldots,l_{n-1},0].
+\end{equation}
 
 \bookfig{fig-11-unit-L.png}{第17页}{$L$ 的亚对角就是各步 Gauss 向量，对角全为 $1$。}{$l_i$：第 $i$ 步 Gauss 向量；$L$：单位下三角}
 
-消掉的位置不再需要，乘数就覆盖在那里。于是一份数组里同时装着 $L$ 与 $U$。
+$A^{(k)}$ 第 $k$ 列下方已是 $0$，无需再存；乘数就覆盖在这些位置。一份数组里同时装着 $L$ 与 $U$。
 
 \bookfig{fig-11-inplace-lu.png}{第18页}{就地存储：严格下三角位置是 $L$ 的乘数，对角及上方是 $U$；算法~1.1.3 按列写入。}{$l_{ij}$：乘数；$a_{ij}^{(k)}$：第 $k$ 步后仍留在 $U$ 位置上的元}
 
-算法~1.1.3 的运算量为 $\tfrac23 n^3+O(n^2)$。
-这与 Cramer 的 $(n+1)!$ 不在同一量级。
+算法~1.1.3 的运算量
+\begin{equation}
+\sum_{k=1}^{n-1}\bigl((n-k)+2(n-k)^{2}\bigr)
+=\frac{n(n-1)}{2}+\frac{n(n-1)(2n-1)}{3}
+=\frac{2}{3}n^{3}+O(n^{2}).
+\end{equation}
+这与 Cramer 法则的 $(n+1)!$ 不在同一量级。
+分解一次后，每个新右端只需再花 $2n^{2}$ 做前代与回代。
 
-主元全非零，算法才能进行到底。
+主元全非零，算法才能进行到底。记 $A_k$ 为 $A$ 的 $k$ 阶顺序主子阵（leading principal submatrix），即左上 $k\times k$ 子阵。
 
 \noindent{\heiti 定理 1.1.1}\quad
 主元 $a_{ii}^{(i-1)}$（$i=1,\ldots,k$）全非零，当且仅当顺序主子阵 $A_1,\ldots,A_k$ 都非奇异。
 
 \bookfig{fig-11-leading-minor.png}{第19页}{做到第 $k-1$ 步时，$k$ 阶顺序主子阵是「已完成的上三角加上当前主元」；左乘各 $L_j$ 的主子阵不改变这一形状。}{$A_{11}^{(k-1)}$：前 $k-1$ 个主元所在的上三角；$a_{kk}^{(k-1)}$：当前主元；$A_k$：$k$ 阶顺序主子阵}
 
-因为单位下三角的行列式为 $1$，故 $\det A_k=a_{kk}^{(k-1)}\det A_{11}^{(k-1)}$：
-当前主元是否为零，就是这块是否可逆。
+因为单位下三角的行列式为 $1$，
+\begin{equation}
+\det A_k=a_{kk}^{(k-1)}\det A_{11}^{(k-1)}.
+\end{equation}
+$\det A_k$ 是 $k$ 阶子阵是否可逆的判定量；当前主元是否为零，就是这块是否非奇异。
 
 \noindent{\heiti 定理 1.1.2}\quad
 若 $A_k$（$k=1,\ldots,n-1$）均非奇异，则存在唯一的单位下三角 $L$ 与上三角 $U$，使得 $A=LU$。
 
-存在性就是上面的消元。唯一性：两个这样的分解相消后得到一个既单位下三角又上三角的矩阵，只能是 $I$。
+存在性就是上面的消元。唯一性：若 $A=LU=\tilde L\tilde U$，则
+\[
+\tilde L^{-1}L=\tilde U U^{-1}.
+\]
+左边是单位下三角，右边是上三角，故两边只能是 $I$，从而 $L=\tilde L$、$U=\tilde U$。
 
 $A$ 本身非奇异并不蕴含顺序主子阵都非奇异，因此可逆也不能保证无选主元的消元能做完。
 下一节处理小主元。
