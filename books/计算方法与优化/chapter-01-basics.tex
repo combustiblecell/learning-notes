@@ -748,14 +748,90 @@ x_1+1.001 x_2=2.001.
 右端只改 $0.001$，解从 $(2,0)$ 跳到 $(1,1)$。
 相对右端扰动约为 $0.001/2=5\times 10^{-4}$，相对解扰动约为 $1$，放大约 $2\times 10^3$，与 $\operatorname{cond}(A)$ 同量级。
 
-例 2。$15\times 15$ 的 Hilbert 型方程组，第 $i$ 个方程为
+例 2。课件写出的 $15$ 阶组为
 \[
-\sum_{j=1}^{15}\frac{1}{i+j-1}x_j=\sum_{j=1}^{15}\frac{1}{i+j-1},
-\qquad i=1,\ldots,15.
+\left\{
+\begin{aligned}
+x_1+\frac12 x_2+\frac13 x_3+\cdots+\frac1{15}x_{15}
+&=1+\frac12+\frac13+\cdots+\frac1{15},\\
+\frac12 x_1+\frac13 x_2+\frac14 x_3+\cdots+\frac1{16}x_{15}
+&=\frac12+\frac13+\frac14+\cdots+\frac1{16},\\
+&\hspace{1.2em}\vdots\\
+\frac1{15}x_1+\frac1{16}x_2+\frac1{17}x_3+\cdots+\frac1{29}x_{15}
+&=\frac1{15}+\frac1{16}+\frac1{17}+\cdots+\frac1{29}.
+\end{aligned}
+\right.
 \]
-精确解为全 $1$ 向量。
-输入是该 Hilbert 矩阵与按行求和得到的 $b$，输出在精确算术下应是 $x=\mathbf{1}$；
-浮点下会严重偏离，用来演示病态。
+系数矩阵是 Hilbert 矩阵（Hilbert matrix）
+\[
+H_{ij}=\frac{1}{i+j-1},\qquad i,j=1,\ldots,15,
+\]
+右端恰是各行之和 $b=H\mathbf{1}$。
+因此精确算术下
+\[
+H\mathbf{1}=b\qquad\Rightarrow\qquad x^*=(1,1,\ldots,1)^{\mathsf T}.
+\]
+$H$ 的输入是下标 $(i,j)$，输出是正标量 $H_{ij}\in\bigl[\tfrac1{29},1\bigr]$；
+$x^*$ 的每个分量都是 $1$，无量纲（若把未知量就看成纯数值）。
+
+双精度（约 $16$ 位十进制、$u\approx 1.11\times 10^{-16}$）下，
+\[
+\operatorname{cond}_2(H)\approx 8.72\times 10^{17}.
+\]
+由第~53~页的扰动界，相对误差可放大到
+\[
+u\cdot\operatorname{cond}_2(H)\approx 10^{2},
+\]
+即有效数字可以全部丢失。
+用 \code{numpy.linalg.solve} 得到的 $x$ 与真解之差为
+\begin{center}
+\small
+\begin{tabular}{crrcrr}
+\toprule
+$i$ & $x_i$ & $x_i-1$ & $i$ & $x_i$ & $x_i-1$\\
+\midrule
+1 & $1.0000$ & $-7.2\times 10^{-8}$ &
+9 & $-8.699$ & $-9.699$\\
+2 & $1.0000$ & $1.2\times 10^{-5}$ &
+10 & $12.755$ & $11.755$\\
+3 & $0.9995$ & $-4.8\times 10^{-4}$ &
+11 & $-8.124$ & $-9.124$\\
+4 & $1.0087$ & $8.7\times 10^{-3}$ &
+12 & $4.925$ & $3.925$\\
+5 & $0.9143$ & $-0.086$ &
+13 & $0.608$ & $-0.392$\\
+6 & $1.517$ & $0.517$ &
+14 & $0.631$ & $-0.369$\\
+7 & $-1.033$ & $-2.033$ &
+15 & $1.116$ & $0.116$\\
+8 & $6.382$ & $5.382$ & & & \\
+\bottomrule
+\end{tabular}
+\end{center}
+符号：$x_i$ 为浮点解的第 $i$ 个分量；$x_i-1$ 是对真解分量 $1$ 的绝对误差。
+\[
+\frac{\lVert Hx-b\rVert_2}{\lVert b\rVert_2}\approx 2.1\times 10^{-16},
+\qquad
+\frac{\lVert x-x^*\rVert_2}{\lVert x^*\rVert_2}\approx 4.93.
+\]
+左边残差达到机器精度，右边相对误差却是 $O(1)$：残差小并不表示解对。
+这正是病态的定义性现象：$H$ 的行几乎线性相关，奇异值比
+\[
+\frac{\sigma_{\max}(H)}{\sigma_{\min}(H)}=\operatorname{cond}_2(H)\approx 8.72\times 10^{17}
+\]
+跨越约 $18$ 个数量级。
+$\sigma_{\max}$、$\sigma_{\min}$ 是 $H$ 的最大、最小奇异值，二者都是非负标量；比值无量纲，就是 $2$-范数条件数。
+
+\begin{lstlisting}
+import numpy as np
+n = 15
+idx = np.arange(1, n + 1)
+H = 1.0 / (idx[:, None] + idx[None, :] - 1.0)
+b = H @ np.ones(n)
+x = np.linalg.solve(H, b)
+\end{lstlisting}
+\code{solve} 的输入是 $H$ 与 $b$，输出是 $x\in\mathbb{R}^{15}$；
+在本例中它满足 $Hx\approx b$，但不是 $x^*$。
 
 \section{小结}
 
