@@ -1,0 +1,204 @@
+\chapter{线性方程组的直接解法}
+
+科学与工程问题常归结为 $Ax=b$。
+直接法（精确法）指：无舍入时有限步得到精确解；
+迭代法从初值构造无穷序列，有限步得不到精确解。
+本章介绍中小规模（阶数大致不超过 $1000$）、系数无特殊结构时最常用的直接法——Gauss 消元。
+有特殊结构时应用专门方法以节省运算与存储，本书不展开。
+
+\section{三角形方程组和三角分解}
+
+\subsection{三角形方程组的解法}
+
+先解非奇异下三角组
+\begin{equation}
+Ly=b,\qquad
+L=\begin{pmatrix}
+l_{11}\\
+l_{21}&l_{22}\\
+\vdots&&\ddots\\
+l_{n1}&l_{n2}&\cdots&l_{nn}
+\end{pmatrix},\quad l_{ii}\neq 0.
+\end{equation}
+由第一个方程 $y_1=b_1/l_{11}$。
+若已有 $y_1,\ldots,y_{i-1}$，第 $i$ 个方程给出前代公式
+\begin{equation}
+y_i=\Bigl(b_i-\sum_{j=1}^{i-1}l_{ij}y_j\Bigr)\big/l_{ii}.
+\end{equation}
+输入是 $L$ 与 $b$，输出 $y\in\mathbf{R}^{n}$ 是该下三角组的解，不是原问题的 $x$。
+运算量：第 $i$ 个分量约 $2i-1$ 次四则，合计
+\[
+\sum_{i=1}^{n}(2i-1)=n^2.
+\]
+
+实际计算可把 $y$ 覆盖在 $b$ 的存储上（算法~1.1.1）。
+
+非奇异上三角组 $Ux=y$（$u_{ii}\neq 0$）用回代，从最后一个方程向前：
+\begin{equation}
+x_i=\Bigl(y_i-\sum_{j=i+1}^{n}u_{ij}x_j\Bigr)\big/u_{ii},
+\qquad i=n,n-1,\ldots,1.
+\end{equation}
+输出 $x$ 才是 $Ux=y$ 的未知量；运算量同样是 $n^2$（算法~1.1.2）。
+
+因此，若能分解 $A=LU$，则 $Ax=b$ 化为
+\[
+Ly=b,\qquad Ux=y
+\]
+两步三角形求解。关键是如何得到 $L$ 与 $U$。
+
+\subsection{Gauss 变换}
+
+要把 $A$ 变成上三角且变换本身是下三角，对给定向量 $x\in\mathbf{R}^{n}$，
+用尽量简单的单位下三角把第 $k+1$ 至 $n$ 个分量打成 $0$。
+这样的矩阵是 Gauss 变换
+\begin{equation}
+L_k=I-l_k e_k^{\mathsf T},
+\qquad
+l_k=(0,\ldots,0,l_{k+1,k},\ldots,l_{nk})^{\mathsf T}.
+\end{equation}
+$l_k$ 称为 Gauss 向量；$L_k$ 在第 $k$ 列对角线下方放置 $-l_{ik}$，其余同单位阵。
+输入是下标 $k$ 与乘数 $l_{ik}$，输出是 $n\times n$ 矩阵。
+若 $x_k\neq 0$ 且取
+\[
+l_{ik}=\frac{x_i}{x_k},\qquad i=k+1,\ldots,n,
+\]
+则
+\[
+L_k x=(x_1,\ldots,x_k,0,\ldots,0)^{\mathsf T}.
+\]
+$l_{ik}$ 是无量纲乘数（两分量之比）。
+
+因为 $e_k^{\mathsf T}l_k=0$，
+\[
+(I-l_k e_k^{\mathsf T})(I+l_k e_k^{\mathsf T})=I,
+\]
+故
+\[
+L_k^{-1}=I+l_k e_k^{\mathsf T}.
+\]
+逆就是把乘数改号，不必再做消元。
+作用在矩阵上是秩 $1$ 修正：
+\[
+L_k A=A-l_k(e_k^{\mathsf T}A),
+\]
+即用第 $k$ 行去改下面的行。
+
+\subsection{三角分解的计算}
+
+$A=LU$ 称为 $A$ 的三角分解，亦称 LU 分解（LU factorization）；
+$L$ 下三角，$U$ 上三角。
+
+\textbf{案例。}
+\[
+A=\begin{pmatrix}1&4&7\\2&5&8\\3&6&10\end{pmatrix}.
+\]
+取 $L_1=\begin{pmatrix}1&0&0\\-2&1&0\\-3&0&1\end{pmatrix}$，则
+\[
+L_1 A=\begin{pmatrix}1&4&7\\0&-3&-6\\0&-6&-11\end{pmatrix}.
+\]
+再取 $L_2=\begin{pmatrix}1&0&0\\0&1&0\\0&-2&1\end{pmatrix}$，则
+\[
+L_2(L_1 A)=\begin{pmatrix}1&4&7\\0&-3&-6\\0&0&1\end{pmatrix}=U.
+\]
+单位下三角
+\[
+L=L_1^{-1}L_2^{-1}=\begin{pmatrix}1&0&0\\2&1&0\\3&2&1\end{pmatrix}
+\]
+满足 $A=LU$。$L$ 的亚对角元正是各步乘数；$U$ 是消元后的上三角。
+
+一般地，令 $A^{(0)}=A$。若已有
+\[
+A^{(k-1)}=L_{k-1}\cdots L_1 A
+=\begin{pmatrix}A_{11}^{(k-1)}&A_{12}^{(k-1)}\\0&A_{22}^{(k-1)}\end{pmatrix},
+\]
+其中 $A_{11}^{(k-1)}$ 是 $k-1$ 阶上三角。
+当主元 $a_{kk}^{(k-1)}\neq 0$ 时，
+\[
+l_{ik}=\frac{a_{ik}^{(k-1)}}{a_{kk}^{(k-1)}},\quad i=k+1,\ldots,n,
+\]
+确定唯一的 $L_k=I-l_k e_k^{\mathsf T}$，并把 $A_{22}$ 中第 $k$ 列下方消成 $0$。
+$n-1$ 步后 $U=A^{(n-1)}$ 为上三角，且
+\begin{equation}
+L=(L_{n-1}\cdots L_1)^{-1}=L_1^{-1}\cdots L_{n-1}^{-1}.
+\end{equation}
+因 $j<i$ 时 $e_j^{\mathsf T}l_i=0$，展开得单位下三角
+\[
+L=I+[l_1,l_2,\ldots,l_{n-1},0],
+\]
+即把各步乘数直接写入 $L$ 的亚对角，对角全为 $1$。
+这套过程称为 Gauss 消元法。
+
+第 $k$ 步只改第 $k+1$ 行至第 $n$ 行、第 $k$ 列至第 $n$ 列：
+\begin{align}
+a_{ik}^{(k)}&=0,&& i=k+1,\ldots,n,\\
+a_{ij}^{(k)}&=a_{ij}^{(k-1)}-l_{ik}a_{kj}^{(k-1)},&& i,j=k+1,\ldots,n.
+\end{align}
+旧块算出后不再用，乘数 $l_{ik}$ 可覆盖已变成 $0$ 的 $a_{ik}$ 位置。
+$4\times 4$ 经过两步后内存里是
+\[
+\begin{pmatrix}
+a_{11}^{(0)}&a_{12}^{(0)}&a_{13}^{(0)}&a_{14}^{(0)}\\
+l_{21}&a_{22}^{(1)}&a_{23}^{(1)}&a_{24}^{(1)}\\
+l_{31}&l_{32}&a_{33}^{(2)}&a_{34}^{(2)}\\
+l_{41}&l_{42}&a_{43}^{(2)}&a_{44}^{(2)}
+\end{pmatrix}.
+\]
+严格下三角位置存 $L$ 的乘数，对角及上方存当前 $U$。
+
+算法~1.1.3（就地 Gauss 消元）每步约 $(n-k)+2(n-k)^2$ 次四则，合计
+\[
+\sum_{k=1}^{n-1}\bigl((n-k)+2(n-k)^2\bigr)=\frac23 n^3+O(n^2),
+\]
+即运算量 $\tfrac23 n^3$。这与 Cramer 的 $(n+1)!$ 不在同一量级。
+
+$a_{kk}^{(k-1)}$ 称为第 $k$ 步主元。算法能进行到底，当且仅当这些主元全非零。
+
+\noindent{\heiti 定理 1.1.1}\quad
+主元 $a_{ii}^{(i-1)}$（$i=1,\ldots,k$）全非零的充分必要条件是：
+$A$ 的 $i$ 阶顺序主子阵 $A_i$（$i=1,\ldots,k$）都非奇异。
+
+归纳要点：$k=1$ 时 $A_1=(a_{11}^{(0)})$。
+若前 $k-1$ 个顺序主子阵非奇异，则前 $k-1$ 步可做，且
+\[
+\det A_k=a_{kk}^{(k-1)}\det A_{11}^{(k-1)},
+\]
+故 $A_k$ 非奇异当且仅当当前主元非零。
+$\det A_k$ 是顺序主子阵的行列式，标量；它不为零等价于这一块可逆，不是解向量的某个分量。
+
+\noindent{\heiti 定理 1.1.2}\quad
+若 $A\in\mathbf{R}^{n\times n}$ 的顺序主子阵 $A_k\in\mathbf{R}^{k\times k}$（$k=1,\ldots,n-1$）均非奇异，
+则存在唯一的单位下三角 $L$ 与上三角 $U$，使得 $A=LU$。
+
+存在性由上面的消元给出。唯一性：若还有 $A=L_1 U_1$，则 $L^{-1}L_1=U U_1^{-1}$ 既单位下三角又上三角，只能是 $I$。
+
+$A$ 非奇异并不蕴含顺序主子阵都非奇异，因此 $A$ 可逆也不能保证无选主元的 Gauss 消元能做完。
+小主元即使非零也会放大舍入，这是下一节选主元要处理的问题。
+
+\begin{lstlisting}
+import numpy as np
+A = np.array([[1., 4., 7.], [2., 5., 8.], [3., 6., 10.]])
+L = np.array([[1., 0., 0.], [2., 1., 0.], [3., 2., 1.]])
+U = np.array([[1., 4., 7.], [0., -3., -6.], [0., 0., 1.]])
+print(np.allclose(L @ U, A))  # True
+\end{lstlisting}
+$L@U$ 的输出是 $3\times 3$ 矩阵，应与 $A$ 在浮点容差内相等；\code{True} 表示该例的分解正确。
+
+\section{选主元三角分解}
+
+\pending
+
+\section{平方根法}
+
+\pending
+
+\section{分块三角分解}
+
+\pending
+
+\section{习题}
+
+\pending
+
+\section{上机习题}
+
+\pending

@@ -1,0 +1,108 @@
+\documentclass[UTF8,zihao=-4,openany]{ctexbook}
+
+\usepackage[a4paper,margin=2.45cm,headheight=15pt]{geometry}
+\usepackage{amsmath,amssymb,bm,mathtools}
+\usepackage{graphicx}
+\usepackage{booktabs,tabularx,array}
+\graphicspath{{figures/}}
+\newcommand{\bookfig}[4]{%
+  \begin{center}
+    \includegraphics[width=0.92\linewidth,height=0.42\textheight,keepaspectratio]{#1}%
+  \end{center}
+  \noindent{\heiti 图~#2}\quad #3\par
+  \vspace{0.35em}
+  \noindent 符号：#4\par
+  \vspace{0.6em}%
+}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{fancyhdr}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage[
+  unicode,
+  colorlinks=true,
+  linkcolor=Primary,
+  urlcolor=Accent,
+  bookmarksopen=true,
+  bookmarksnumbered=true,
+  bookmarksdepth=1
+]{hyperref}
+
+\definecolor{Primary}{HTML}{355C7D}
+\definecolor{Accent}{HTML}{6C8EAD}
+\definecolor{CodeBg}{HTML}{F6F7F8}
+
+\setlength{\parindent}{2em}
+\setlength{\parskip}{0.35em}
+\setlist[itemize]{leftmargin=2em,itemsep=0.2em,topsep=0.3em}
+\setlist[enumerate]{leftmargin=2.2em,itemsep=0.2em,topsep=0.3em}
+\renewcommand{\arraystretch}{1.25}
+\setcounter{secnumdepth}{2}
+\setcounter{tocdepth}{1}
+\allowdisplaybreaks[4]
+\emergencystretch=3em
+\hfuzz=5pt
+\vfuzz=5pt
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{数值线性代数}
+\fancyhead[R]{\hyperlink{contents}{返回目录}}
+\fancyfoot[C]{\thepage}
+
+\hypersetup{
+  pdftitle={数值线性代数学习笔记},
+  pdfauthor={learning-notes}
+}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{CodeBg},
+  frame=single,
+  rulecolor=\color{Accent},
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  showspaces=false,
+  showstringspaces=false
+}
+
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\pending}{%
+本节标题依徐树方、高立、张平文\emph{数值线性代数}第二版目录保留。
+正文待后续补充，此处不编造结论。}
+
+\title{\heiti 数值线性代数\\[0.4em]\Large 学习笔记}
+\author{内容提炼}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\frontmatter
+
+\chapter*{说明}
+\addcontentsline{toc}{chapter}{说明}
+本笔记对应徐树方、高立、张平文编著
+\emph{数值线性代数}（第二版，北京大学出版社，2011~年修订；
+北京大学数学教学系列丛书）。
+目录层级与顺序严格按原书印刷目录。
+试作版充实绪论与第~1.1~节（三角形方程组与三角分解/LU）；
+第~1.2~节起及第~2--7~章仅保留原书标题。
+正文以公式陈述定义、成立条件、关键推导与结论；
+每一公式后写明输入如何算出输出，以及该数在问题中的含义。
+
+\hypertarget{contents}{}
+\tableofcontents
+
+\mainmatter
+\input{chapter-00-intro}
+\input{chapter-01-direct}
+\input{chapter-02-sensitivity}
+\input{chapter-03-lstsq}
+\input{chapter-04-iterative}
+\input{chapter-05-cg}
+\input{chapter-06-nonsym-eigen}
+\input{chapter-07-sym-eigen}
+
+\end{document}

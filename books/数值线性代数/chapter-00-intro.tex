@@ -1,0 +1,165 @@
+\chapter*{绪论}
+\addcontentsline{toc}{chapter}{绪论}
+\markboth{绪论}{绪论}
+\setcounter{section}{0}
+\renewcommand{\thesection}{\arabic{section}}
+
+数值线性代数又称矩阵计算（matrix computation），是科学与工程计算的核心：
+多数连续模型离散后都变成大规模矩阵问题。
+本课要做的是：针对问题结构，设计快速、可靠的算法。
+
+\section{数值线性代数的基本问题}
+
+三大基本问题如下。
+
+(1) 线性方程组：给定非奇异 $A\in\mathbf{R}^{n\times n}$ 与 $b\in\mathbf{R}^{n}$，求 $x\in\mathbf{R}^{n}$ 使
+\[
+Ax=b.
+\]
+输入是系数矩阵与右端，输出是未知向量 $x$，每个分量是对应未知量的值。
+
+(2) 线性最小二乘：给定 $A\in\mathbf{R}^{m\times n}$、$b\in\mathbf{R}^{m}$，求
+\[
+x=\arg\min_{y\in\mathbf{R}^{n}}\lVert Ay-b\rVert_2.
+\]
+$\lVert Ay-b\rVert_2$ 是残差的欧氏长度，非负；$x$ 是使该长度最小的 $n$ 维向量，一般不是 $Ay=b$ 的精确解。
+
+(3) 特征值问题：给定 $A\in\mathbf{R}^{n\times n}$，求部分或全部特征值及对应特征向量。
+特征值是标量 $\lambda$，满足 $Ax=\lambda x$、$x\neq 0$；$x$ 是特征向量，可差一个非零倍数。
+
+此外还有约束/完全最小二乘、矩阵方程、矩阵函数、广义与非线性特征值、反问题等。
+奇异值分解因其应用广泛，现常列为第四类基本问题。
+
+\section{研究数值方法的必要性}
+
+上述问题的存在唯一性理论已经很完整，但不能直接当算法用。
+
+\textbf{案例（Cramer 法则）。}
+若 $\det A\neq 0$，则
+\[
+x_i=\frac{d_i}{d},\qquad d=\det A,\quad d_i=\det A_i,
+\]
+$A_i$ 是把 $A$ 的第 $i$ 列换成 $b$ 所得矩阵。
+$x_i$ 仍是第 $i$ 个未知量，但计算它要 $n+1$ 个 $n$ 阶行列式。
+Laplace 展开
+\[
+d=\sum_{j=1}^{n}a_{ij}A_{ij}
+\]
+把 $n$ 阶行列式化成 $n$ 个 $n-1$ 阶行列式，$A_{ij}$ 是代数余子式。
+记 $k$ 阶行列式的乘法次数为 $m_k$，则
+\[
+m_k=k+k m_{k-1}\implies m_n>n!.
+\]
+Cramer 加 Laplace 解 $n$ 阶组的乘法次数大于 $(n+1)!$。
+在每秒 $10^{10}$ 次运算的机器上解 $n=25$，至少约
+\[
+\frac{26!}{10^{10}\times 3600\times 24\times 365}\approx 13\text{ 亿年}.
+\]
+下一章的消元法对同一规模不到一秒。
+因此「理论上漂亮」不等于「可计算」。
+
+特征值的 Jordan 分解能读出全部代数/几何重数，但对扰动不稳定，变换矩阵常病态；
+实际计算用数值性态更好的 Schur 分解。
+
+\section{矩阵分解是设计算法的主要技巧}
+
+设计算法的基本想法是：把一般问题化成若干容易求解的特殊问题。
+主要技巧是矩阵分解：把 $A$ 写成特殊矩阵的乘积。
+
+下三角组 $Ly=b$ 与上三角组 $Uy=c$ 可分别用前代、回代在 $O(n^2)$ 次运算内解出。
+一般的 $Ax=b$ 先做
+\[
+PA=LU
+\]
+（$P$ 排列方阵，$L$ 下三角，$U$ 上三角），再解
+\[
+Ly=Pb,\qquad Ux=y.
+\]
+$y$ 是中间向量，不是原未知量；第二式的 $x$ 才是 $Ax=b$ 的解。
+这样，解线性组就化成「如何分解」再加两次三角形求解。这是第一章的主线。
+
+\section{敏度分析与误差分析}
+
+计算值很少等于真值。误差来源有二：原始数据的测量/观测误差，以及计算过程的舍入。
+问「计算解与真解相差多少」要做两件事：敏度分析与误差分析。
+
+考虑计算 $f(x)$。敏度分析问：$x$ 微扰后 $f$ 变多少。
+在 $\lvert\delta x\rvert/\lvert x\rvert$ 很小的前提下，找尽量小的正数 $c(x)$ 使
+\begin{equation}
+\frac{\lvert f(x+\delta x)-f(x)\rvert}{\lvert f(x)\rvert}
+\le c(x)\frac{\lvert\delta x\rvert}{\lvert x\rvert}.
+\end{equation}
+$c(x)$ 称为 $f$ 在 $x$ 点的条件数（condition number），无量纲。
+$c(x)$ 很大称病态（ill-conditioned），较小称良态（well-conditioned）。
+病态是问题的固有属性，与用什么算法无关。
+若 $f$ 可微，则
+\[
+c(x)\approx\frac{\lvert f'(x)\rvert\,\lvert x\rvert}{\lvert f(x)\rvert}.
+\]
+$\lvert f'(x)\rvert$ 是绝对变化的放大率；再乘 $\lvert x\rvert/\lvert f(x)\rvert$ 变成相对放大率。
+
+误差分析看算法引入的舍入。后向误差分析把计算结果 $\hat y$ 写成
+\[
+\hat y=f(x+\delta x),\qquad \lvert\delta x\rvert\le\lvert x\rvert\,\varepsilon,
+\]
+$\varepsilon>0$ 依赖于机器精度与算法。
+$\varepsilon$ 小称该算法数值稳定，否则数值不稳定。
+稳定性是算法的属性，与问题是否病态无关。
+
+把二者合在一起得到精度估计
+\begin{equation}
+\frac{\lvert\hat y-f(x)\rvert}{\lvert f(x)\rvert}\le c(x)\,\varepsilon.
+\end{equation}
+相对误差上界是条件数与后向扰动水平的乘积。
+只有对良态问题使用稳定算法，才可期望可靠结果。
+
+\section{算法复杂性与收敛速度}
+
+直接法：无舍入时有限步得到精确解，快慢主要看运算量。
+迭代法：构造序列逼近真解，有限步得不到精确解，还要看收敛速度。
+
+现今加减与乘除速度接近，运算量计全部四则。
+若某算法为 $3n^3+20n^2+50$ 次，通常略去低阶，称运算量为 $3n^3$。
+运算量不能单独决定快慢：现代机器上数据传输往往比算术更贵。
+
+对迭代序列 $\{x_k\}$，若
+\[
+\lVert x_k-x\rVert\le c\lVert x_{k-1}-x\rVert,\qquad 0<c<1,
+\]
+称线性收敛；$c$ 越小越好。
+若
+\[
+\lVert x_k-x\rVert\le c\lVert x_{k-1}-x\rVert^2,
+\]
+称平方收敛（二次收敛），通常远快于线性收敛。
+$\lVert x_k-x\rVert$ 是第 $k$ 步误差的长度。
+
+\section{算法的软件实现与现行数值线性代数软件包}
+
+从公式到可靠软件不是简单编码，需要算法理论、机器结构与计算经验。
+基本算法主要收在 LAPACK（Linear Algebra PACKage，C/Fortran 公开子程序）
+与 MATLAB（MATrix LABoratory）中。
+MATLAB 中 \code{C=A*B} 做乘积，\code{x=A\\b} 解 $Ax=b$，便于试用，一般慢于直接调 LAPACK。
+
+\section{符号说明}
+
+大写 $A,B,C,\Lambda,\Delta$ 表示矩阵，小写 $a_{ij}$ 等为元素；
+向量用 $x,y,z,c,h,g$；希腊小写 $\alpha,\beta,\rho,\pi$ 为标量。
+$I$ 是单位矩阵，$e_i$ 是它的第 $i$ 列。
+排列方阵 $P=[e_{i_1},\ldots,e_{i_n}]$。
+$x_i$ 或 $x(i)$ 是向量第 $i$ 个分量。
+$\mathbf{R}^{m\times n}$、$\mathbf{R}^{n}$ 为实矩阵与实向量空间，复空间为 $\mathbf{C}^{m\times n}$、$\mathbf{C}^{n}$。
+$\operatorname{tr} A$、$\operatorname{rank} A$、$\det A$、$A^{-1}$、$A^{\mathsf T}$、$A^{*}$、$A^{-\mathsf T}=(A^{-1})^{\mathsf T}$。
+$\lvert A\rvert$ 表示逐元取绝对值后的矩阵。
+
+算法叙述沿用类 MATLAB 下标：
+$i:l:j$ 表示从 $i$ 到 $j$、步长 $l$ 的整数；$l=1$ 时写 $i:j$。
+$A(i,j)$、$A(i,:)$、$A(:,j)$ 分别为元素、第 $i$ 行、第 $j$ 列；
+$A(k:l,p:q)$ 是相应子块。
+\textbf{案例。} $x=(1,2,3,4,5,6,7,8)$ 则 $x(4:6)=(4,5,6)$。
+$A=\begin{pmatrix}1&2&3&4\\5&6&7&8\\9&10&11&12\end{pmatrix}$ 则
+$A(2,3)=7$，$A(2,:)=(5,6,7,8)$，
+$A(2:3,3:4)=\begin{pmatrix}7&8\\11&12\end{pmatrix}$。
+这些切片输出的是子向量或子矩阵，不是范数或误差。
+
+\renewcommand{\thesection}{\thechapter.\arabic{section}}
