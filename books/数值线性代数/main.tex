@@ -6,13 +6,15 @@
 \usepackage{booktabs,tabularx,array}
 \graphicspath{{figures/}}
 \newcommand{\bookfig}[4]{%
+  \begin{samepage}
   \begin{center}
-    \includegraphics[width=0.92\linewidth,height=0.42\textheight,keepaspectratio]{#1}%
+    \includegraphics[width=0.92\linewidth,height=0.38\textheight,keepaspectratio]{#1}%
   \end{center}
   \noindent{\heiti 图~#2}\quad #3\par
-  \vspace{0.35em}
+  \vspace{0.3em}
   \noindent 符号：#4\par
-  \vspace{0.6em}%
+  \vspace{0.5em}%
+  \end{samepage}%
 }
 \usepackage[dvipsnames]{xcolor}
 \usepackage{fancyhdr}
