@@ -150,7 +150,7 @@ $x86$-$64$ 上 $\lvert\texttt{int}\rvert=4$、$\lvert\texttt{double}\rvert=8$，
 \subsection{与静态库链接}
 
 % BOOKFIG-BEGIN fig-7.6-archive.png
-\bookfig{fig-7.6-archive.png}{7.6}{归档器把多个 	exttt{.o} 打成静态库 	exttt{.a}。}{\texttt{ar}：归档器；\texttt{libc.a}：静态库；成员：被按需抽出的 \texttt{.o}}
+\bookfig{fig-7.6-archive.png}{7.6}{归档器把多个 \texttt{.o} 打成静态库 \texttt{.a}。}{\texttt{ar}：归档器；\texttt{libc.a}：静态库；成员：被按需抽出的 \texttt{.o}}
 % BOOKFIG-END fig-7.6-archive.png
 
 
@@ -283,11 +283,60 @@ $0\mathrm{x}5$ 不是 \code{sum} 的绝对地址。
 
 \section{动态链接共享库}
 
-\pending
+静态库把成员 \code{.o} 在生成可执行文件时拷进去，带来三处浪费：磁盘上每个程序各带一份 \code{libc} 代码；每个进程映像再各有一份；修库后每个应用必须重新链接。
+共享库（shared library，Linux 上为 \code{.so}，Windows 上为 DLL）把代码留在一份库文件里，在加载时或运行时再链进进程。
+
+% BOOKFIG-BEGIN fig-7.16-dynlink.png
+\bookfig{fig-7.16-dynlink.png}{7.16}{加载时动态链接：磁盘上的可执行文件只部分链接，进内存后由动态链接器焊上共享库。}{\texttt{prog2l}：部分链接的可执行文件；\texttt{ld}：静态链接器，只记录对 \texttt{.so} 的依赖；\texttt{ld-linux.so}：动态链接器；\texttt{libc.so}/\texttt{libvector.so}：共享库}
+% BOOKFIG-END fig-7.16-dynlink.png
+
+令 $P$ 为磁盘上的可执行文件，$L_1,\ldots,L_k$ 为其动态依赖。
+加载时链接的顺序是
+\[
+\operatorname{mmap}(P)
+\;\to\;
+\operatorname{mmap}(\texttt{ld-linux.so})
+\;\to\;
+\operatorname{mmap}(L_i)
+\;\to\;
+\operatorname{Reloc}_{\mathrm{dyn}}
+\;\to\;
+\texttt{main}.
+\]
+前三个 $\operatorname{mmap}$ 的输入是文件，输出是进程虚拟地址空间中的映射；
+$\operatorname{Reloc}_{\mathrm{dyn}}$ 读 $P$ 与各 $L_i$ 的动态符号表（\code{.dynsym}）及动态重定位节（如 \code{.rela.plt}、\code{.rela.dyn}），把未填地址写成 $\operatorname{ADDR}(s)$。
+$\operatorname{ADDR}(s)$ 仍是虚拟地址；填完后这份进程内存才是 fully linked，$P$ 在磁盘上始终只记依赖、不拷库代码。
+
+与静态 \code{.rel.text}/\code{.rel.data} 的分工：后者由 \code{ld} 在生成 $P$ 时用掉；对 \code{printf}、\code{addvec} 等库符号，加载时改的是 $P$ 与 \code{.so} 里留给动态链接器的重定位表。
+部分符号可惰性绑定：第一次调用才填 GOT/PLT 中对应项，不是进 \code{main} 前全部填完。
+
+共享库由
+\begin{lstlisting}
+gcc -shared -o libvector.so addvec.c multvec.c
+\end{lstlisting}
+生成。链接 \code{prog2l} 时 \code{addvec} 的机器码不进可执行文件，只写入需要 \code{libvector.so} 的记录。
 
 \section{从应用程序中加载和链接共享库}
 
-\pending
+运行时链接在已经进入 \code{main} 之后由程序调用 \code{dlopen} 完成，而不是启动时由 \code{ld-linux.so} 根据 DT\_NEEDED 自动打开。
+\[
+h=\operatorname{dlopen}(p,f),\qquad
+a=\operatorname{dlsym}(h,n),\qquad
+\operatorname{dlclose}(h).
+\]
+路径 $p$ 是 \code{.so} 文件名，$f$ 为标志（如 \code{RTLD\_LAZY} 表示用到符号再解析）；
+输出 $h$ 是句柄（失败为 \code{NULL}）。
+$n$ 是以空字符结尾的符号名字符串；输出 $a$ 是该符号在本次映射中的地址，不是链接时填进指令的立即数。
+\code{dlerror} 在失败时给出错误串。
+
+编含 \code{dlopen} 的程序时，可执行文件含 \code{main}、数据对象、库路径与函数名字符串，以及函数指针变量；
+不含函数 \code{addvec} 的代码，也没有对它的链接引用。
+\code{addvec} 的定义与动态符号在编 \code{libvector.so} 时已进该库的 \code{.dynsym}。
+因此该程序的 \code{gcc} 命令行不必出现 \code{libvector.so}（通常只需 \code{-ldl}）。
+\code{dlopen} 不会根据后面会不会调用而自行决定；执行到那一行才映射库，再由 \code{dlsym} 按字符串查找。
+
+对该路径，可执行文件不为 \code{addvec} 生成 \code{.rel} 条目；
+被 \code{dlopen} 打开的 \code{.so} 仍带自己的动态重定位表，映射时由动态链接器按本次基址改写。
 
 \section{位置无关代码}
 
@@ -295,19 +344,57 @@ $0\mathrm{x}5$ 不是 \code{sum} 的绝对地址。
 
 \section{库打桩机制}
 
-\pending
+库打桩（library interpositioning）在不改目标函数实现的前提下，把对任意函数的调用接到包装函数：先记账、检查或替换，再视需要调用原实现。
+拦截可发生在编译时、链接时或加载/运行时，对应名字被改写的层次不同。
+用途包括沙箱、底层加密、拦截 \code{write} 调试，以及 \code{malloc} 追踪。
+课堂例子只调用 \code{malloc(32)} 与 \code{free}，三种方法都打印地址与大小且不破坏分配语义。
 
 \subsection{编译时打桩}
 
-\pending
+预处理把调用点的名字换掉。当前目录的 \code{malloc.h} 含
+\[
+\texttt{malloc}(\mathit{size})\;\mapsto\;\texttt{mymalloc}(\mathit{size}),
+\quad
+\texttt{free}(\mathit{ptr})\;\mapsto\;\texttt{myfree}(\mathit{ptr}).
+\]
+输入是源文本中的记号，输出是替换后的记号；编调用文件时用 \code{-I.} 使该头文件覆盖系统头，于是目标文件引用的是 \code{mymalloc}。
+包装函数在 \code{-DCOMPILETIME} 下编译，内部直接调用真正的 \code{malloc}（编包装时不加 \code{-I.}，否则递归）。
+链接器只做普通解析，不需要 \code{--wrap}。
 
 \subsection{链接时打桩}
 
-\pending
+调用方目标文件里仍是对 \code{malloc} 的引用。
+静态链接器 \code{ld} 仅在把 \code{.o} 合成可执行文件时解析符号。
+\code{gcc -Wl,--wrap,malloc} 把 \code{--wrap malloc} 交给 \code{ld}，规则为
+\begin{align*}
+\operatorname{Resolve}_{\mathrm{ld}}(\texttt{malloc})
+&=\texttt{\_\_wrap\_malloc},\\
+\operatorname{Resolve}_{\mathrm{ld}}(\texttt{\_\_real\_malloc})
+&=\texttt{malloc}.
+\end{align*}
+左边是目标文件中的符号名，右边是被选中的定义；
+$\operatorname{Resolve}_{\mathrm{ld}}$ 的输出仍是哪一份函数，地址随即按重定位写入可执行文件。
+包装函数调用 \code{\_\_real\_malloc}，由上述规则接到 libc。
+须重新链接，但不必给调用方源文件加宏。
 
 \subsection{运行时打桩}
 
-\pending
+包装函数与 libc 同名，做成共享库。
+环境变量 \code{LD\_PRELOAD} 令动态链接器解析未定义引用时先搜该库：
+\[
+\operatorname{Search}(r)
+=
+\operatorname{FirstDef}(L_{\mathrm{preload}},L_{\mathrm{NEEDED}})(r).
+\]
+$L_{\mathrm{preload}}$ 是预加载库列表，$L_{\mathrm{NEEDED}}$ 是可执行文件的动态依赖；
+$\operatorname{FirstDef}$ 返回搜索顺序中第一个定义，故程序中的 \code{malloc} 先命中包装。
+包装内
+\[
+\texttt{mallocp}=\operatorname{dlsym}(\texttt{RTLD\_NEXT},\texttt{"malloc"})
+\]
+从当前库之后继续查找，输出 libc 中同名函数的地址，经指针调用以避免递归。
+\code{free} 同样处理；对空指针直接返回。
+被拦截程序按普通方式编译，命令行不必出现包装库；不设 \code{LD\_PRELOAD} 则无日志。
 
 \section{处理目标文件的工具}
 
@@ -315,6 +402,8 @@ $0\mathrm{x}5$ 不是 \code{sum} 的绝对地址。
 
 \section{小结}
 
-静态链接在生成可执行文件时完成符号解析与重定位，把用到的 \code{.o} 及静态库成员拷入 \code{prog}。
-解析是引用到定义的单值映射；重定位用 $\operatorname{ADDR}$ 与加数填写绝对地址或 PC 相对位移。
-静态库按命令行顺序用集合 $E,U,D$ 抽取成员，故库应放在引用它们的目标文件之后。
+链接把多个目标文件构造成可执行程序，并可发生在三个时刻。
+编译时：\code{ld} 把 \code{.o} 与静态库成员拷入可执行文件，按 \code{.rel.*} 填写 $\operatorname{ADDR}$；集合 $E,U,D$ 决定抽出哪些成员。
+加载时：磁盘上的 $P$ 只部分链接，$\operatorname{mmap}$ 与 $\operatorname{Reloc}_{\mathrm{dyn}}$ 在进 \code{main} 前把 \code{.so} 焊进进程内存。
+运行时：\code{dlopen}/\code{dlsym} 按路径与字符串把库映射进已在执行的进程。
+库打桩在这三层分别用宏、\code{ld --wrap}、\code{LD\_PRELOAD} 改 $\operatorname{Resolve}$ 的像，从而截获 \code{malloc} 等调用。
