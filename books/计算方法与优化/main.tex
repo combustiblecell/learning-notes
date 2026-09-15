@@ -14,15 +14,6 @@
   \noindent 符号：#4\par
   \vspace{0.6em}%
 }
-\newcommand{\bookfigbig}[4]{%
-  \begin{center}
-    \includegraphics[width=0.96\linewidth,height=0.58\textheight,keepaspectratio]{#1}%
-  \end{center}
-  \noindent{\heiti 图~#2}\quad #3\par
-  \vspace{0.35em}
-  \noindent 符号：#4\par
-  \vspace{0.6em}%
-}
 \usepackage[dvipsnames]{xcolor}
 \usepackage{fancyhdr}
 \usepackage{enumitem}
@@ -78,7 +69,6 @@
 }
 
 \newcommand{\code}[1]{\texttt{#1}}
-\renewcommand{\thesection}{第\arabic{section}页}
 
 \title{\heiti 计算方法与优化\\[0.4em]\Large 学习笔记}
 \author{内容提炼}
@@ -91,22 +81,32 @@
 
 \chapter*{说明}
 \addcontentsline{toc}{chapter}{说明}
-本笔记对应武汉大学数学与统计学院戴书洋老师
-\emph{计算方法与优化}（Computational Methods and Optimization）
-2026--2027~秋季课程第~1~讲课件
-\texttt{CM+Opt\_ch1.pdf}（共~57~页）。
-每一页课件对应正文一个小节，节号写成「第$n$页」，标题沿用该页课件标题；
-同名页在标题后用括号标出该页特有主题，不改课件原词。
-试作版只充实当前这一份课件；后续各讲待提供后再按同样规则追加，此处不编造目录。
-正文以公式陈述定义、成立条件、关键推导与结论。
-每一公式后写明：数学上如何由输入算出输出，以及得到的数在问题中的实际含义。
-有信息量的示意图按课件页码编号插入；表按课件行列重排。
+本笔记对应武汉大学数学与统计学院戴书洋
+\emph{计算方法与优化}（Computational Methods and Optimization），
+2026--2027~秋季，课件 \texttt{CM+Opt\_ch1.pdf}。
+只提炼第~1~章「基础知识」的定义、成立条件与结论；学期安排见下表，其余导论页不记。
+后续各讲待课件后再按同样方式追加。
+
+学期安排：
+\begin{center}
+\begin{tabular}{cl}
+\toprule
+周次 & 内容\\
+\midrule
+1 & 基础\\
+2--4 & 线性方程直接法、迭代法、梯度法（最速下降、共轭梯度）\\
+5--6 & 最小二乘\\
+7--8 & 非线性方程，SVD\\
+9--10 & 插值逼近\\
+11--15 & 优化\\
+\bottomrule
+\end{tabular}
+\end{center}
 
 \hypertarget{contents}{}
 \tableofcontents
 
 \mainmatter
-\input{chapter-00-course}
 \input{chapter-01-basics}
 
 \end{document}

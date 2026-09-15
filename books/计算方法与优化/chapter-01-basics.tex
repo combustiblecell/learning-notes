@@ -1,853 +1,224 @@
 \chapter{基础知识}
-\setcounter{section}{20}
 
-本章对应课件第~21--57~页，即课件「第一章 基础知识」。
-节号与课件页码对齐，从第~21~页续编。
+课件把本章分成五块：介绍，误差，浮点数与舍入误差，范数，线性方程组的性态与算法稳定性。
+下面按同一顺序，每块先写对象与公式，再给一两个算例说明公式里的数代表什么。
 
-\section{第一章 基础知识}
+\section{介绍}
 
-课件给出本章五块：
-介绍；误差；浮点数与舍入误差；范数；线性方程组的性态与算法的稳定性。
-后文第~22--34~页对应介绍，第~35--42~页对应误差，第~43--46~页对应浮点，第~47--52~页对应范数，第~53--56~页对应性态与稳定性，第~57~页为小结。
-这一页本身没有新公式，只规定阅读顺序。
-
-\section{1.1 介绍 -- 应用问题举例（《九章算术》）}
-
-《九章算术》方程：上禾三秉、中禾二秉、下禾一秉，实三十九斗；上禾二秉、中禾三秉、下禾一秉，实三十四斗；上禾一秉、中禾二秉、下禾三秉，实二十六斗。
-写成
-\begin{equation}
-\begin{pmatrix}
-3 & 2 & 1\\
-2 & 3 & 1\\
-1 & 2 & 3
-\end{pmatrix}
-\begin{pmatrix}x\\ y\\ z\end{pmatrix}
-=
-\begin{pmatrix}39\\ 34\\ 26\end{pmatrix},
-\end{equation}
-即 $Ax=b$。
-$A$ 的输入是秉数系数，$(x,y,z)$ 是上、中、下禾每秉的斗数，$b$ 是实测总斗数。
-课件答曰：$x=9+1/4$，$y=4+1/4$，$z=2+3/4$。
-一般 $n$ 阶形式为
+用计算机解题的固定链条是
 \[
-\sum_{j=1}^{n}a_{ij}x_j=b_i,\qquad i=1,\ldots,n,
+\text{模型}\to\text{数值问题}\to\text{算法}\to\text{程序}.
 \]
-矩阵写法 $Ax=b$。
-输入是 $A\in\mathbb{R}^{n\times n}$ 与 $b\in\mathbb{R}^n$，输出是未知向量 $x\in\mathbb{R}^n$；
-$x$ 的每个分量是对应未知量的数值解，不是残差。
-本课后续大量算法都在解这一类问题。
+输出始终是近似值，因此后文只关心三件事：收敛、稳定、运算量。
+本课遇到的数值问题可以写成三类：
+\begin{align}
+Ax&=b,\\
+f(x)&=0,\\
+\min_{\theta}\,L(\theta).
+\end{align}
+第一式输入 $A\in\mathbb{R}^{n\times n}$、$b\in\mathbb{R}^n$，输出 $x\in\mathbb{R}^n$，是未知量本身。
+第二式输入非线性 $f$ 与初值，输出根 $x$。
+第三式输入参数 $\theta$ 与损失 $L$，输出使 $L$ 变小的 $\theta$；$L(\theta)$ 是非负标量风险，不是预测值。
 
-\section{1.1 介绍 -- 应用问题举例（Kepler 方程）}
-
-天体力学中的 Kepler 方程
+成立条件随问题而变：方形可逆组有唯一解；超定组 $m>n$ 一般无精确解，改成
 \[
-x(t)-\varepsilon\sin x(t)-t=0,\qquad 0<\varepsilon<1.
+\min_x\,\lVert Ax-b\rVert_2^2
+\quad\Leftrightarrow\quad
+A^{\mathsf T}Ax=A^{\mathsf T}b;
 \]
-输入是偏心率 $\varepsilon$ 与时间 $t$，未知量 $x(t)$ 是行星轨道的偏近点角，输出是满足该标量方程的 $x$。
-方程对 $x$ 非线性，不能写成 $Ax=b$，因此要非线性方程的数值解法（后文第~7--8~周）。
-$\varepsilon\in(0,1)$ 保证正弦扰动小于线性项，根通常唯一；$\varepsilon$ 无量纲，$t$ 与 $x$ 用同一角度单位。
+非线性与训练还要算法收敛。
+形式上写 $x=A^{-1}b$ 并不要求真去求逆：求逆与乘法同为 $O(n^3)$，常数更大，实际用 LU、Cholesky、QR 或迭代直接得到一个 $x$。
 
-\section{1.1 介绍 -- 应用问题举例（水温插值）}
-
-已测海洋不同深度处的水温：
-\begin{center}
-\begin{tabular}{cccccc}
-\toprule
-深度（m） & 466 & 741 & 950 & 1422 & 1634\\
-水温（$^\circ$C） & 7.04 & 4.28 & 3.40 & 2.54 & 2.13\\
-\bottomrule
-\end{tabular}
-\end{center}
-符号：深度 $d_i$ 单位米；水温 $T_i$ 单位摄氏度。
-
-目标是估计未测深度（如 $500,600,1000$~米）处的水温。
-这是插值：构造 $T(d)$ 使 $T(d_i)=T_i$，再求 $T(d_*)$。
-输入是结点 $\{(d_i,T_i)\}$ 与待估深度 $d_*$，输出是标量 $T(d_*)$，含义是该深度的估计水温。
-成立条件是：认为水温随深度足够光滑，从而可用多项式或分段多项式穿过已知点。
-
-\section{1.1 介绍 -- 应用问题举例（人口预测）}
-
-给出中国 1900--2000 年人口，目标是预测未来（数据量大时尤其如此）。
-课件表为
-\begin{center}
-\begin{tabular}{cc}
-\toprule
-年份 $t$ & 人口 $y$\\
-\midrule
-1950 & 55196\\
-1960 & 66207\\
-1970 & 82992\\
-1980 & 98705\\
-1990 & 114333\\
-2000 & 126743\\
-\bottomrule
-\end{tabular}
-\end{center}
-符号：$t$ 为年份；$y$ 为人口数，课件未改写单位，按表中整数使用。
-
-拟合模型
+\textbf{案例 A（线性组）。}
+《九章算术》
 \[
-y\approx \beta_1 t^3+\beta_2 t^2+\beta_3 t+\beta_4.
+\begin{pmatrix}3&2&1\\2&3&1\\1&2&3\end{pmatrix}
+\begin{pmatrix}x\\y\\z\end{pmatrix}
+=\begin{pmatrix}39\\34\\26\end{pmatrix}
 \]
-输入是数据对 $\{(t_i,y_i)\}$，输出是系数 $\beta=(\beta_1,\beta_2,\beta_3,\beta_4)$；
-代入新的 $t$ 得到预测人口 $\hat y(t)$。
-$\hat y$ 与 $y$ 同一量纲；因为点数多于 $4$，一般不能让所有点精确落在三次多项式上，所以用最小二乘。
+的解是 $x=9.25$，$y=4.25$，$z=2.75$，单位为斗/秉。
+这是 $Ax=b$ 的原型。
 
-\bookfig{fig-p25-population-fit.png}{第25页}{三次多项式对人口数据的最小二乘拟合与外推。}{横轴：年份；纵轴：人口（$\times 10^8$ 量级的课件刻度）；圆点：数据；实线：拟合曲线；星号：外推点}
-
-\section{1.1 介绍 -- 应用问题举例（机器学习问题）}
-
-\bookfigbig{fig-p26-ml.png}{第26页}{左：两类样本的间隔分类；右：多层网络把 $x$ 映射到 $\mathcal{F}(x)$。}{Gap：分类间隔；$x_0,x_1$：输入；$\mathcal{L}^{0,1,2,\mathrm{out}}$：各层映射；$y_{\ell,j}$：隐单元；$\mathcal{F}(x)$：网络输出}
-
-左图把病人分成 Normal 与 Cancer 两类，中间直线是分类边界，Gap 是间隔。
-输入是特征平面上的点，输出是类别标签；间隔越大，边界对小扰动越不敏感。
-右图是前馈网
-\[
-x\xrightarrow{\mathcal{L}^0} y_0
-\xrightarrow{\mathcal{L}^1} y_1
-\xrightarrow{\mathcal{L}^2} y_2
-\xrightarrow{\mathcal{L}^{\mathrm{out}}} \mathcal{F}(x).
-\]
-每层输入是上一层向量，输出是下一层向量；$\mathcal{F}(x)$ 是预测值或各类得分。
-训练这些映射就是后文的优化问题。
-
-\section{1.1 介绍 -- 应用问题举例（传染病模型）}
-
-SIR 模型
-\begin{equation}
-\begin{aligned}
-\frac{\mathrm{d}S}{\mathrm{d}t}&=-\beta\frac{I}{N}S,\\
-\frac{\mathrm{d}I}{\mathrm{d}t}&=\beta\frac{I}{N}S-\gamma I,\\
-\frac{\mathrm{d}R}{\mathrm{d}t}&=\gamma I.
-\end{aligned}
-\end{equation}
-输入是总人数 $N$、传染率 $\beta$、恢复率 $\gamma$ 以及初值 $(S(0),I(0),R(0))$，输出是三条关于 $t$ 的函数。
-$S,I,R$ 分别是易感、感染、恢复人数，取值在 $[0,N]$，且 $S+I+R=N$。
-$\beta I S/N$ 是单位时间新感染人数，$\gamma I$ 是单位时间恢复人数。
-连续时间 ODE 在机器上只能逐步积分，因此需要常微分方程数值解法。
-
-\bookfig{fig-p27-sir.png}{第27页}{SIR 模型三条轨线随时间的演化。}{Susceptible：$S(t)$；Infectious：$I(t)$；Recovered：$R(t)$；横轴：时间}
-
-\section{1.1 介绍（用计算机解决实际问题的步骤）}
-
-步骤是：建立数学模型；选择数值方法；编写程序计算结果。
-特点是：结果是近似的；需要可靠的理论以保证收敛性与稳定性；需要良好的计算复杂度；必须与应用结合。
-若精确解为 $x^*$、计算解为 $x$，则
-\[
-x=x^*+e_{\mathrm{model}}+e_{\mathrm{trunc}}+e_{\mathrm{round}},
-\]
-其中三项分别是模型、截断与舍入贡献的误差向量。
-输出 $x$ 仍表示原问题的未知量，但其可信范围由这三项控制。
-
-\section{1.1 介绍：矩阵乘法}
-
-给定 $A,B\in M_n$，标准算法对每个 $(i,j)$ 计算
-\[
-(AB)_{ij}=\sum_{k=1}^{n}a_{ik}b_{kj}.
-\]
-输入是两个 $n\times n$ 矩阵，输出是 $n\times n$ 矩阵 $AB$；每个元素是对应行与列的内积。
-共需 $n^3$ 次数字乘法。
-若 $n=10^5$，则乘法次数为 $10^{15}$；若机器每秒 $10^9$ 次乘法，需要 $10^6$ 秒 $\approx 11.6$~天。
-$n^3$ 是运算次数，不是矩阵元素的值；它说明朴素乘法在大规模时不可行，从而提出「能否更快」的问题。
-
-\section{1.1 介绍：矩阵乘法（Strassen 算法）}
-
-Strassen 算法把 $n\times n$ 块分成 $2\times 2$ 块，用 $7$ 次半尺寸乘法代替 $8$ 次，复杂度
-\[
-O\bigl(n^{\log_2 7}\bigr),\qquad \log_2 7\approx 2.807.
-\]
-输入仍是 $A,B$，输出仍是 $AB$；改变的只是乘法次数的指数。
-课件给出块公式
-\begin{align*}
-M_1&=(A_{11}+A_{22})(B_{11}+B_{22}),\\
-M_2&=(A_{21}+A_{22})B_{11},\\
-M_3&=A_{11}(B_{12}-B_{22}),\\
-M_4&=A_{22}(B_{21}-B_{11}),\\
-M_5&=(A_{11}+A_{12})B_{22},\\
-M_6&=(A_{21}-A_{11})(B_{11}+B_{12}),\\
-M_7&=(A_{12}-A_{22})(B_{21}+B_{22}),
-\end{align*}
-以及
-\[
-\begin{pmatrix}C_{11}&C_{12}\\ C_{21}&C_{22}\end{pmatrix}
-=
-\begin{pmatrix}
-M_1+M_4-M_5+M_7 & M_3+M_5\\
-M_2+M_4 & M_1-M_2+M_3+M_6
-\end{pmatrix}.
-\]
-每个 $M_k$ 是半尺寸矩阵，$C_{ij}$ 拼回 $AB$ 的块。
-课件同时提问：实际在用的算法是什么？——理论指数与工程实现（分块、缓存、数值稳定性）不是同一件事。
-
-\bookfig{fig-p30-strassen.png}{第30页}{Strassen 把 $8$ 次块乘法减为 $7$ 次。}{$A_{ij},B_{ij},C_{ij}$：半尺寸块；$M_k$：七个中间积}
-
-\section{1.1 介绍：矩阵乘法（矩阵乘法指数）}
-
-两个 $n\times n$ 矩阵相乘的复杂度写成 $O(n^\omega)$，$\omega$ 称为矩阵乘法指数（matrix multiplication exponent）。
-若存在常数 $C>0$ 使乘法可在 $C n^\omega$ 次算术运算内完成，则该 $\omega$ 合法。
-朴素算法 $\omega=3$；Strassen $\omega=\log_2 7\approx 2.807$；
-其后 Pan、Bini、Coppersmith--Winograd、Stothers、Williams、Le~Gall，
-直到 2023~年 Alman--Vassilevska Williams $\omega\approx 2.371866$。
-开放问题：能否 $\omega=2$？经典计算模型下最优值是多少？
-当 $n=10^5$ 时，$n^3=10^{15}$ 而 $n^{2.372}\approx 10^{11.86}$，约 $3000$ 倍。
-这些 $\omega$ 是复杂度指数，无量纲，取值区间 $[2,3]$；它不是一次具体乘法的误差。
-
-\bookfigbig{fig-p31-matmul-exponent.png}{第31页}{矩阵乘法指数的定义、历史与复杂度曲线。}{$\omega$：矩阵乘法指数；$n$：矩阵阶；纵轴：运算次数（对数）}
-
-\section{1.1 介绍：线性方程组求解}
-
-形式上 $Ax=b\Rightarrow x=A^{-1}b$，但有三个问题。
-
-求 $A^{-1}$ 与做矩阵乘法在渐近阶上都是 $O(n^3)$ 次浮点运算，求逆的常数更大，且通常不必显式形成 $A^{-1}$。
-实际计算直接解 $Ax=b$：高斯消元/LU，$A=LU$；若 $A$ 对称正定则 Cholesky；还有 QR；以及 Jacobi、Gauss--Seidel、共轭梯度等迭代法。
-直接解一个右端，比先求逆再相乘更省、更稳。
-
-若 $A$ 或 $b$ 被噪声干扰，解不一定可靠。条件数
-\[
-\kappa(A)=\lVert A\rVert\,\lVert A^{-1}\rVert
-\]
-输入是可逆矩阵 $A$ 与选定的算子范数，输出是 $\kappa(A)\ge 1$ 的标量。
-$\kappa(A)$ 大称为病态，微小扰动可导致巨大误差；$\kappa(A)$ 小称为良态。
-因此不仅问「是否有解」，还问「解能否被可靠地算出来」。
-
-\bookfigbig{fig-p32-linear-system.png}{第32页}{解 $Ax=b$：不必求逆，且要看条件数。}{$\kappa(A)$：条件数；$n$：阶数；$O(n^3)$：浮点运算次数}
-
-\section{1.1 介绍：最小二乘}
-
-若未知量个数远小于方程个数，精确的 $Ax=b$ 通常无解，要找最「合适」的 $x$。
-监督学习是：给定带标签数据，找分类器并预测新样本的标签。
-课件把这条链写成五步。
-
-精确方形组：$Ax=b$，$x=A^{-1}b$。
-超定组：$m>n$，一般不存在 $x$ 使 $Ax=b$。
-最小二乘：
-\[
-\min_x\,\lVert Ax-b\rVert_2^2,
-\]
-一阶条件 $A^{\mathsf T}Ax=A^{\mathsf T}b$。
-输入是 $A\in\mathbb{R}^{m\times n}$、$b\in\mathbb{R}^m$，输出是使残差欧氏范数平方最小的 $x\in\mathbb{R}^n$；
-$\lVert Ax-b\rVert_2^2$ 是拟合误差的能量，非负。
-
-线性回归：$f(x)=w^{\mathsf T}x+b$，
-\[
-\min_{w,b}\sum_{i=1}^{m}(y_i-w^{\mathsf T}x_i-b)^2.
-\]
-更一般模型 $f_\theta(x)$（多项式、神经网络）把目标改成
-\[
-\min_\theta\frac{1}{m}\sum_{i=1}^{m}\ell\bigl(f_\theta(x_i),y_i\bigr).
-\]
-回归可用 $\ell(\hat y,y)=(\hat y-y)^2$，分类可用 $\ell(\hat y,y)=-y\log\hat y$。
-核心思想：用数学模型描述问题，用高效稳定的算法求解，用数据驱动改进模型。
-
-\bookfigbig{fig-p33-least-squares.png}{第33页}{从精确线性组到最小二乘再到一般监督学习。}{$m,n$：方程数与未知数；$w,b,\theta$：模型参数；$\ell$：损失函数}
-
-\section{1.1 介绍：神经网络}
-
-真实规律复杂，线性模型往往太简单，于是用神经网络。
-输入 $x\in\mathbb{R}^d$ 是特征向量。
-第 $\ell$ 层
-\[
-h^{(\ell)}=\sigma\bigl(W^{(\ell)}h^{(\ell-1)}+b^{(\ell)}\bigr),\qquad \ell=1,\ldots,L,
-\]
-输出 $\hat y=f_\theta(x)=W^{(L)}h^{(L-1)}+b^{(L)}$。
-输入是 $x$ 与参数 $\theta=\{W^{(\ell)},b^{(\ell)}\}$，输出 $\hat y$ 是预测；
-$\sigma$ 是逐元非线性，$h^{(\ell)}$ 是隐表示。
-
-损失
-\[
-L(\theta)=\frac{1}{m}\sum_{i=1}^{m}\ell\bigl(f_\theta(x_i),y_i\bigr)
-\]
-是标量，衡量 $m$ 条样本上的平均风险，取值通常非负。
-梯度下降
+\textbf{案例 B（非线性）。}
+Kepler 方程 $x-\varepsilon\sin x-t=0$（$0<\varepsilon<1$）对 $x$ 非线性，$x(t)$ 是偏近点角。
+水温插值与人口拟合则分别是「穿过已知点」和「点多于参数时的最小二乘」：
+人口用 $y\approx\beta_1 t^3+\beta_2 t^2+\beta_3 t+\beta_4$，输入 $\{(t_i,y_i)\}$，输出系数 $\beta$，再代入新 $t$ 得到预测人口。
+神经网络把 $f_\theta$ 取得更宽，训练仍是 $\min_\theta L(\theta)$，梯度步
 \[
 \theta_{k+1}=\theta_k-\eta\nabla L(\theta_k)
 \]
-的输入是当前参数、步长 $\eta>0$ 与梯度，输出是下一步参数；
-$\eta$ 是无量纲或按梯度量纲缩放的步长。
-常用 SGD、Mini-batch SGD、Momentum、Adam。
-对新输入 $x$，预测 $\hat y=f_{\theta^*}(x)$。
+的 $\eta>0$ 是步长，$\nabla L$ 是损失对参数的梯度。
 
-\bookfigbig{fig-p34-neural-net.png}{第34页}{神经网络：从输入、模型、损失、优化到预测。}{$\theta$：全体参数；$\eta$：步长；$\nabla L$：损失梯度；$\hat y$：预测}
+\textbf{案例 C（运算量）。}
+朴素矩阵乘法 $(AB)_{ij}=\sum_{k=1}^n a_{ik}b_{kj}$ 要 $n^3$ 次乘法；
+$n=10^5$、每秒 $10^9$ 次时约 $11.6$ 天。
+Strassen 把指数从 $3$ 降到 $\log_2 7\approx 2.807$，说明同一问题可以换算法，但工程上仍受稳定性与缓存制约。
 
-\section{1.2 误差（来源与分类）}
+\section{误差}
 
-误差用来描述数值计算中近似解的精确程度。
-来源分成四类。
-从实际问题抽象出数学模型：模型误差（modeling error）。
-测量得到模型参数：观测误差（measurement error）。
-求近似解（级数截断、网格离散、迭代早停）：方法误差/截断误差（truncation error）。
-机器字长有限：舍入误差（round-off error）。
-数值分析假定数学模型准确，因而不考虑模型误差和观测误差，主要研究截断误差和舍入误差对计算结果的影响。
-后两类的输出都是「计算值与该模型真解之差」，量纲与未知量相同。
-
-\section{1.2 误差（如何计算高斯型积分）}
-
-思考：如何计算
-\[
-I=\int_0^1 e^{-x^2}\,\mathrm{d}x.
-\]
-被积函数没有初等原函数，不能靠牛顿--莱布尼茨写出闭形式，因此 $I$ 只能近似。
-输入是区间 $[0,1]$ 与 $f(x)=e^{-x^2}$，输出是标量 $I\in(0,1)$，含义是该正函数在单位区间上的面积。
-下一页用泰勒展开给出可计算的截断格式。
-
-\section{1.2 误差（用泰勒展开近似积分）}
-
-$e^{-x^2}$ 的泰勒级数
-\[
-e^{-x^2}=\sum_{k=0}^{\infty}\frac{(-1)^k x^{2k}}{k!}
-=1-x^2+\frac{x^4}{2!}-\frac{x^6}{3!}+\frac{x^8}{4!}-\cdots
-\]
-在整个 $\mathbb{R}$ 上收敛。
-逐项积分
-\begin{align*}
-I&=\int_0^1 e^{-x^2}\,\mathrm{d}x
-=\sum_{k=0}^{\infty}\frac{(-1)^k}{k!}\int_0^1 x^{2k}\,\mathrm{d}x
-=\sum_{k=0}^{\infty}\frac{(-1)^k}{k!\,(2k+1)}.
-\end{align*}
-截断
-\[
-I_n=\sum_{k=0}^{n}\frac{(-1)^k}{k!\,(2k+1)}.
-\]
-输入是截断下标 $n$，输出是标量 $I_n$；例如 $n=4$ 时
-\[
-I_4=1-\frac13+\frac{1}{2!\cdot 5}-\frac{1}{3!\cdot 7}+\frac{1}{4!\cdot 9}\approx 0.7474868.
-\]
-$I_n$ 是 $I$ 的近似值，不是误差本身。
-余项
-\[
-R_n=I-I_n=\sum_{k=n+1}^{\infty}\frac{(-1)^k}{k!\,(2k+1)}.
-\]
-因 $a_k=1/(k!(2k+1))$ 单调趋于 $0$，交错级数给出
-\[
-\lvert R_n\rvert\le \frac{1}{(n+1)!\,(2n+3)}.
-\]
-右端是可计算的误差上界，随 $n$ 阶乘下降。
-课件表（真值 $I\approx 0.7468241328$）：
-\begin{center}
-\small
-\begin{tabular}{cccc}
-\toprule
-$n$ & 近似值 $I_n$ & 误差估计 $\dfrac{1}{(n+1)!(2n+3)}$ & 实际误差 $\lvert I-I_n\rvert$\\
-\midrule
-0 & 1.0000000 & $1/3\approx 3.33\times 10^{-1}$ & $2.53\times 10^{-1}$\\
-1 & 0.6666667 & $1/10=1.00\times 10^{-1}$ & $8.02\times 10^{-2}$\\
-2 & 0.7666667 & $1/42\approx 2.38\times 10^{-2}$ & $1.98\times 10^{-2}$\\
-3 & 0.7428571 & $1/216\approx 4.63\times 10^{-3}$ & $3.97\times 10^{-3}$\\
-4 & 0.7474868 & $1/1320\approx 7.58\times 10^{-4}$ & $6.63\times 10^{-4}$\\
-5 & 0.7467293 & $1/9360\approx 1.07\times 10^{-4}$ & $9.48\times 10^{-5}$\\
-\bottomrule
-\end{tabular}
-\end{center}
-符号：$n$ 为截断阶；$I_n$ 为部分和；$I-I_n$ 为真误差，符号可正可负，表中取绝对值。
-
-结论：泰勒展开可以得到积分的高精度近似，并且可以显式估计截断误差。
-
-\bookfigbig{fig-p37-taylor-integral.png}{第37页}{用 $e^{-x^2}$ 的泰勒多项式逐项积分，并核对误差表。}{$T_n$：截断到 $x^{2n}$ 的部分和；$I_n$：对应积分近似}
-
-\section{1.2 误差（绝对误差与相对误差）}
-
-设 $x^*$ 为精确值，$x$ 为 $x^*$ 的近似值。
-绝对误差
-\[
-\varepsilon=x-x^*.
-\]
-输入是近似值与真值，输出是标量 $\varepsilon$，量纲与 $x^*$ 相同；$\varepsilon=0$ 表示没有偏差，可正可负。
-其上限记为 $\varepsilon^*$，称为绝对误差限，工程上常写
-\[
-x^*=x\pm\varepsilon^*,
-\]
-即真值落在 $[x-\varepsilon^*,x+\varepsilon^*]$。
-绝对误差越小越有参考价值，但不能单独表示「精确到什么程度」：测 $10^6$ 时差 $1$ 与测 $1$ 时差 $1$ 的意义不同。
-
-\section{1.2 误差（相对误差）}
-
-相对误差
-\[
-\xi=\frac{x-x^*}{x^*}
-\]
-更能反映近似程度。
-输入同上，输出是无量纲标量；$\lvert\xi\rvert=10^{-k}$ 大致对应 $k$ 位有效数字。
-真值难以求出时，课件也使用
-\[
-\xi=\left\lvert\frac{x^*-x}{x}\right\rvert,
-\]
-分母改成近似值 $x$。
-近似值的精确程度取决于相对误差；实际计算中能得到的是相对误差限。
-
-\section{1.2 误差（有效数字）}
-
-用科学计数法写
-\[
-x=\pm 0.a_1 a_2\ldots a_n\times 10^m,\qquad a_1\neq 0.
-\]
-若
-\[
-\lvert x-x^*\rvert\le 0.5\times 10^{m-n}
-\]
-（即 $a_n$ 按四舍五入截取），则称 $x$ 有 $n$ 位有效数字，精确到小数点后第 $m-n$ 位。
-输入是近似值的十进制写法与真值，输出是整数 $n\ge 1$；$n$ 是有效位数，不是 $x$ 本身。
-
-例：设 $x^*=\pi$，$x=3.1415$。
-$x=0.31415\times 10^1$，故 $m=1$。
-$\lvert\pi-3.1415\rvert\approx 9.27\times 10^{-5}$。
-$0.5\times 10^{1-5}=5\times 10^{-5}$，不等式不成立；
-$0.5\times 10^{1-4}=5\times 10^{-4}$ 成立，因此 $3.1415$ 作为 $\pi$ 的近似有 $4$ 位有效数字。
-
-练习：对 $42.195$、$0.0375551$，按四舍五入写出四位有效数字的近似数，分别为 $42.20$ 与 $0.03756$。
-
-\section{1.2 误差（误差的传播，单变量）}
-
-单变量函数 $f(x)$，设 $x^*$ 是 $x$ 的近似值。
-课件写
-\[
-\Delta f(x^*)=\lvert f(x)-f(x^*)\rvert.
-\]
-在 $x^*$ 处泰勒展开
-\[
-f(x)-f(x^*)\approx f'(x^*)(x-x^*),
-\]
-从而
-\[
-\Delta f(x^*)\approx \lvert f'(x^*)\rvert\,\lvert x-x^*\rvert.
-\]
-输入是点 $x^*$、导数 $f'(x^*)$ 与自变量误差 $\lvert x-x^*\rvert$，输出是函数值误差的一阶估计。
-$\lvert f'(x^*)\rvert$ 是绝对误差的局部放大倍数：导数大的地方，同样的 $\Delta x$ 会造成更大的 $\Delta f$。
-图中切线给出「估计误差」，曲线给出「真误差」，二者之差是泰勒余项。
-
-\bookfig{fig-p41-error-propagation.png}{第41页}{用切线把自变量误差变成函数值误差的一阶估计。}{$\Delta\tilde x=\lvert x-\tilde x\rvert$：自变量绝对误差；估计误差：$\lvert f'\rvert\Delta\tilde x$；真误差：$\lvert f(x)-f(\tilde x)\rvert$}
-
-\section{1.2 误差（误差的传播，多变量）}
-
-多变量 $f(u,v)$，$(u^*,v^*)$ 是 $(u,v)$ 的近似值。
-\[
-f(u,v)-f(u^*,v^*)
-\approx
-\frac{\partial f}{\partial u}(u-u^*)
-+\frac{\partial f}{\partial v}(v-v^*),
-\]
-\[
-\Delta f(u^*,v^*)
-\approx
-\left\lvert\frac{\partial f}{\partial u}\right\rvert\Delta u^*
-+\left\lvert\frac{\partial f}{\partial v}\right\rvert\Delta v^*.
-\]
-输入是偏导数与两个自变量的绝对误差限，输出是函数绝对误差的一阶上界。
-四则运算的估计误差为
-\begin{center}
-\begin{tabular}{ccc}
-\toprule
-运算 & 记号 & 估计误差\\
-\midrule
-加法 & $\Delta(\tilde u+\tilde v)$ & $\Delta\tilde u+\Delta\tilde v$\\
-减法 & $\Delta(\tilde u-\tilde v)$ & $\Delta\tilde u+\Delta\tilde v$\\
-乘法 & $\Delta(\tilde u\times\tilde v)$ & $\lvert\tilde u\rvert\Delta\tilde v+\lvert\tilde v\rvert\Delta\tilde u$\\
-除法 & $\Delta(\tilde u/\tilde v)$ &
-$\bigl(\lvert\tilde u\rvert\Delta\tilde v+\lvert\tilde v\rvert\Delta\tilde u\bigr)/\lvert\tilde v\rvert^2$\\
-\bottomrule
-\end{tabular}
-\end{center}
-符号：$\tilde u,\tilde v$ 为近似值；$\Delta$ 表示绝对误差限，均取非负。
-减法与加法的绝对误差限相同，但真值接近时相对误差会被放大，这就是相消。
-
-\section{1.3 浮点数及舍入误差（计算机浮点数系统）}
-
-浮点系统 $F(\beta,t,m,M)$ 中，
-\[
-x=W\times\beta^j,
+数值分析假定模型与观测已给定，只跟踪两类计算误差：截断（方法）误差与舍入误差。
+设 $x^*$ 为真值，$x$ 为近似值。绝对误差与相对误差为
+\begin{equation}
+\varepsilon=x-x^*,
 \qquad
-W=\pm 0.d_1 d_2\ldots d_t
-=\pm\sum_{r=1}^{t}d_r\beta^{-r}.
-\]
-$W$ 是尾数，$\beta$ 是基（正整数进制），$j$ 是阶码，$t$ 是尾数位数，$-m\le j\le M$ 是阶的范围。
-规格化要求 $1\le d_1\le\beta-1$，$0\le d_i\le\beta-1$（$i=2,\ldots,t$）。
-输入是四元组 $(\beta,t,m,M)$，输出是可表示的有限点集 $F$。
-$F$ 只能表示有限个实数，不是连续的数轴。
+\xi=\frac{x-x^*}{x^*}.
+\end{equation}
+$\varepsilon$ 与 $x^*$ 同量纲，可正可负；$\lvert\varepsilon\rvert\le\varepsilon^*$ 时称 $\varepsilon^*$ 为绝对误差限，常写 $x^*=x\pm\varepsilon^*$。
+$\xi$ 无量纲，$\lvert\xi\rvert=10^{-k}$ 大致对应 $k$ 位有效数字。
+真值未知时改用 $\lvert x^*-x\rvert/\lvert x\rvert$。
+$\lvert\varepsilon\rvert$ 小并不等于「够准」：同样差 $1$，对 $10^6$ 和对 $1$ 的意义不同，所以比较精度看 $\xi$。
 
-对 $F(2,t,m,M)$，可表示范围
+有效数字：写 $x=\pm 0.a_1\ldots a_n\times 10^m$（$a_1\neq 0$），若
 \[
-x_R\in
-\bigl[-0.11\ldots 1\times 2^M,\,-2^{-m-1}\bigr]
-\cup
-\bigl[2^{-m-1},\,0.11\ldots 1\times 2^M\bigr].
+\lvert x-x^*\rvert\le 0.5\times 10^{m-n},
 \]
-尾数绝对值 $W=N_i\times 2^{-t}$，$N_i\in\{2^{t-1},\ldots,2^{t}-1\}$。
-浮点数个数（含零）为
+则 $x$ 有 $n$ 位有效数字。$n$ 是位数，不是 $x$ 的值。
+
+误差沿函数传播。一元
 \[
-2(M+m+1)(2^t-2^{t-1})+1.
+\Delta f(x^*)\approx\lvert f'(x^*)\rvert\,\lvert x-x^*\rvert,
 \]
-该式输出的是集合基数，无量纲，用来衡量「机器能区分多少个数」。
-
-\section{1.3 浮点数及舍入误差（计算机浮点数表示）}
-
-二进制形式
+$\lvert f'(x^*)\rvert$ 是绝对误差的局部放大率。
+二元一阶上界为
 \[
-(-1)^{S}\,W\,2^{j}.
+\Delta f\approx\bigl\lvert\partial f/\partial u\bigr\rvert\Delta u
++\bigl\lvert\partial f/\partial v\bigr\rvert\Delta v.
 \]
-$S\in\{0,1\}$ 是符号位，$j$ 是阶码，$W$ 是尾数。
-单精度：32~位，符号 1~位，阶码 $E=8$~位，尾数 $M=23$~位。
-双精度：64~位，符号 1~位，阶码 $E=11$~位，尾数 $M=52$~位。
-（课件把 64~位那一行误写成「64~位单精度形式」，按位宽应理解为双精度。）
-输入是这 32 或 64 个比特，输出是一个实数（或特殊值 Inf/NaN，本页未展开）。
-尾数位数决定相对精度，阶码位数决定可表示的指数范围。
+四则运算的估计误差：加减都是 $\Delta\tilde u+\Delta\tilde v$；
+乘为 $\lvert\tilde u\rvert\Delta\tilde v+\lvert\tilde v\rvert\Delta\tilde u$；
+除为同一分子除以 $\lvert\tilde v\rvert^2$。
+减法的绝对误差限与加法相同，但真值接近时相对误差会被放大（相消）。
 
-\section{1.3 浮点数及舍入误差（舍入误差）}
+\bookfig{fig-p41-error-propagation.png}{第41页}{切线把自变量误差变成函数值误差的一阶估计。}{$\Delta\tilde x$：自变量绝对误差；估计误差：$\lvert f'\rvert\Delta\tilde x$；真误差：$\lvert f(x)-f(\tilde x)\rvert$}
 
-实数 $x_R$ 只能用 $F(\beta,t,m,M)$ 中最近的 $x_f$ 表示（四舍五入）。
-若 $x_R$ 的阶为 $j$，相邻浮点间距为 $\beta^{j-t}$，则
+\textbf{案例 A（有效数字）。}
+$x^*=\pi$，$x=3.1415=0.31415\times 10^1$，故 $m=1$。
+$\lvert\pi-3.1415\rvert\approx 9.3\times 10^{-5}$ 大于 $0.5\times 10^{1-5}$、小于 $0.5\times 10^{1-4}$，因此只有 $4$ 位有效数字。
+四舍五入到四位：$42.195\to 42.20$，$0.0375551\to 0.03756$。
+
+\textbf{案例 B（截断）。}
+$I=\int_0^1 e^{-x^2}\,\mathrm{d}x$ 无初等原函数。逐项积分
 \[
-\lvert x_f-x_R\rvert\le\frac12\beta^{j-t}.
-\]
-左端是绝对舍入误差，右端是半个间距，量纲与 $x_R$ 相同。
-
-定理 1.3.1：
-\[
-x_f=x_R(1+\delta),\qquad \lvert\delta\rvert\le\frac12\beta^{1-t}.
-\]
-$\delta$ 是相对舍入误差，无量纲；上界只依赖于基 $\beta$ 和尾数位 $t$，不依赖于 $x_R$ 的大小（规格化且不溢出时）。
-
-\section{1.3 浮点数及舍入误差（定理 1.3.1 的证明）}
-
-规格化浮点在阶码 $j$ 下的间距 $\Delta=\beta^{j-t}$。
-任意 $x_R$ 落在某相邻浮点 $x_i,x_{i+1}$ 之间，四舍五入选最近者 $x_f$，故
-\[
-\lvert x_R-x_f\rvert\le\frac12\Delta=\frac12\beta^{j-t}.
-\]
-规格化数满足 $\beta^{j-1}\le\lvert x_R\rvert<\beta^{j}$，因此
-\[
-\lvert\delta\rvert
-=\frac{\lvert x_f-x_R\rvert}{\lvert x_R\rvert}
-\le\frac{\tfrac12\beta^{j-t}}{\beta^{j-1}}
-=\frac12\beta^{1-t}.
-\]
-令单位舍入
-\[
-u=\frac12\beta^{1-t},
-\]
-则 $x_f=x_R(1+\delta)$，$\lvert\delta\rvert\le u$。
-$\beta=2$ 时 $u=2^{-t}$。
-结论：四舍五入的相对误差与数的大小无关，只取决于 $\beta$ 和 $t$。
-
-\bookfigbig{fig-p46-rounding-proof.png}{第46页}{由浮点间距与规格化下界推出定理 1.3.1。}{$\Delta$：相邻浮点间距；$u$：单位舍入；$\delta$：相对误差}
-
-\section{1.4 向量范数与矩阵范数（向量范数）}
-
-$\mathbb{R}^n$ 上的向量范数 $\lVert\cdot\rVert$ 对任意 $\vec x,\vec y\in\mathbb{R}^n$ 满足：
-(1) $\lVert\vec x\rVert\ge 0$，且 $\lVert\vec x\rVert=0\Leftrightarrow\vec x=0$；
-(2) $\lVert\lambda\vec x\rVert=\lvert\lambda\rvert\,\lVert\vec x\rVert$（课件写作 $\forall\lambda\in\mathbb{R}$）；
-(3) 三角不等式 $\lVert\vec x+\vec y\rVert\le\lVert\vec x\rVert+\lVert\vec y\rVert$。
-常用
-\begin{align*}
-\lVert\vec x\rVert_1&=\sum_{i=1}^{n}\lvert x_i\rvert,\\
-\lVert\vec x\rVert_2&=\Bigl(\sum_{i=1}^{n}x_i^2\Bigr)^{1/2},\\
-\lVert\vec x\rVert_\infty&=\max_{1\le i\le n}\lvert x_i\rvert,\\
-\lVert\vec x\rVert_p&=\Bigl(\sum_{i=1}^{n}\lvert x_i\rvert^p\Bigr)^{1/p}.
-\end{align*}
-输入是向量 $\vec x$，输出是非负标量；它度量 $\vec x$ 的「长度」，不是某一个坐标。
-
-例：$\vec x=(1,-2,3)^{\mathsf T}$，
-\[
-\lVert\vec x\rVert_1=6,\quad
-\lVert\vec x\rVert_2=\sqrt{14},\quad
-\lVert\vec x\rVert_\infty=3.
-\]
-
-\section{1.4 向量范数与矩阵范数（主要性质）}
-
-(1) $\lVert-\vec x\rVert=\lVert\vec x\rVert$；
-(2) $\bigl\lvert\lVert\vec x\rVert-\lVert\vec y\rVert\bigr\rvert\le\lVert\vec x-\vec y\rVert$；
-(3) $\lVert\vec x\rVert$ 是 $\mathbb{R}^n$ 上的连续函数。
-
-定理 1.4.1：$\mathbb{R}^n$ 上一切范数等价，即存在 $c_1>0$、$c_2>0$ 使
-\[
-c_1\lVert\vec x\rVert'\le\lVert\vec x\rVert\le c_2\lVert\vec x\rVert'.
-\]
-输入是同一个向量在两种范数下的值，输出是与 $\vec x$ 无关的正常数对 $(c_1,c_2)$；
-等价意味着「是否趋于零」不依赖于选哪一种范数，但具体数值可以差一个常数倍。
-
-向量序列收敛：$\vec x_k=(x_{k1},\ldots,x_{kn})^{\mathsf T}$，若对每个分量
-$\lim_{k\to\infty}x_{ki}=x_i^*$，则 $\lim_{k\to\infty}\vec x_k=\vec x^*$。
-
-定理 1.4.2：对任意向量范数，
-$\lim\vec x_k=\vec x^*\Leftrightarrow\lim\lVert\vec x_k-\vec x^*\rVert=0$。
-定理 1.4.3：$\lim(\vec x_k\pm\vec y_k)=\vec x^*\pm\vec y^*$。
-$\lVert\vec x_k-\vec x^*\rVert$ 是误差的长度，非负，趋于 $0$ 表示逐分量都逼近。
-
-\section{1.4 向量范数与矩阵范数（矩阵范数）}
-
-$\mathbb{R}^{n\times n}$ 上矩阵范数满足与向量范数相同的 (1)(2)(3)。
-若还满足
-\[
-\lVert AB\rVert\le\lVert A\rVert\,\lVert B\rVert,
-\]
-则称相容的矩阵范数或模。
-Frobenius 范数
-\[
-\lVert A\rVert_F=\Bigl(\sum_{i=1}^{n}\sum_{j=1}^{n}a_{ij}^2\Bigr)^{1/2}
-\]
-可看作把矩阵拉成向量后的 $2$-范数。
-输入是矩阵 $A$，输出是非负标量，度量「矩阵有多大」。
-
-相容性有两层：矩阵与矩阵；矩阵与向量
-\[
-\lVert A\vec x\rVert\le\lVert A\rVert\,\lVert\vec x\rVert.
-\]
-后者保证 $\lVert A\vec x\rVert$ 作为输出向量的长度，不会超过 $\lVert A\rVert$ 与 $\lVert\vec x\rVert$ 的乘积。
-
-\section{1.4 向量范数与矩阵范数（矩阵范数相关性质）}
-
-定理 1.4.4：$\lVert A\rVert$ 是 $A$ 的连续函数。
-定理 1.4.5：对一个相容矩阵范数，存在与之相容的向量范数。
-定理 1.4.6：谱半径 $\rho(A)$ 为按模最大的特征值模，则对任一种矩阵范数
-\[
-\rho(A)\le\lVert A\rVert.
-\]
-$\rho(A)$ 无量纲（若 $A$ 把向量映到同型向量），它给出迭代 $A^k\to 0$ 的阈值：$\rho(A)<1$ 是收敛的必要条件的常用形式。
-定理 1.4.7：对任意 $\varepsilon>0$，存在一种矩阵范数使 $\lVert A\rVert\le\rho(A)+\varepsilon$。
-也就是：范数可以任意接近谱半径，但不能整体小于它。
-
-\section{1.4 向量范数与矩阵范数（算子范数）}
-
-给定向量范数，定义矩阵的算子范数（从属范数）
-\[
-\lVert A\rVert
-=\sup_{\vec x\neq 0}\frac{\lVert A\vec x\rVert}{\lVert\vec x\rVert}
-=\max_{\lVert\vec x\rVert=1}\lVert A\vec x\rVert.
-\]
-输入是线性映射 $A$，输出是单位球上像的最大长度，即「最坏方向的放大倍数」。
-由常用向量范数诱导：
-\begin{align*}
-\lVert A\rVert_1&=\max_{1\le j\le n}\sum_{i=1}^{n}\lvert a_{ij}\rvert
-\quad\text{（列范数）},\\
-\lVert A\rVert_\infty&=\max_{1\le i\le n}\sum_{j=1}^{n}\lvert a_{ij}\rvert
-\quad\text{（行范数）},\\
-\lVert A\rVert_2&=\sqrt{\rho(A^{\mathsf T}A)}
-\quad\text{（谱范数）}.
-\end{align*}
-
-例：$A=\begin{pmatrix}1&-2\\-3&4\end{pmatrix}$，
-\[
-\lVert A\rVert_1=\max(1+3,2+4)=6,
+I=\sum_{k=0}^{\infty}\frac{(-1)^k}{k!\,(2k+1)},
 \qquad
-\lVert A\rVert_\infty=\max(1+2,3+4)=7,
+I_n=\sum_{k=0}^{n}\frac{(-1)^k}{k!\,(2k+1)},
 \]
+交错余项
 \[
-A^{\mathsf T}A=\begin{pmatrix}10&-14\\-14&20\end{pmatrix},
+\lvert I-I_n\rvert\le\frac{1}{(n+1)!\,(2n+3)}.
+\]
+$I_n$ 是 $I$ 的近似（真值 $\approx 0.746824$）；右端是可事先计算的截断上界，不是随机误差。
+$n=4$ 时 $I_4\approx 0.74749$，上界 $\approx 7.6\times 10^{-4}$，真误差 $\approx 6.6\times 10^{-4}$。
+
+\section{浮点数及舍入误差}
+
+浮点系统 $F(\beta,t,m,M)$ 表示
+\[
+x=W\beta^j,
+\qquad
+W=\pm\sum_{r=1}^{t}d_r\beta^{-r},
+\quad -m\le j\le M.
+\]
+$\beta$ 是基，$t$ 是尾数位，$j$ 是阶码。规格化要求 $d_1\neq 0$（二进制即 $d_1=1$）。
+$F$ 是有限散点集，不是 $\mathbb{R}$。
+IEEE 单精度 $1+8+23$ 位，双精度 $1+11+52$ 位，数值为 $(-1)^S W 2^j$。
+
+相邻规格化数间距 $\Delta=\beta^{j-t}$。四舍五入到最近浮点 $x_f$ 时
+\[
+\lvert x_f-x_R\rvert\le\tfrac12\beta^{j-t}.
+\]
+结合规格化下界 $\lvert x_R\rvert\ge\beta^{j-1}$，得到定理~1.3.1：
+\begin{equation}
+x_f=x_R(1+\delta),
+\qquad
+\lvert\delta\rvert\le u:=\tfrac12\beta^{1-t}.
+\end{equation}
+$\delta$ 是相对舍入，无量纲；$u$ 是单位舍入，只依赖 $\beta,t$，与 $\lvert x_R\rvert$ 无关（不溢出、规格化时）。
+二进制 $u=2^{-t}$；双精度 $t=53$（含隐藏位）时 $u=2^{-53}\approx 1.11\times 10^{-16}$。
+
+\bookfig{fig-p46-rounding-proof.png}{第46页}{由间距与规格化下界推出相对误差界 $u$。}{$\Delta$：相邻浮点间距；$u$：单位舍入；$\delta$：相对误差}
+
+\section{向量范数与矩阵范数}
+
+$\mathbb{R}^n$ 上的范数满足正定、绝对齐次、三角不等式。常用
+\begin{align}
+\lVert x\rVert_1&=\sum_i\lvert x_i\rvert,\\
+\lVert x\rVert_2&=\bigl(\sum_i x_i^2\bigr)^{1/2},\\
+\lVert x\rVert_\infty&=\max_i\lvert x_i\rvert.
+\end{align}
+输入向量，输出非负标量，表示长度。
+有限维上一切范数等价：存在 $c_1,c_2>0$ 使 $c_1\lVert x\rVert'\le\lVert x\rVert\le c_2\lVert x\rVert'$，
+因此「$x_k\to x^*$」与「$\lVert x_k-x^*\rVert\to 0$」对任意范数同时成立。
+$\lVert x_k-x^*\rVert$ 是误差长度，不是某一个坐标。
+
+矩阵范数另要求相容 $\lVert AB\rVert\le\lVert A\rVert\lVert B\rVert$。
+Frobenius 范数把 $A$ 当成向量做 $2$-范数。
+由向量范数诱导的算子范数
+\[
+\lVert A\rVert=\max_{x\neq 0}\frac{\lVert Ax\rVert}{\lVert x\rVert}
+\]
+是单位球上的最大拉伸，也是与该向量范数相容的最小矩阵范数，且 $\lVert I\rVert=1$。
+列和、行和与谱范数分别为
+\begin{align}
+\lVert A\rVert_1&=\max_j\sum_i\lvert a_{ij}\rvert,\\
+\lVert A\rVert_\infty&=\max_i\sum_j\lvert a_{ij}\rvert,\\
+\lVert A\rVert_2&=\sqrt{\rho(A^{\mathsf T}A)}.
+\end{align}
+谱半径 $\rho(A)\le\lVert A\rVert$ 对任意矩阵范数成立；$\rho(A)$ 是按模最大特征值，控制 $A^k$ 是否趋于零。
+若某算子范数下 $\lVert A\rVert<1$，则 $I\pm A$ 可逆，且
+\[
+\frac{1}{1+\lVert A\rVert}\le\lVert(I\pm A)^{-1}\rVert\le\frac{1}{1-\lVert A\rVert}.
+\]
+
+\textbf{案例。}
+$x=(1,-2,3)^{\mathsf T}$：$\lVert x\rVert_1=6$，$\lVert x\rVert_2=\sqrt{14}$，$\lVert x\rVert_\infty=3$。
+$A=\begin{pmatrix}1&-2\\-3&4\end{pmatrix}$：
+$\lVert A\rVert_1=6$，$\lVert A\rVert_\infty=7$，
+$\lVert A\rVert_2=\sqrt{15+\sqrt{221}}$。
+对任意算子范数还有 $\lVert A^{-1}\rVert\ge 1/\lVert A\rVert$，以及
+$\lVert A^{-1}-B^{-1}\rVert\le\lVert A^{-1}\rVert\lVert B^{-1}\rVert\lVert A-B\rVert$。
+
+\section{线性方程组的性态，算法的稳定性}
+
+解 $Ax=b$。右端扰动 $\delta b$ 给出
+\begin{equation}
+\frac{\lVert\delta x\rVert}{\lVert x\rVert}
+\le
+\operatorname{cond}(A)\,\frac{\lVert\delta b\rVert}{\lVert b\rVert},
+\qquad
+\operatorname{cond}(A)=\lVert A\rVert\lVert A^{-1}\rVert.
+\end{equation}
+$\operatorname{cond}(A)\ge 1$，无量纲，$\operatorname{cond}(kA)=\operatorname{cond}(A)$（$k\neq 0$）。
+它是相对误差放大因子：输入相对右端扰动，输出相对解扰动的上界。
+矩阵扰动 $\delta A$ 时还多一个分母 $1-\operatorname{cond}(A)\lVert\delta A\rVert/\lVert A\rVert$（需为正）。
+$\operatorname{cond}(A)\gg 1$ 称病态，反之为良态。
+经验上，行列式极小、行近似相关、主元过小、特征值数量级悬殊，都提示病态。
+算法稳定性说的是舍入在计算过程中被放大多少；病态是问题固有的，稳定算法也不能凭空变出有效位。
+
+\textbf{案例 A。}
+\[
+\begin{cases}x_1+x_2=2,\\ x_1+1.001 x_2=2,\end{cases}
 \quad
-\rho(A^{\mathsf T}A)=15+\sqrt{221},
-\quad
-\lVert A\rVert_2=\sqrt{15+\sqrt{221}}.
+\begin{cases}x_1+x_2=2,\\ x_1+1.001 x_2=2.001.\end{cases}
 \]
+解从 $(2,0)$ 变成 $(1,1)$。右端相对扰动约 $5\times 10^{-4}$，解的相对变化为 $O(1)$，放大约 $10^3$，与该 $2\times 2$ 矩阵的条件数同量级。
 
-\section{1.4 向量范数与矩阵范数（算子范数相关性质）}
-
-定理 1.4.8：向量范数与其从属矩阵范数相容。
-定理 1.4.9：对向量范数 $\lVert\cdot\rVert_p$，与之相容的所有矩阵范数中，算子范数值最小。
-定理 1.4.10：从属范数满足 $\lVert I\rVert=1$。
-定理 1.4.11：$A$ 的不同从属范数互相等价。
-
-例 1：若对某个算子范数 $\lVert A\rVert<1$，则 $I\pm A$ 可逆，且
+\textbf{案例 B（Hilbert）。}
 \[
-\frac{1}{1+\lVert A\rVert}
-\le
-\lVert(I\pm A)^{-1}\rVert
-\le
-\frac{1}{1-\lVert A\rVert}.
-\]
-左、右两端是 $\lVert(I\pm A)^{-1}\rVert$ 的界；分母 $1-\lVert A\rVert>0$ 来自 $\lVert A\rVert<1$。
-
-例 2：$\mathbb{R}^{n\times n}$ 上任一相容矩阵范数，必存在 $\mathbb{R}^n$ 上与它相容的向量范数。
-
-例 3：$\lVert A\vec x\rVert_2\le\lVert A\rVert_F\lVert\vec x\rVert_2$，且
-$\lVert AB\rVert_F\le\lVert A\rVert_F\lVert B\rVert_F$。
-
-\section{1.5 线性方程组的性态，算法的稳定性（右端扰动）}
-
-解 $A\vec x=b$ 时，$A$ 和 $b$ 的误差都会进入 $\vec x$。
-先设 $b$ 受扰动 $\delta b$，
-\[
-A(\vec x+\delta\vec x)=b+\delta b
-\Rightarrow
-\delta\vec x=A^{-1}\delta b.
-\]
-从而
-\[
-\lVert\delta\vec x\rVert\le\lVert A^{-1}\rVert\,\lVert\delta b\rVert,
+H_{ij}=\frac{1}{i+j-1},\quad i,j=1,\ldots,15,
 \qquad
-\frac{\lVert\delta\vec x\rVert}{\lVert\vec x\rVert}
-\le
-\lVert A\rVert\,\lVert A^{-1}\rVert\,
-\frac{\lVert\delta b\rVert}{\lVert b\rVert}.
+b=H\mathbf{1}.
 \]
-$\lVert A^{-1}\rVert$ 是绝对误差放大因子，$\lVert A\rVert\lVert A^{-1}\rVert$ 是相对误差放大因子。
-输入是相对右端扰动，输出是相对解扰动的上界；放大因子无量纲，越大越敏感。
-
-\section{1.5 线性方程组的性态，算法的稳定性（矩阵扰动）}
-
-再设 $A$ 受扰动 $\delta A$，
-\[
-(A+\delta A)(\vec x+\delta\vec x)=b.
-\]
-课件给出
-\[
-\delta\vec x=-A^{-1}\delta A(\vec x+\delta\vec x)
-\]
-以及
-\[
-\delta\vec x=-(I+A^{-1}\delta A)^{-1}A^{-1}\delta A\,\vec x,
-\]
-从而
-\[
-\frac{\lVert\delta\vec x\rVert}{\lVert\vec x+\delta\vec x\rVert}
-\le
-\lVert A\rVert\lVert A^{-1}\rVert\frac{\lVert\delta A\rVert}{\lVert A\rVert},
-\]
-\[
-\frac{\lVert\delta\vec x\rVert}{\lVert\vec x\rVert}
-\le
-\frac{\lVert A\rVert\lVert A^{-1}\rVert}{1-\lVert A\rVert\lVert A^{-1}\rVert\frac{\lVert\delta A\rVert}{\lVert A\rVert}}
-\frac{\lVert\delta A\rVert}{\lVert A\rVert},
-\]
-后者要求分母为正，即相对矩阵扰动不能太大。
-状态数（条件数）
-\[
-\operatorname{cond}(A)=\lVert A\rVert\,\lVert A^{-1}\rVert.
-\]
-$\operatorname{cond}(A)$ 越大越难求得准确解，称为病态；反之良态。
-不同矩阵范数对应不同条件数。
-性质：$\operatorname{cond}(A)\ge 1$，$\operatorname{cond}(kA)=\operatorname{cond}(A)$（$k\neq 0$）。
-$\operatorname{cond}(A)$ 无量纲，不随把 $A$ 与 $b$ 同时乘 $k$ 而改变。
-
-\section{1.5 线性方程组的性态，算法的稳定性（病态经验与算法稳定性）}
-
-一般并不先算 $A^{-1}$ 再判断病态，而用经验：
-行列式很大或很小（某些行、列近似相关）；
-元素间数量级相差很大且无规则；
-主元消去过程中出现小主元；
-特征值数量级相差很大。
-以上均可视为病态迹象。
-
-算法稳定性：算法必然引入浮点误差，若算法过程中对应矩阵的条件数较小，则数值解误差也较小，称算法稳定。
-稳定性描述的是「舍入被放大多少」，条件数描述的是「问题本身对扰动有多敏感」；病态问题即使用稳定算法也难得到很多正确有效位。
-
-\section{1.5 线性方程组的性态，算法的稳定性（例题）}
-
-例 1。两组
-\[
-\begin{cases}
-x_1+x_2=2,\\
-x_1+1.001 x_2=2,
-\end{cases}
-\qquad
-\begin{cases}
-x_1+x_2=2,\\
-x_1+1.001 x_2=2.001.
-\end{cases}
-\]
-第一组：$x_2=0$，$x_1=2$。
-第二组：两式相减得 $0.001 x_2=0.001$，故 $x_2=1$，$x_1=1$。
-右端只改 $0.001$，解从 $(2,0)$ 跳到 $(1,1)$。
-相对右端扰动约为 $0.001/2=5\times 10^{-4}$，相对解扰动约为 $1$，放大约 $2\times 10^3$，与 $\operatorname{cond}(A)$ 同量级。
-
-例 2。课件写出的 $15$ 阶组为
-\[
-\left\{
-\begin{aligned}
-x_1+\frac12 x_2+\frac13 x_3+\cdots+\frac1{15}x_{15}
-&=1+\frac12+\frac13+\cdots+\frac1{15},\\
-\frac12 x_1+\frac13 x_2+\frac14 x_3+\cdots+\frac1{16}x_{15}
-&=\frac12+\frac13+\frac14+\cdots+\frac1{16},\\
-&\hspace{1.2em}\vdots\\
-\frac1{15}x_1+\frac1{16}x_2+\frac1{17}x_3+\cdots+\frac1{29}x_{15}
-&=\frac1{15}+\frac1{16}+\frac1{17}+\cdots+\frac1{29}.
-\end{aligned}
-\right.
-\]
-系数矩阵是 Hilbert 矩阵（Hilbert matrix）
-\[
-H_{ij}=\frac{1}{i+j-1},\qquad i,j=1,\ldots,15,
-\]
-右端恰是各行之和 $b=H\mathbf{1}$。
-因此精确算术下
-\[
-H\mathbf{1}=b\qquad\Rightarrow\qquad x^*=(1,1,\ldots,1)^{\mathsf T}.
-\]
-$H$ 的输入是下标 $(i,j)$，输出是正标量 $H_{ij}\in\bigl[\tfrac1{29},1\bigr]$；
-$x^*$ 的每个分量都是 $1$，无量纲（若把未知量就看成纯数值）。
-
-双精度（约 $16$ 位十进制、$u\approx 1.11\times 10^{-16}$）下，
-\[
-\operatorname{cond}_2(H)\approx 8.72\times 10^{17}.
-\]
-由第~53~页的扰动界，相对误差可放大到
-\[
-u\cdot\operatorname{cond}_2(H)\approx 10^{2},
-\]
-即有效数字可以全部丢失。
-用 \code{numpy.linalg.solve} 得到的 $x$ 与真解之差为
-\begin{center}
-\small
-\begin{tabular}{crrcrr}
-\toprule
-$i$ & $x_i$ & $x_i-1$ & $i$ & $x_i$ & $x_i-1$\\
-\midrule
-1 & $1.0000$ & $-7.2\times 10^{-8}$ &
-9 & $-8.699$ & $-9.699$\\
-2 & $1.0000$ & $1.2\times 10^{-5}$ &
-10 & $12.755$ & $11.755$\\
-3 & $0.9995$ & $-4.8\times 10^{-4}$ &
-11 & $-8.124$ & $-9.124$\\
-4 & $1.0087$ & $8.7\times 10^{-3}$ &
-12 & $4.925$ & $3.925$\\
-5 & $0.9143$ & $-0.086$ &
-13 & $0.608$ & $-0.392$\\
-6 & $1.517$ & $0.517$ &
-14 & $0.631$ & $-0.369$\\
-7 & $-1.033$ & $-2.033$ &
-15 & $1.116$ & $0.116$\\
-8 & $6.382$ & $5.382$ & & & \\
-\bottomrule
-\end{tabular}
-\end{center}
-符号：$x_i$ 为浮点解的第 $i$ 个分量；$x_i-1$ 是对真解分量 $1$ 的绝对误差。
-\[
-\frac{\lVert Hx-b\rVert_2}{\lVert b\rVert_2}\approx 2.1\times 10^{-16},
-\qquad
-\frac{\lVert x-x^*\rVert_2}{\lVert x^*\rVert_2}\approx 4.93.
-\]
-左边残差达到机器精度，右边相对误差却是 $O(1)$：残差小并不表示解对。
-这正是病态的定义性现象：$H$ 的行几乎线性相关，奇异值比
-\[
-\frac{\sigma_{\max}(H)}{\sigma_{\min}(H)}=\operatorname{cond}_2(H)\approx 8.72\times 10^{17}
-\]
-跨越约 $18$ 个数量级。
-$\sigma_{\max}$、$\sigma_{\min}$ 是 $H$ 的最大、最小奇异值，二者都是非负标量；比值无量纲，就是 $2$-范数条件数。
-
+精确解 $x^*=\mathbf{1}$。双精度 $\operatorname{cond}_2(H)\approx 8.72\times 10^{17}$，
+$u\cdot\operatorname{cond}_2(H)=O(10^2)$，有效数字可以全部丢失。
+浮点解的残差 $\lVert Hx-b\rVert_2/\lVert b\rVert_2\approx 2\times 10^{-16}$，
+相对误差 $\lVert x-x^*\rVert_2/\lVert x^*\rVert_2\approx 4.93$；
+分量可偏离到 $-8.7$、$12.8$。
+残差达到机器精度并不表示解对，这就是病态。
 \begin{lstlisting}
 import numpy as np
-n = 15
-idx = np.arange(1, n + 1)
-H = 1.0 / (idx[:, None] + idx[None, :] - 1.0)
-b = H @ np.ones(n)
-x = np.linalg.solve(H, b)
+n, i = 15, np.arange(1, 16)
+H = 1.0 / (i[:, None] + i[None, :] - 1.0)
+x = np.linalg.solve(H, H @ np.ones(n))
 \end{lstlisting}
-\code{solve} 的输入是 $H$ 与 $b$，输出是 $x\in\mathbb{R}^{15}$；
-在本例中它满足 $Hx\approx b$，但不是 $x^*$。
-
-\section{小结}
-
-需要记住的对象是：
-误差——绝对/相对误差与有效数字；
-范数——向量范数与矩阵范数，等价性，相容性，常用的 $1$-、$2$-、$\infty$-范数及对应从属范数，以及条件数。
-
-例：已知 $A,B\in\mathbb{R}^{n\times n}$ 非奇异，证明对任一算子范数
-\[
-\lVert A^{-1}\rVert\ge\frac{1}{\lVert A\rVert},
-\qquad
-\lVert A^{-1}-B^{-1}\rVert
-\le
-\lVert A^{-1}\rVert\,\lVert B^{-1}\rVert\,\lVert A-B\rVert.
-\]
-第一式由 $\lVert I\rVert=1\le\lVert A\rVert\lVert A^{-1}\rVert$ 得到，$\lVert A^{-1}\rVert$ 不能比 $1/\lVert A\rVert$ 更小。
-第二式用
-$A^{-1}-B^{-1}=A^{-1}(B-A)B^{-1}$
-与相容性得到；右端是两逆之差的范数上界，输入为 $\lVert A-B\rVert$，输出控制「矩阵一变，逆能变多少」。
+\code{solve} 输出满足 $Hx\approx b$ 的 $x\in\mathbb{R}^{15}$，它不是 $x^*$。
