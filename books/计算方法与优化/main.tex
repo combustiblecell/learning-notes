@@ -1,0 +1,112 @@
+\documentclass[UTF8,zihao=-4,openany]{ctexbook}
+
+\usepackage[a4paper,margin=2.45cm,headheight=15pt]{geometry}
+\usepackage{amsmath,amssymb,bm,mathtools}
+\usepackage{graphicx}
+\usepackage{booktabs,tabularx,array}
+\graphicspath{{figures/}}
+\newcommand{\bookfig}[4]{%
+  \begin{center}
+    \includegraphics[width=0.92\linewidth,height=0.42\textheight,keepaspectratio]{#1}%
+  \end{center}
+  \noindent{\heiti 图~#2}\quad #3\par
+  \vspace{0.35em}
+  \noindent 符号：#4\par
+  \vspace{0.6em}%
+}
+\newcommand{\bookfigbig}[4]{%
+  \begin{center}
+    \includegraphics[width=0.96\linewidth,height=0.58\textheight,keepaspectratio]{#1}%
+  \end{center}
+  \noindent{\heiti 图~#2}\quad #3\par
+  \vspace{0.35em}
+  \noindent 符号：#4\par
+  \vspace{0.6em}%
+}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{fancyhdr}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage[
+  unicode,
+  colorlinks=true,
+  linkcolor=Primary,
+  urlcolor=Accent,
+  bookmarksopen=true,
+  bookmarksnumbered=true,
+  bookmarksdepth=1
+]{hyperref}
+
+\definecolor{Primary}{HTML}{355C7D}
+\definecolor{Accent}{HTML}{6C8EAD}
+\definecolor{CodeBg}{HTML}{F6F7F8}
+
+\setlength{\parindent}{2em}
+\setlength{\parskip}{0.35em}
+\setlist[itemize]{leftmargin=2em,itemsep=0.2em,topsep=0.3em}
+\setlist[enumerate]{leftmargin=2.2em,itemsep=0.2em,topsep=0.3em}
+\renewcommand{\arraystretch}{1.25}
+\setcounter{secnumdepth}{1}
+\setcounter{tocdepth}{1}
+\allowdisplaybreaks[4]
+\emergencystretch=3em
+\hfuzz=5pt
+\vfuzz=5pt
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{计算方法与优化}
+\fancyhead[R]{\hyperlink{contents}{返回目录}}
+\fancyfoot[C]{\thepage}
+
+\hypersetup{
+  pdftitle={计算方法与优化学习笔记},
+  pdfauthor={learning-notes}
+}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{CodeBg},
+  frame=single,
+  rulecolor=\color{Accent},
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  showspaces=false,
+  showstringspaces=false,
+  language=Python
+}
+
+\newcommand{\code}[1]{\texttt{#1}}
+\renewcommand{\thesection}{第\arabic{section}页}
+
+\title{\heiti 计算方法与优化\\[0.4em]\Large 学习笔记}
+\author{内容提炼}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\frontmatter
+
+\chapter*{说明}
+\addcontentsline{toc}{chapter}{说明}
+本笔记对应武汉大学数学与统计学院戴书洋老师
+\emph{计算方法与优化}（Computational Methods and Optimization）
+2026--2027~秋季课程第~1~讲课件
+\texttt{CM+Opt\_ch1.pdf}（共~57~页）。
+每一页课件对应正文一个小节，节号写成「第$n$页」，标题沿用该页课件标题；
+同名页在标题后用括号标出该页特有主题，不改课件原词。
+试作版只充实当前这一份课件；后续各讲待提供后再按同样规则追加，此处不编造目录。
+正文以公式陈述定义、成立条件、关键推导与结论。
+每一公式后写明：数学上如何由输入算出输出，以及得到的数在问题中的实际含义。
+有信息量的示意图按课件页码编号插入；表按课件行列重排。
+
+\hypertarget{contents}{}
+\tableofcontents
+
+\mainmatter
+\input{chapter-00-course}
+\input{chapter-01-basics}
+
+\end{document}
