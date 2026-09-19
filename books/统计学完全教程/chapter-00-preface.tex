@@ -1,0 +1,59 @@
+\chapter*{原书序}
+\addcontentsline{toc}{chapter}{原书序}
+\markboth{原书序}{原书序}
+
+书名 All of Statistics 按字面夸大，按意图则是：在一本入门课里覆盖比传统数理统计更广的现代题目
+（Bootstrap、曲线估计、图模型、分类），并尽快把概率接到推断上。
+读者预设只会微积分和一点线性代数。
+
+概率研究的正向问题是：给定数据生成过程，结果有什么性质。
+统计推断是它的逆问题：给定结果，能对生成过程说什么。
+预测、分类、聚类、估计都是后一问题的特例。
+
+\bookfig{fig-preface-probability-inference.png}{1}{概率与推断。}{Data generating process：数据生成过程；Observed data：观测数据；Probability：由过程推结果；Inference and Data Mining：由结果推过程。}
+
+全书三部分：第~I~部分是作为推断语言的概率；
+第~II~部分是推断及其近亲数据挖掘、机器学习；
+第~III~部分把第~II~部分用到回归、图、因果、密度估计、光滑、分类与模拟，
+并补一章随机过程。
+
+统计学与计算机科学常用不同词说同一件事。原书给出对照表如下。
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{3.6cm}>{\raggedright\arraybackslash}p{4.2cm}X}
+\toprule
+统计学 & 计算机科学 & 含义\\
+\midrule
+估计（estimation） & 学习（learning） &
+用数据估计未知量\\
+分类（classification） & 监督学习（supervised learning） &
+由 $X$ 预测离散 $Y$\\
+聚类（clustering） & 无监督学习（unsupervised learning） &
+把数据分成若干组\\
+数据（data） & 训练样本（training sample） &
+$(X_1,Y_1),\ldots,(X_n,Y_n)$\\
+协变量（covariates） & 特征（features） &
+各个 $X_i$\\
+分类器（classifier） & 假设（hypothesis） &
+从协变量到结果的映射\\
+假设（hypothesis） & --- &
+参数空间 $\Theta$ 的子集\\
+置信区间（confidence interval） & --- &
+以指定频率覆盖未知量的区间\\
+有向无环图（DAG） & 贝叶斯网（Bayes net） &
+带指定条件独立关系的多元分布\\
+贝叶斯推断 & 贝叶斯推断 &
+用数据更新信念的方法\\
+频率派推断（frequentist inference） & --- &
+有频率保证的统计方法\\
+大偏差界（large deviation bounds） & PAC 学习 &
+误差概率的一致上界\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\noindent 符号：$X$ 为协变量或输入；$Y$ 为结果或标签；
+$\Theta$ 为参数空间；DAG 为有向无环图。
+表中「含义」列说明该术语在问题中代表什么对象，不是又一个待估参数。

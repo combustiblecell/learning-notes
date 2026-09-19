@@ -25,6 +25,13 @@
   - LaTeX：`books/计算机系统导论下/main.tex`
   - PDF：`books/计算机系统导论下/计算机系统导论下-学习笔记.pdf`
 
+- 统计学完全教程
+  - 状态：试作版；原书序与第 1 章「概率」已充实；第 2–24 章仅保留原书目录
+  - 原书版本：Larry Wasserman 著、张波、魏秋萍、刘中华译《统计学完全教程》，科学出版社，2008 年；原作 *All of Statistics: A Concise Course in Statistical Inference*，Springer，2004 年
+  - 原书源：中译本印刷目录（缺书网/科学出版社书目）与 Springer 2004 年英文原书目录互相核对（原书不入库）
+  - LaTeX：`books/统计学完全教程/main.tex`
+  - PDF：`books/统计学完全教程/统计学完全教程-学习笔记.pdf`
+
 - 《动手学深度学习》PyTorch 版
   - 状态：全书提炼（前言、安装、符号、第 1–15 章与附录）；已按原书插入有信息量的图，图号沿用原书并在图下注释符号
   - 原书版本：`d2l-zh 2.0.0`

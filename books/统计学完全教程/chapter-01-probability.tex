@@ -1,0 +1,306 @@
+\chapter{概率}
+
+概率（probability）是给不确定性定量的数学语言。
+本章先固定样本空间，再给事件赋一个满足三条公理的数 $\mathbb{P}(A)$，
+然后由独立性、条件概率接到贝叶斯定理。
+
+\section{引言}
+
+本章只做一件事：给定试验的可能结果集合，规定哪些子集叫事件，
+以及如何把每个事件映到 $[0,1]$ 上的一个概率。
+输出始终是标量 $\mathbb{P}(A)$，表示「$A$ 发生」的不确定性大小，不是某次试验的观测值。
+
+\section{样本空间和事件}
+
+样本空间（sample space）$\Omega$ 是一次试验全部可能结果的集合。
+其中的点 $\omega\in\Omega$ 称为样本结果、实现或元素。
+$\Omega$ 的子集称为事件（event）。
+
+掷硬币两次：
+\[
+\Omega=\{\mathrm{HH},\mathrm{HT},\mathrm{TH},\mathrm{TT}\},\qquad
+A=\{\mathrm{HH},\mathrm{HT}\}.
+\]
+$A$ 是「第一次为正面」这个事件，含 $2$ 个结果；$\lvert A\rvert=2$ 是计数，不是概率。
+温度测量可取 $\Omega=\mathbb{R}$，即使真实温度有下界：样本空间取得比需要的大通常无妨。
+事件「测量值大于 $10$ 且不超过 $23$」是
+\[
+A=(10,23].
+\]
+这是 $\mathbb{R}$ 上的一个区间，不是温度本身。
+
+给定事件 $A$，补集
+\[
+A^{c}=\{\omega\in\Omega:\omega\notin A\}
+\]
+读作「非 $A$」。$\Omega^{c}=\varnothing$。
+并、交、差为
+\begin{align}
+A\cup B&=\{\omega\in\Omega:\omega\in A\text{ 或 }\omega\in B\},\\
+AB=A\cap B&=\{\omega\in\Omega:\omega\in A\text{ 且 }\omega\in B\},\\
+A-B&=\{\omega:\omega\in A,\ \omega\notin B\}.
+\end{align}
+$A\subset B$ 表示 $A$ 的每个元素也在 $B$ 中。
+有限集 $\lvert A\rvert$ 是 $A$ 中元素个数，是非负整数。
+
+$A_1,A_2,\ldots$ 互不相交（disjoint / mutually exclusive）指 $i\neq j$ 时 $A_iA_j=\varnothing$。
+$\Omega$ 的一个划分（partition）是一列互不相交的事件，其并等于 $\Omega$。
+指示函数
+\[
+I_A(\omega)=I(\omega\in A)=\begin{cases}
+1,&\omega\in A,\\
+0,&\omega\notin A
+\end{cases}
+\]
+输入一个结果 $\omega$，输出 $0$ 或 $1$，表示该结果是否落在 $A$ 里。
+
+序列单调增指 $A_1\subset A_2\subset\cdots$，此时
+$\lim_n A_n=\bigcup_i A_i$；
+单调减则 $\lim_n A_n=\bigcap_i A_i$。
+两种情形都写 $A_n\to A$。
+
+\begin{center}
+\small
+\begin{tabular}{ll}
+\toprule
+记号 & 含义\\
+\midrule
+$\Omega$ & 样本空间\\
+$\omega$ & 结果（点、元素）\\
+$A$ & 事件（$\Omega$ 的子集）\\
+$A^{c}$ & $A$ 的补（非 $A$）\\
+$A\cup B$ & 并（$A$ 或 $B$）\\
+$AB$ & 交（$A$ 且 $B$）\\
+$A-B$ & 差（在 $A$ 不在 $B$）\\
+$A\subset B$ & 包含\\
+$\varnothing$ & 空事件（永假）\\
+$\Omega$ & 必然事件（永真）\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{概率}
+
+给每个事件 $A$ 指定一个实数 $\mathbb{P}(A)$，称为 $A$ 的概率。
+也称 $\mathbb{P}$ 为概率分布或概率测度（probability measure）。
+样本空间很大（例如整条实线）时，不能对每个子集都赋值，只对一个 $\sigma$ 域赋值；见附录。
+
+\begin{samepage}
+\noindent\textbf{定义~1.5.}
+函数 $\mathbb{P}$ 把每个事件 $A$ 映到实数 $\mathbb{P}(A)$，若满足下面三条公理，则称为概率分布或概率测度：
+\begin{align}
+\mathbb{P}(A)&\ge 0
+\quad\text{对每个 }A,\\
+\mathbb{P}(\Omega)&=1,\\
+\mathbb{P}\Bigl(\bigcup_{i=1}^{\infty}A_i\Bigr)
+&=\sum_{i=1}^{\infty}\mathbb{P}(A_i)
+\quad\text{当 }A_i\text{ 互不相交}.
+\end{align}
+\end{samepage}
+输入是事件，输出是 $[0,1]$ 中的标量。
+频率解释里，它是重复试验中 $A$ 为真的长期比例；
+信念解释里，它度量观察者认为 $A$ 为真的强度。
+两种解释都要求三条公理。差异要到第~11~章才分成频率派与贝叶斯派。
+
+由公理可推出
+\begin{equation}
+\begin{gathered}
+\mathbb{P}(\varnothing)=0,\qquad
+A\subset B\Rightarrow\mathbb{P}(A)\le\mathbb{P}(B),\\
+0\le\mathbb{P}(A)\le 1,\qquad
+\mathbb{P}(A^{c})=1-\mathbb{P}(A),\\
+AB=\varnothing\Rightarrow\mathbb{P}(A\cup B)=\mathbb{P}(A)+\mathbb{P}(B).
+\end{gathered}
+\end{equation}
+这些仍是标量概率：空事件概率为 $0$，包含则概率不减，补事件与原事件概率之和为 $1$。
+
+\noindent\textbf{引理~1.6.}
+对任意事件 $A,B$，
+\begin{equation}
+\mathbb{P}(A\cup B)=\mathbb{P}(A)+\mathbb{P}(B)-\mathbb{P}(AB).
+\end{equation}
+把 $A\cup B$ 拆成互不相交的 $AB^{c}$、$AB$、$A^{c}B$，
+对不相交事件用公理~3 相加，再补上一次 $\mathbb{P}(AB)$ 就得到上式。
+$\mathbb{P}(AB)$ 被减掉一次，是因为交在 $\mathbb{P}(A)$ 与 $\mathbb{P}(B)$ 里各算过一遍。
+
+两次掷硬币且各结果等可能时，
+$\mathbb{P}(H_1\cup H_2)=\tfrac12+\tfrac12-\tfrac14=\tfrac34$，
+是「至少一次正面」的概率，不是掷次。
+
+\noindent\textbf{定理~1.8}（概率的连续性）。
+若 $A_n\to A$，则 $n\to\infty$ 时 $\mathbb{P}(A_n)\to\mathbb{P}(A)$。
+单调增时令 $B_1=A_1$，
+$B_n=A_n-A_{n-1}$（$n\ge 2$），则 $B_i$ 互不相交且
+$A_n=\bigcup_{i=1}^{n}B_i$，
+\[
+\mathbb{P}(A_n)=\sum_{i=1}^{n}\mathbb{P}(B_i)
+\to\sum_{i=1}^{\infty}\mathbb{P}(B_i)=\mathbb{P}(A).
+\]
+极限仍是一个概率，表示事件列「越来越接近 $A$」时，概率跟着逼近 $\mathbb{P}(A)$。
+
+\section{有限样本空间上的概率}
+
+设 $\Omega=\{\omega_1,\ldots,\omega_n\}$ 有限。
+掷骰子两次则 $\lvert\Omega\rvert=36$。
+各结果等可能时
+\begin{equation}
+\mathbb{P}(A)=\frac{\lvert A\rvert}{\lvert\Omega\rvert},
+\end{equation}
+称为均匀概率分布（uniform probability distribution）。
+输入是 $A$ 与 $\Omega$ 的元素个数，输出是 $[0,1]$ 中的比例，
+表示「等可能结果中落在 $A$ 的份额」。
+两点之和为 $11$ 只有 $(5,6)$ 与 $(6,5)$，故概率为 $2/36$。
+
+$n$ 个不同对象的排列数为 $n!=n(n-1)\cdots 1$，并约定 $0!=1$。
+从 $n$ 个中选 $k$ 个的组合数为
+\begin{equation}
+\binom{n}{k}=\frac{n!}{k!(n-k)!}.
+\end{equation}
+输出是非负整数，表示不同选法的种数，不是概率。
+性质：$\binom{n}{0}=\binom{n}{n}=1$，$\binom{n}{k}=\binom{n}{n-k}$。
+$20$ 人中选 $3$ 人委员会有 $\binom{20}{3}=1140$ 种。
+
+\section{独立事件}
+
+\noindent\textbf{定义~1.9.}
+事件 $A,B$ 独立（independent）当且仅当
+\begin{equation}
+\mathbb{P}(AB)=\mathbb{P}(A)\mathbb{P}(B),
+\end{equation}
+记 $A\indep B$；否则写 $A\nindep B$。
+一族事件 $\{A_i:i\in I\}$ 独立，指对 $I$ 的每个有限子集 $J$，
+\[
+\mathbb{P}\Bigl(\bigcap_{i\in J}A_i\Bigr)=\prod_{i\in J}\mathbb{P}(A_i).
+\]
+独立性有时是假定（两次掷币无记忆），有时是由乘法式验出来的。
+公平骰子上 $A=\{2,4,6\}$、$B=\{1,2,3,4\}$ 给出
+$\mathbb{P}(AB)=2/6=(1/2)(2/3)$，故独立。
+
+若 $A,B$ 不相交且 $\mathbb{P}(A)\mathbb{P}(B)>0$，则不可能独立：
+左边 $\mathbb{P}(AB)=\mathbb{P}(\varnothing)=0$，右边为正。
+除这一情形外，不能只靠韦恩图判断独立。
+
+公平硬币掷 $10$ 次，「至少一次正面」的概率用补事件与独立性计算：
+\[
+\mathbb{P}(A)=1-\mathbb{P}(T_1\cdots T_{10})
+=1-\Bigl(\frac12\Bigr)^{10}\approx 0.999.
+\]
+$0.999$ 仍是一个事件的概率，接近 $1$ 表示几乎总会出现正面。
+
+两人轮流投篮，成功概率分别为 $1/3$ 与 $1/4$。
+$A_j$ 表示第一次成功发生在第 $j$ 次且属于第一人，则
+$\mathbb{P}(A_j)=(1/2)^{j-1}(1/3)$，从而
+\[
+\mathbb{P}(E)=\sum_{j=1}^{\infty}\mathbb{P}(A_j)=\frac13\sum_{j=0}^{\infty}\Bigl(\frac12\Bigr)^{j}=\frac23.
+\]
+这里用了 $0<r<1$ 时 $\sum_{j=0}^{\infty}r^{j}=1/(1-r)$。
+$\tfrac23$ 是「第一人先成功」的概率。
+
+\section{条件概率}
+
+若 $\mathbb{P}(B)>0$，定义 $B$ 已发生时 $A$ 的条件概率（conditional probability）为
+\begin{equation}
+\mathbb{P}(A\mid B)=\frac{\mathbb{P}(AB)}{\mathbb{P}(B)}.
+\end{equation}
+输入是两个事件的概率，输出是 $[0,1]$ 中的标量，
+表示在「$B$ 发生」的那些情形里 $A$ 所占的比例。
+对固定的 $B$，$\mathbb{P}(\,\cdot\mid B)$ 本身满足三条公理，因而是概率；
+一般地 $\mathbb{P}(A\mid B\cup C)\neq\mathbb{P}(A\mid B)+\mathbb{P}(A\mid C)$，
+公理作用在竖线左边的事件上。
+一般 $\mathbb{P}(A\mid B)\neq\mathbb{P}(B\mid A)$（检察官谬误）。
+
+疾病 $D$ 的检测有 $+$、$-$，联合概率为
+\begin{center}
+\begin{tabular}{ccc}
+\toprule
+ & $D$ & $D^{c}$\\
+\midrule
+$+$ & $0.009$ & $0.099$\\
+$-$ & $0.001$ & $0.891$\\
+\bottomrule
+\end{tabular}
+\end{center}
+\noindent 符号：表中四个数都是联合概率，和为 $1$。
+\[
+\mathbb{P}(+\mid D)=\frac{0.009}{0.009+0.001}=0.9,\qquad
+\mathbb{P}(-\mid D^{c})\approx 0.9,
+\]
+检测对患者与健康人都约 $90\%$ 判对。
+但阳性之后患病的概率是
+\[
+\mathbb{P}(D\mid +)=\frac{0.009}{0.009+0.099}\approx 0.08,
+\]
+约为 $0.08$ 而不是 $0.9$：$0.08$ 是后验患病概率，因为健康人远更多，假阳性占了阳性里的大部分。
+
+\noindent\textbf{引理~1.14.}
+若 $A,B$ 独立则 $\mathbb{P}(A\mid B)=\mathbb{P}(A)$。
+对任意 $A,B$，
+\begin{equation}
+\mathbb{P}(AB)=\mathbb{P}(A\mid B)\mathbb{P}(B)=\mathbb{P}(B\mid A)\mathbb{P}(A).
+\end{equation}
+独立等于：已知 $B$ 时，$A$ 的概率不变。
+无放回抽两张牌，记 $A$ 为第一张梅花 A、$B$ 为第二张方块 Q，则
+\[
+\mathbb{P}(AB)=\mathbb{P}(A)\mathbb{P}(B\mid A)=\frac{1}{52}\times\frac{1}{51}.
+\]
+右边两个分数相乘，得到两张牌按该次序出现的概率。
+
+\section{贝叶斯理论}
+
+\noindent\textbf{定理~1.16}（全概率公式）。
+设 $A_1,\ldots,A_k$ 是 $\Omega$ 的划分。对任意事件 $B$，
+\begin{equation}
+\mathbb{P}(B)=\sum_{i=1}^{k}\mathbb{P}(B\mid A_i)\mathbb{P}(A_i).
+\end{equation}
+把 $B$ 拆成互不相交的 $BA_i$，再对每一块用乘法公式。
+左边是 $B$ 的无条件概率，右边用各块上的条件概率加权平均，权是先验 $\mathbb{P}(A_i)$。
+
+\noindent\textbf{定理~1.17}（贝叶斯定理）。
+设 $A_1,\ldots,A_k$ 是划分且 $\mathbb{P}(A_i)>0$，又 $\mathbb{P}(B)>0$，则
+\begin{equation}
+\mathbb{P}(A_i\mid B)
+=\frac{\mathbb{P}(B\mid A_i)\mathbb{P}(A_i)}{\sum_{j}\mathbb{P}(B\mid A_j)\mathbb{P}(A_j)}.
+\end{equation}
+$\mathbb{P}(A_i)$ 称先验（prior），$\mathbb{P}(A_i\mid B)$ 称后验（posterior）。
+两者都是 $[0,1]$ 中的概率：先验是见到 $B$ 之前对「第 $i$ 类」的信念，
+后验是见到 $B$ 之后更新过的信念。
+推导是条件概率定义用两次，分母换全概率公式。
+
+邮件三类：$A_1=$ 垃圾，$A_2=$ 低优先，$A_3=$ 高优先，
+$\mathbb{P}(A_1)=0.7$，$\mathbb{P}(A_2)=0.2$，$\mathbb{P}(A_3)=0.1$。
+$B$ 表示含单词 free，
+$\mathbb{P}(B\mid A_1)=0.9$，$\mathbb{P}(B\mid A_2)=\mathbb{P}(B\mid A_3)=0.01$。
+含 free 时为垃圾的后验是
+\[
+\mathbb{P}(A_1\mid B)
+=\frac{0.9\times 0.7}{0.9\times 0.7+0.01\times 0.2+0.01\times 0.1}=0.995.
+\]
+$0.995$ 是见到 free 之后「这封是垃圾」的概率。
+
+\begin{lstlisting}
+prior = (0.7, 0.2, 0.1)
+like  = (0.9, 0.01, 0.01)
+post1 = prior[0]*like[0] / sum(p*l for p,l in zip(prior, like))
+print(round(post1, 3))  # 0.995
+\end{lstlisting}
+输入是先验向量与各条件下 $B$ 的似然，输出是后验的第一个分量。
+
+\section{文献注释}
+
+本章材料是标准的。入门可读 DeGroot and Schervish (2002)；
+中级 Grimmett and Stirzaker (1982)、Karr (1993)；
+高级 Billingsley (1979)、Breiman (1992)。
+许多例子与习题改编自前两本。
+
+\section{附录}
+
+一般不能给 $\Omega$ 的每个子集都赋概率，只限制在一个 $\sigma$ 代数（$\sigma$-field）
+$\mathcal{A}$ 上：$\varnothing\in\mathcal{A}$；
+对可列并封闭；对补封闭。
+$\mathcal{A}$ 中的集合称为可测。
+$(\Omega,\mathcal{A})$ 是可测空间；再配上 $\mathbb{P}$ 得到概率空间 $(\Omega,\mathcal{A},\mathbb{P})$。
+$\Omega=\mathbb{R}$ 时取包含全体开集的最小 $\sigma$ 域，即 Borel $\sigma$ 域。
+
+\section{习题}
+
+\pending

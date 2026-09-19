@@ -1,0 +1,134 @@
+\documentclass[UTF8,zihao=-4,openany]{ctexbook}
+
+\usepackage[a4paper,margin=2.45cm,headheight=15pt]{geometry}
+\usepackage{amsmath,amssymb,bm,mathtools}
+\usepackage{graphicx}
+\usepackage{booktabs,tabularx,array}
+\graphicspath{{figures/}}
+\newcommand{\bookfig}[4]{%
+  \begin{samepage}
+    \begin{center}
+    \includegraphics[width=0.92\linewidth,height=0.38\textheight,keepaspectratio]{#1}%
+    \end{center}
+    \noindent{\heiti 图~#2}\quad #3\par
+    \vspace{0.3em}
+    \noindent 符号：#4\par
+    \vspace{0.5em}%
+  \end{samepage}%
+}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{fancyhdr}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage[
+  unicode,
+  colorlinks=true,
+  linkcolor=Primary,
+  urlcolor=Accent,
+  bookmarksopen=true,
+  bookmarksnumbered=true,
+  bookmarksdepth=1
+]{hyperref}
+
+\definecolor{Primary}{HTML}{355C7D}
+\definecolor{Accent}{HTML}{6C8EAD}
+\definecolor{CodeBg}{HTML}{F6F7F8}
+
+\setlength{\parindent}{2em}
+\setlength{\parskip}{0.35em}
+\setlist[itemize]{leftmargin=2em,itemsep=0.2em,topsep=0.3em}
+\setlist[enumerate]{leftmargin=2.2em,itemsep=0.2em,topsep=0.3em}
+\renewcommand{\arraystretch}{1.25}
+\setcounter{secnumdepth}{2}
+\setcounter{tocdepth}{1}
+\allowdisplaybreaks[4]
+\emergencystretch=3em
+\hfuzz=5pt
+\vfuzz=5pt
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{统计学完全教程}
+\fancyhead[R]{\hyperlink{contents}{返回目录}}
+\fancyfoot[C]{\thepage}
+
+\hypersetup{
+  pdftitle={统计学完全教程学习笔记},
+  pdfauthor={learning-notes}
+}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{CodeBg},
+  frame=single,
+  rulecolor=\color{Accent},
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  showspaces=false,
+  showstringspaces=false,
+  language=Python
+}
+
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\indep}{\mathrel{\perp\mspace{-9mu}\perp}}
+\newcommand{\nindep}{\not\indep}
+\newcommand{\pending}{%
+本节标题依沃塞曼\emph{统计学完全教程}
+（科学出版社 2008 年中译本，对应 Springer 2004 年英文原书）
+目录保留。正文待后续补充，此处不编造结论。}
+
+\title{\heiti 统计学完全教程\\[0.4em]\Large 学习笔记}
+\author{内容提炼}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\frontmatter
+
+\chapter*{说明}
+\addcontentsline{toc}{chapter}{说明}
+本笔记对应 Larry Wasserman 著、张波、魏秋萍、刘中华译
+\emph{统计学完全教程}
+（科学出版社，2008 年；原作
+\emph{All of Statistics: A Concise Course in Statistical Inference}，
+Springer，2004 年）。
+目录层级与顺序按中译本印刷目录；
+子节按英文原书保留（印刷目录通常只列到节）。
+试作版充实原书序与第~1~章「概率」；
+第~2--24~章仅保留原书标题。
+正文以公式陈述定义、成立条件、关键推导与结论；
+每一公式后写明输入如何算出输出，以及该数在问题中的含义。
+
+\hypertarget{contents}{}
+\tableofcontents
+
+\mainmatter
+\input{chapter-00-preface}
+\input{chapter-01-probability}
+\input{chapter-02-rv}
+\input{chapter-03-expectation}
+\input{chapter-04-inequalities}
+\input{chapter-05-convergence}
+\input{chapter-06-models}
+\input{chapter-07-cdf}
+\input{chapter-08-bootstrap}
+\input{chapter-09-parametric}
+\input{chapter-10-testing}
+\input{chapter-11-bayes}
+\input{chapter-12-decision}
+\input{chapter-13-regression}
+\input{chapter-14-multivariate}
+\input{chapter-15-independence}
+\input{chapter-16-causal}
+\input{chapter-17-dag}
+\input{chapter-18-ug}
+\input{chapter-19-loglinear}
+\input{chapter-20-curve}
+\input{chapter-21-orthogonal}
+\input{chapter-22-classification}
+\input{chapter-23-process}
+\input{chapter-24-simulation}
+
+\end{document}
