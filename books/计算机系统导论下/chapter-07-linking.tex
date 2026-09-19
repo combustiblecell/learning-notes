@@ -407,3 +407,95 @@ $\operatorname{FirstDef}$ 返回搜索顺序中第一个定义，故程序中的
 加载时：磁盘上的 $P$ 只部分链接，$\operatorname{mmap}$ 与 $\operatorname{Reloc}_{\mathrm{dyn}}$ 在进 \code{main} 前把 \code{.so} 焊进进程内存。
 运行时：\code{dlopen}/\code{dlsym} 按路径与字符串把库映射进已在执行的进程。
 库打桩在这三层分别用宏、\code{ld --wrap}、\code{LD\_PRELOAD} 改 $\operatorname{Resolve}$ 的像，从而截获 \code{malloc} 等调用。
+
+\section{练习}
+
+原书第~7~章在小结之后为家庭作业，章内另有标号练习题。
+本节只整理课堂已做的练习题~7.9、家庭作业~7.15，以及 Ubuntu~24.04、gcc~13、默认 PIE 上机测得的数；
+不补写未做的其余家庭作业。
+
+对可重定位文件 \code{main.o}，\code{nm} 在已定义符号旁给出的整数是该符号在所属节内的偏移，不是进程虚拟地址。
+输入是一个 \code{.o} 的符号表条目，输出是三元组 $(\textit{bind},\textit{sect},\textit{off})$：
+$\textit{bind}$ 为 \code{T}/\code{D}/\code{U} 等绑定字母，$\textit{sect}$ 为 \code{.text} 或 \code{.data}，$\textit{off}$ 为节内字节编号且常从 $0$ 起。
+$\textit{off}$ 的含义是「本模块里从节起点数多少字节」，取值范围是该节长度以内；
+\code{U} 表示本模块只有引用、没有定义，因此没有 $\textit{off}$。
+函数内自动变量不进入该表。
+
+链接生成 \code{prog} 后，\code{objdump -d} 左边一列是链接地址 $\operatorname{ADDR}_{\mathrm{link}}(s)$，即以可执行文件映像起点为 $0$ 的字节编号。
+默认 PIE 下运行时虚拟地址为
+\[
+\operatorname{ADDR}_{\mathrm{run}}(s)=B+\operatorname{ADDR}_{\mathrm{link}}(s),
+\]
+输入是加载基址 $B$ 与链接地址，输出仍是虚拟地址；$B$ 由 ASLR 抽取，故 $\operatorname{ADDR}_{\mathrm{run}}$ 每次运行可变。
+上机中 \code{lea 0x2ed3(\%rip),\%rdi} 的下一条指令在 $0\texttt{x}113\texttt{d}$，位移字段为小端四字节 $\texttt{d3 2e 00 00}$，即
+\[
+\operatorname{disp}=0\texttt{x}2\texttt{ed}3,
+\qquad
+\operatorname{ADDR}_{\mathrm{link}}(\texttt{array})=0\texttt{x}113\texttt{d}+0\texttt{x}2\texttt{ed}3=0\texttt{x}4010.
+\]
+左边 $\operatorname{disp}$ 是有符号字节位移，不是地址；右边 $0\texttt{x}4010$ 是 \code{array} 的链接地址。
+该处类型为 \code{R\_X86\_64\_PC32}，指令里保存的是 $\operatorname{disp}$ 而非把 $0\texttt{x}4010$ 整段写入立即数。
+
+对 \code{call}，位移 $0\texttt{x}5$ 满足
+\[
+(\texttt{call 的下一条地址})+0\texttt{x}5=\operatorname{ADDR}_{\mathrm{link}}(\texttt{sum}),
+\]
+故 $0\texttt{x}5$ 同样不是 \code{sum} 的绝对地址。
+
+静态库 \code{libvector.a} 用 $\lvert\operatorname{ar}(-t)\rvert$ 计数成员：输入是归档，输出是其中 \code{.o} 的个数。
+该数是打包进去的模块个数，不是运行时调用次数。
+链接器只抽出当时未定义集合 $U$ 所需要的成员，故库中可同时有 \code{addvec.o} 与 \code{multvec.o}，而 \code{prog2c} 只含前者。
+命令行从左到右扫描：库出现在引用它的 \code{.o} 之前则扫描时 $U=\emptyset$，报 \code{undefined reference}。
+
+运行时链接的输入是路径字符串 $p$ 与符号名字符串 $n$，
+\[
+h=\operatorname{dlopen}(p,\texttt{RTLD\_LAZY}),
+\qquad
+a=\operatorname{dlsym}(h,n),
+\]
+输出 $h$ 为句柄、$a$ 为本次映射中的函数地址。
+可执行文件因此不必在链接命令行出现 \code{libvector.so}，通常只需 \code{-ldl}。
+
+练习题~7.9 的两个模块中，\code{foo6.c} 的 \code{int main()} 是强符号，\code{bar6.c} 的 \code{char main;} 在旧规则下是 COMMON 弱符号。
+成立条件为「一个强符号与若干弱符号同名则选强符号」，于是
+\[
+\operatorname{Resolve}(\texttt{main}_{\mathrm{var}})=\operatorname{DEF}(\texttt{main}_{\mathrm{func}}).
+\]
+输入是两个同名定义，输出是唯一被选中的那一份实体，即函数 \code{main} 的机器码，而不是另开的一字节变量。
+\code{p2} 按 \code{char} 读取该对象，得到的是
+\[
+b=M_{8}[\operatorname{ADDR}(\texttt{main})],
+\qquad
+v=\operatorname{SignExt}_{8\to 32}(b).
+\]
+$b$ 是函数首字节，$v$ 是 \code{printf("\%x")} 打印的整数。
+若 $b<0\texttt{x}80$ 则 $v=b$；若 $b\ge 0\texttt{x}80$ 则 $v$ 的高位全~$1$。
+教材环境 \code{main} 常以 \code{push \%rbp} 开头，其操作码 $b=0\texttt{x}55$，故 $v=0\texttt{x}55$。
+$0\texttt{x}55$ 只是该指令的编码，不是 \code{main} 必须具备的标记；\code{p2} 自身也可以含 \code{push \%rbp}，与打印值无关。
+上机中 \code{main} 在 $0\texttt{x}1149$ 起为 \code{endbr64}（$f3\ 0f\ 1e\ fa$），故 $b=0\texttt{x}f3$、$v=0\texttt{x}fffffff3$；
+\code{push \%rbp} 排在 $0\texttt{x}114d$，不是被读的那一字节。
+\code{p2} 中 \code{movzbl -0x23(\%rip)} 的下一条 RIP 为 $0\texttt{x}116c$，有效地址
+\[
+0\texttt{x}116c+(-0\texttt{x}23)=0\texttt{x}1149=\operatorname{ADDR}(\texttt{main}),
+\]
+与反汇编中 \code{<main>} 起点一致。
+GCC~10 起默认 \code{-fno-common}，未初始化的 \code{char main;} 也是强符号，两个强 \code{main} 使链接报 \code{multiple definition}；
+要复现教材的弱符号合并需显式 \code{-fcommon}。
+
+家庭作业~7.15 在本机测得：\code{libc.a} 含 $2211$ 个目标文件。
+\code{libm.a} 不是 \code{ar} 归档而是链接脚本
+\[
+\texttt{GROUP}(\texttt{libm-2.39.a},\texttt{libmvec.a}),
+\]
+二者分别含 $801$ 与 $548$ 个 \code{.o}。
+这些整数是归档成员个数，不是某次调用的耗时。
+
+对同一源以 \code{-O2} 与 \code{-O2 -g} 各生成一份可执行文件，测得体积 $16024$ 与 $17984$ 字节，\code{cmp} 自文件前部即不同；
+\code{objdump -d} 的 \code{.text} 除文件名行外相同。
+故 $-g$ 的输入是已优化的指令流，输出是附加的 \code{.debug\_*} 节；体积差来自调试信息，不是 \code{main} 被改写成另一套算法。
+
+\code{ldd} 列出 gcc 驱动程序为该程序记录的共享库。
+\code{libc.so.6} 提供 \code{printf} 等 C 库函数；
+\code{ld-linux-x86-64.so.2} 是动态链接器，加载时把各 \code{.so} 映射进进程并完成动态重定位；
+\code{linux-vdso.so.1} 由内核映射，不对应磁盘文件，用于加速部分系统调用。
+三者的输出都是「这份进程映像依赖哪些动态对象」，不是静态库成员计数。
