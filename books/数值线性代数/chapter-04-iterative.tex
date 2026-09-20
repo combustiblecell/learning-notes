@@ -1,68 +1,174 @@
 \chapter{线性方程组的古典迭代解法}
 
+直接法有限步得到精确解，运算量由 \(n^3\) 主导。
+大规模稀疏组若仍做 \(LU\)，填入会毁掉稀疏性。
+古典迭代把 \(Ax=b\) 改成
+\[
+x^{(k+1)}=Gx^{(k)}+d,
+\]
+每步只做矩阵–向量或三角回代，有限步一般得不到真解 \(x^{*}\)，停机看残差或相邻两步差。
+
 \section{单步线性定常迭代法}
+
+把 \(A\) 写成
+\begin{equation}
+A=D-L-U.
+\end{equation}
+\(D=\operatorname{diag}(a_{11},\ldots,a_{nn})\) 为对角；
+\(L\) 取 \(A\) 严格下三角部分的相反数，\(U\) 取严格上三角部分的相反数。
+要求 \(a_{ii}\neq 0\)。\(L,U\) 的元是非负的当且仅当 \(A\) 的非对角元非正。
 
 \subsection{Jacobi 迭代法}
 
-\pending
+取 \(M=D\)，则
+\begin{equation}
+x^{(k+1)}=D^{-1}(L+U)x^{(k)}+D^{-1}b.
+\end{equation}
+迭代矩阵 \(G_J=D^{-1}(L+U)=I-D^{-1}A\)。
+第 \(i\) 个分量只用上一步的全部未知量：
+\begin{equation}
+x_i^{(k+1)}=\frac{1}{a_{ii}}\Bigl(b_i-\sum_{j\neq i}a_{ij}x_j^{(k)}\Bigr).
+\end{equation}
+输入 \(A\) 的第 \(i\) 行、\(b_i\) 与 \(x^{(k)}\)，输出标量 \(x_i^{(k+1)}\)。各分量彼此独立，可并行。
 
 \subsection{Gauss-Seidel 迭代法}
 
-\pending
+取 \(M=D-L\)，则
+\begin{equation}
+x^{(k+1)}=(D-L)^{-1}Ux^{(k)}+(D-L)^{-1}b.
+\end{equation}
+迭代矩阵 \(G_{\mathrm{GS}}=(D-L)^{-1}U\)。
+算第 \(i\) 个分量时，下标小于 \(i\) 的已换成本步新值：
+\begin{equation}
+x_i^{(k+1)}=\frac{1}{a_{ii}}\Bigl(b_i-\sum_{j<i}a_{ij}x_j^{(k+1)}-\sum_{j>i}a_{ij}x_j^{(k)}\Bigr).
+\end{equation}
+输入本步已更新的 \(x_1^{(k+1)},\ldots,x_{i-1}^{(k+1)}\) 与尚未更新的 \(x_{i+1}^{(k)},\ldots,x_n^{(k)}\)，输出 \(x_i^{(k+1)}\)。
+\(D-L\) 是下三角，每步一次前代，不能像 Jacobi 那样整向量同时更新。
 
 \subsection{单步线性定常迭代法}
 
-\pending
+一般格式是
+\begin{equation}
+x^{(k+1)}=Gx^{(k)}+d,
+\end{equation}
+其中 \(G\in\mathbf{R}^{n\times n}\) 不随 \(k\) 改变（定常），\(d\) 为常向量。
+由分裂 \(A=M-N\) 得到 \(G=M^{-1}N\)、\(d=M^{-1}b\)。
+若极限存在，记 \(x^{*}=\lim x^{(k)}\)，则 \(x^{*}=Gx^{*}+d\)。
+当 \(I-G\) 可逆时，该极限就是 \(Ax=b\) 的解。
+Jacobi、G--S 都是这一格式的特例。
 
 \section{收敛性理论}
 
 \subsection{收敛的充分必要条件}
 
-\pending
+误差 \(e^{(k)}=x^{(k)}-x^{*}\) 满足 \(e^{(k)}=G^k e^{(0)}\)。
+对任意初值 \(x^{(0)}\) 都有 \(x^{(k)}\to x^{*}\)，当且仅当谱半径
+\begin{equation}
+\rho(G)=\max_i\lvert\lambda_i(G)\rvert<1.
+\end{equation}
+\(\rho(G)\) 是 \(G\) 特征值模的最大值，无量纲。\(\rho(G)\ge 1\) 时至少存在一个初值使迭代不收敛。
 
 \subsection{收敛的充分条件及误差估计}
 
-\pending
+任一矩阵范数下 \(\rho(G)\le\lVert G\rVert\)。因此
+\begin{equation}
+\lVert G\rVert<1
+\end{equation}
+是收敛的充分条件（不是必要）。此时
+\begin{equation}
+\lVert e^{(k)}\rVert\le\lVert G\rVert^k\lVert e^{(0)}\rVert,
+\qquad
+\lVert e^{(k)}\rVert\le\frac{\lVert G\rVert}{1-\lVert G\rVert}\lVert x^{(k)}-x^{(k-1)}\rVert.
+\end{equation}
+前式用 \(k\) 步收缩比估计与真解的距离；后式用相邻两步差估计，便于停机。
 
 \subsection{Jacobi 迭代与 G-S 迭代法的收敛性}
 
-\pending
+若 \(A\) 严格对角占优，即
+\[
+\lvert a_{ii}\rvert>\sum_{j\neq i}\lvert a_{ij}\rvert,\qquad i=1,\ldots,n,
+\]
+则 \(\lVert G_J\rVert_{\infty}<1\)、\(\lVert G_{\mathrm{GS}}\rVert_{\infty}<1\)，两种迭代都收敛。
+
+若 \(A\) 对称正定，则 G--S 收敛（Jacobi 还要额外条件，例如 \(2D-A\) 正定）。
+
+若 \(a_{ii}>0\) 且 \(a_{ij}\le 0\)（\(i\neq j\)），则 Jacobi 与 G--S 同收敛或同发散；收敛时 \(\rho(G_{\mathrm{GS}})\le\rho(G_J)<1\)，G--S 不慢于 Jacobi。
 
 \section{收敛速度}
 
 \subsection{平均收敛速度和渐近收敛速度}
 
-\pending
+\(k\) 步平均收敛速度
+\begin{equation}
+R(G^k)=-\ln\bigl(\lVert G^k\rVert^{1/k}\bigr).
+\end{equation}
+渐近收敛速度
+\begin{equation}
+R_{\infty}(G)=-\ln\rho(G).
+\end{equation}
+两者都是正数（当 \(\rho(G)<1\)）；越大越快。主导的是 \(R_{\infty}\)：\(\rho(G)\) 越接近 \(1\)，要达到给定精度所需步数越多。
 
 \subsection{模型问题}
 
-\pending
+单位正方形上 Poisson 方程的五点差分：步长 \(h=1/(m+1)\)，未知量个数 \(n=m^{2}\)。
+系数阵对称正定、稀疏、严格对角占优。这一模型用来比较各迭代法的 \(\rho(G)\) 随 \(h\) 怎样变坏，不是另给一套算法。
 
 \subsection{Jacobi 迭代法和 G-S 迭代法的渐近收敛速度}
 
-\pending
+对该模型，
+\begin{equation}
+\rho(G_J)=\cos(\pi h),\qquad
+\rho(G_{\mathrm{GS}})=\cos^{2}(\pi h)=\rho(G_J)^{2}.
+\end{equation}
+\(h\to 0\) 时两者的谱半径都 \(\to 1\)，速度都变慢；同一网格上 G--S 的渐近速度大约是 Jacobi 的两倍。
 
 \section{超松弛迭代法}
 
 \subsection{迭代格式}
 
-\pending
+在 G--S 新值与旧值之间作加权，松弛因子为 \(\omega\)：
+\begin{equation}
+(D-\omega L)x^{(k+1)}=\bigl[(1-\omega)D+\omega U\bigr]x^{(k)}+\omega b.
+\end{equation}
+分量形式为
+\begin{equation}
+x_i^{(k+1)}=x_i^{(k)}+\frac{\omega}{a_{ii}}\Bigl(b_i-\sum_{j<i}a_{ij}x_j^{(k+1)}-\sum_{j\ge i}a_{ij}x_j^{(k)}\Bigr).
+\end{equation}
+\(\omega=1\) 就是 G--S；\(0<\omega<1\) 称低松弛，\(1<\omega<2\) 称超松弛（SOR）。
+迭代矩阵记为 \(\mathcal L_{\omega}\)。
 
 \subsection{收敛性分析}
 
-\pending
+若 \(A\) 对称正定，则 SOR 对任意初值收敛的充要条件是
+\begin{equation}
+0<\omega<2.
+\end{equation}
+\(\omega\le 0\) 或 \(\omega\ge 2\) 时 \(\rho(\mathcal L_{\omega})\ge 1\)。
 
 \subsection{最佳松弛因子}
 
-\pending
+若 \(A\) 还具有相容次序，且 \(\rho(G_J)<1\)，则
+\begin{equation}
+\omega_{\mathrm{opt}}=\frac{2}{1+\sqrt{1-\rho(G_J)^{2}}}.
+\end{equation}
+\(\omega_{\mathrm{opt}}\in(1,2)\) 是使 \(\rho(\mathcal L_{\omega})\) 最小的松弛因子。模型问题上 \(\rho(G_J)=\cos(\pi h)\)，于是
+\[
+\omega_{\mathrm{opt}}=\frac{2}{1+\sin(\pi h)}.
+\]
 
 \subsection{渐近收敛速度}
 
-\pending
+在上述条件下
+\begin{equation}
+\rho(\mathcal L_{\omega_{\mathrm{opt}}})=\omega_{\mathrm{opt}}-1,
+\end{equation}
+故 \(R_{\infty}(\mathcal L_{\omega_{\mathrm{opt}}})=-\ln(\omega_{\mathrm{opt}}-1)\)。
+网格加密时它仍趋于 \(0\)，但比 G--S 慢得轻得多：G--S 是 \(O(h^{2})\)，最佳 SOR 是 \(O(h)\)。
 
 \subsection{超松弛理论的推广}
 
-\pending
+把一次扫描改成对称的两次（SSOR），或把 \(M\) 取成更一般的三角/块三角分裂，格式仍是单步线性定常 \(x^{(k+1)}=Gx^{(k)}+d\)，收敛仍由 \(\rho(G)<1\) 判定。
+块 Jacobi、块 G--S、块 SOR 只是把 \(D,L,U\) 换成相应的块，分量公式换成块前代。
 
 \section{习题}
 
