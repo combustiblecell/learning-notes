@@ -19,9 +19,9 @@
   - PDF：`books/计算方法与优化/计算方法与优化-学习笔记.pdf`
 
 - 计算机系统导论下
-  - 状态：试作版；第 7 章已充实至库打桩（第 7.10、7.11、7.13、7.15 节）并在小结后收录「练习」；第 7.12、7.14 节与第 8–12 章仅保留原书目录
+  - 状态：试作版；第 7 章已充实至库打桩并收录课堂练习；第 8 章已按 Lecture 14（异常/进程/进程控制）充实，第 8.4.4 节与第 8.5–8.7 节仍待补；第 7.12、7.14 节与第 9–12 章仅保留原书目录
   - 原书版本：*Computer Systems: A Programmer's Perspective* 第三版（Bryant & O'Hallaron, 2015）；中文章节名依机械工业出版社《深入理解计算机系统》第三版
-  - 原书源：CSAPP 第三版目录（官方前言 PDF `csapp.cs.cmu.edu/3e/pieces/preface3e.pdf` 与正文第 7 章）；课堂材料为 15-213 Lecture 13 Linking（2015-10-13）
+  - 原书源：CSAPP 第三版目录与正文第 7–8 章图号；课堂材料为 15-213 Lecture 13 Linking 与 Lecture 14 ECF/Processes
   - LaTeX：`books/计算机系统导论下/main.tex`
   - PDF：`books/计算机系统导论下/计算机系统导论下-学习笔记.pdf`
 
